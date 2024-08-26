@@ -22,9 +22,9 @@ import (
 	"sort"
 
 	"github.com/arcology-network/common-lib/exp/slice"
-	intf "github.com/arcology-network/common-lib/types/storage/common"
-	stgcommcommon "github.com/arcology-network/common-lib/types/storage/common"
-	univalue "github.com/arcology-network/common-lib/types/storage/univalue"
+	intf "github.com/arcology-network/storage-committer/common"
+	stgcommon "github.com/arcology-network/storage-committer/common"
+	univalue "github.com/arcology-network/storage-committer/type/univalue"
 )
 
 // Accumualator is dedicatd to cumulative numeric variables. It check if the value is out of limits defined by
@@ -62,13 +62,13 @@ func (this *Accumulator) CheckMinMax(transitions []*univalue.Univalue) []*Confli
 	// check underflow first
 	underflowed := this.isOutOfLimits(*(transitions)[0].GetPath(), negatives)
 	if underflowed != nil {
-		underflowed.Err = errors.New(stgcommcommon.WARN_OUT_OF_LOWER_LIMIT)
+		underflowed.Err = errors.New(stgcommon.WARN_OUT_OF_LOWER_LIMIT)
 	}
 
 	// check overflow
 	overflowed := this.isOutOfLimits(*(transitions)[0].GetPath(), positives)
 	if overflowed != nil {
-		overflowed.Err = errors.New(stgcommcommon.WARN_OUT_OF_UPPER_LIMIT)
+		overflowed.Err = errors.New(stgcommon.WARN_OUT_OF_UPPER_LIMIT)
 	}
 
 	if overflowed == nil && underflowed == nil {

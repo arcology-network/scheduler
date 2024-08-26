@@ -24,11 +24,12 @@ import (
 	"github.com/arcology-network/common-lib/codec"
 	"github.com/arcology-network/common-lib/exp/deltaset"
 	"github.com/arcology-network/common-lib/exp/slice"
-	eucommon "github.com/arcology-network/common-lib/types"
-	schtype "github.com/arcology-network/common-lib/types/scheduler"
-	stgcommon "github.com/arcology-network/common-lib/types/storage/common"
-	commutative "github.com/arcology-network/common-lib/types/storage/commutative"
-	univalue "github.com/arcology-network/common-lib/types/storage/univalue"
+	commontype "github.com/arcology-network/common-lib/types"
+
+	//  "github.com/arcology-network/scheduler"
+	stgcommon "github.com/arcology-network/storage-committer/common"
+	commutative "github.com/arcology-network/storage-committer/type/commutative"
+	univalue "github.com/arcology-network/storage-committer/type/univalue"
 )
 
 // The callee struct stores the information of a contract function that is called by the EOA initiated transactions.
@@ -49,7 +50,7 @@ type Callee struct {
 func NewCallee(idx uint32, addr []byte, funSign []byte) *Callee {
 	return &Callee{
 		Index:       idx,
-		AddrAndSign: new(codec.Bytes12).FromSlice(schtype.Compact(addr, funSign)),
+		AddrAndSign: new(codec.Bytes12).FromSlice(Compact(addr, funSign)),
 		Except:      [][12]byte{},
 		Deferrable:  false,
 	}
@@ -63,7 +64,7 @@ func (*Callee) IsPropertyPath(path string) bool {
 // The function creates a compact representation of the callee information
 // func (*Callee) Compact(addr []byte, funSign []byte) []byte {
 // 	addr = slice.Clone(addr) // Make sure the original data is not modified
-// 	return append(addr[:schtype.SHORT_CONTRACT_ADDRESS_LENGTH], funSign[:schtype.FUNCTION_SIGNATURE_LENGTH]...)
+// 	return append(addr[:.SHORT_CONTRACT_ADDRESS_LENGTH], funSign[:.FUNCTION_SIGNATURE_LENGTH]...)
 // }
 
 // Convert the transaction to a map of callee information
@@ -103,7 +104,7 @@ func (this *Callee) parseCalleeSignature(path string) string {
 	addrStr = strings.TrimPrefix(addrStr[:idx], "0x")
 
 	addr, _ := hex.DecodeString(addrStr)
-	return string(append(addr[:schtype.SHORT_CONTRACT_ADDRESS_LENGTH], sign...))
+	return string(append(addr[:SHORT_CONTRACT_ADDRESS_LENGTH], sign...))
 }
 
 // Use the transitions to set the callee information
@@ -116,13 +117,13 @@ func (this *Callee) setCalleeInfo(trans []*univalue.Univalue, dict map[string]*C
 		}
 
 		// Set execution method
-		if strings.HasSuffix(*tran.GetPath(), schtype.EXECUTION_METHOD) && tran.Value() != nil {
+		if strings.HasSuffix(*tran.GetPath(), EXECUTION_METHOD) && tran.Value() != nil {
 			flag, _, _ := tran.Value().(stgcommon.Type).Get()
-			calleeInfo.Sequential = flag.([]byte)[0] == schtype.SEQUENTIAL_EXECUTION
+			calleeInfo.Sequential = flag.([]byte)[0] == SEQUENTIAL_EXECUTION
 		}
 
 		// Set the excepted transitions
-		if strings.HasSuffix(*tran.GetPath(), schtype.EXECUTION_EXCEPTED) {
+		if strings.HasSuffix(*tran.GetPath(), EXECUTION_EXCEPTED) {
 			subPaths, _, _ := tran.Value().(*commutative.Path).Get()
 			subPathSet := subPaths.(*deltaset.DeltaSet[string])
 			for _, subPath := range subPathSet.Elements() {
@@ -132,7 +133,7 @@ func (this *Callee) setCalleeInfo(trans []*univalue.Univalue, dict map[string]*C
 		}
 
 		// Set the Deferrable value
-		if strings.HasSuffix(*tran.GetPath(), schtype.DEFERRED_FUNC) && tran.Value() != nil {
+		if strings.HasSuffix(*tran.GetPath(), DEFERRED_FUNC) && tran.Value() != nil {
 			flag, _, _ := tran.Value().(stgcommon.Type).Get()
 			calleeInfo.Deferrable = flag.([]byte)[0] > 0
 		}
@@ -199,28 +200,28 @@ func (Callees) Decode(buffer []byte) interface{} {
 	return Callees(callees)
 }
 
-func (Callees) From(addr []byte, funSigns ...[]byte) [][schtype.CALLEE_ID_LENGTH]byte {
-	callees := make([][schtype.CALLEE_ID_LENGTH]byte, len(funSigns))
+func (Callees) From(addr []byte, funSigns ...[]byte) [][CALLEE_ID_LENGTH]byte {
+	callees := make([][CALLEE_ID_LENGTH]byte, len(funSigns))
 	for i, funSign := range funSigns {
 		callees[i] = new(codec.Bytes12).FromSlice(
-			schtype.Compact(addr, funSign),
+			Compact(addr, funSign),
 		)
 	}
 	return callees
 }
 
 // Get the callee key from a message
-func ToKey(msg *eucommon.StandardMessage) string {
+func ToKey(msg *commontype.StandardMessage) string {
 	if (*msg.Native).To == nil {
 		return ""
 	}
 
 	if len(msg.Native.Data) == 0 {
-		return string((*msg.Native.To)[:schtype.FUNCTION_SIGNATURE_LENGTH])
+		return string((*msg.Native.To)[:FUNCTION_SIGNATURE_LENGTH])
 	}
-	return schtype.CallToKey((*msg.Native.To)[:], msg.Native.Data[:schtype.FUNCTION_SIGNATURE_LENGTH])
+	return CallToKey((*msg.Native.To)[:], msg.Native.Data[:FUNCTION_SIGNATURE_LENGTH])
 }
 
 // func CallToKey(addr []byte, funSign []byte) string {
-// 	return string(addr[:schtype.FUNCTION_SIGNATURE_LENGTH]) + string(funSign[:schtype.FUNCTION_SIGNATURE_LENGTH])
+// 	return string(addr[:.FUNCTION_SIGNATURE_LENGTH]) + string(funSign[:.FUNCTION_SIGNATURE_LENGTH])
 // }

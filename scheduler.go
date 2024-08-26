@@ -26,7 +26,6 @@ import (
 	mapi "github.com/arcology-network/common-lib/exp/map"
 	slice "github.com/arcology-network/common-lib/exp/slice"
 	eucommon "github.com/arcology-network/common-lib/types"
-	schtype "github.com/arcology-network/common-lib/types/scheduler"
 )
 
 // const (
@@ -82,7 +81,7 @@ func (this *Scheduler) Import(rawCallees []*Callee) []*Callee {
 // The function will find the index of the entry by its address and signature.
 // If the entry is found, the index will be returned. If the entry is not found, the index will be added to the scheduler.
 func (this *Scheduler) Find(addr [20]byte, sig [4]byte) (uint32, *Callee, bool) {
-	lftKey := string(append(addr[:schtype.SHORT_CONTRACT_ADDRESS_LENGTH], sig[:]...)) // Join the address and signature to create a unique key.
+	lftKey := string(append(addr[:SHORT_CONTRACT_ADDRESS_LENGTH], sig[:]...)) // Join the address and signature to create a unique key.
 	idx, ok := this.calleeDict[lftKey]
 	if !ok {
 		idx = uint32(len(this.callees))
@@ -242,7 +241,7 @@ func (this *Scheduler) Prefilter(stdMsgs []*eucommon.StandardMessage) (*Schedule
 	pairs := slice.ParallelTransform(stdMsgs, 8, func(i int, msg *eucommon.StandardMessage) *associative.Pair[uint32, *eucommon.StandardMessage] {
 		// key := string(append(slice.Clone((*msg.Native.To)[:])[:SHORT_CONTRACT_ADDRESS_LENGTH], msg.Native.Data[:4]...))
 
-		key := schtype.Compact((*msg.Native.To)[:], msg.Native.Data[:])
+		key := Compact((*msg.Native.To)[:], msg.Native.Data[:])
 		idx, ok := this.calleeDict[string(key)]
 		if !ok {
 			idx = math.MaxUint32 // The callee is new.

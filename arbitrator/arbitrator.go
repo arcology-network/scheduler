@@ -22,9 +22,8 @@ import (
 
 	common "github.com/arcology-network/common-lib/common"
 	"github.com/arcology-network/common-lib/exp/slice"
-	stgcommcommon "github.com/arcology-network/common-lib/types/storage/common"
-	univalue "github.com/arcology-network/common-lib/types/storage/univalue"
-	// github.com/arcology-network/common-lib/types/storage/common
+	stgcommon "github.com/arcology-network/storage-committer/common"
+	univalue "github.com/arcology-network/storage-committer/type/univalue"
 )
 
 type Arbitrator struct {
@@ -87,7 +86,7 @@ func (this *Arbitrator) Detect(groupIDs []uint32, newTrans []*univalue.Univalue)
 				self:    newTrans[ranges[i]].GetTx(),
 				groupID: groupIDs[ranges[i]+offset : ranges[i+1]],
 				txIDs:   conflictTxs,
-				Err:     errors.New(stgcommcommon.WARN_ACCESS_CONFLICT),
+				Err:     errors.New(stgcommon.WARN_ACCESS_CONFLICT),
 			},
 		)
 
