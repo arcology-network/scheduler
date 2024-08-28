@@ -6,13 +6,13 @@ replace github.com/ethereum/go-ethereum v1.14.8 => ../concurrent-evm/
 
 replace github.com/arcology-network/common-lib => ../common-lib/
 
-// replace github.com/arcology-network/evm-adaptor => ../evm-adaptor/
-
 replace github.com/arcology-network/storage-committer => ../storage-committer/
 
 require (
-	github.com/arcology-network/common-lib v1.9.1-0.20240526090033-4c2ee0f20f15
+	github.com/arcology-network/common-lib v1.9.1-0.20240828101906-f4d64ec48d31
 	github.com/arcology-network/storage-committer v0.0.0-00010101000000-000000000000
+	// github.com/arcology-network/storage-committer v1.9.1-0.20240828141250-a029e6dc7b7e
+	// github.com/arcology-network/common-lib v1.9.1-0.20240828101906-f4d64ec48d31
 	github.com/ethereum/go-ethereum v1.14.8
 )
 
