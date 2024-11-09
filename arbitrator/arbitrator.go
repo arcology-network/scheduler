@@ -27,17 +27,17 @@ import (
 )
 
 type Arbitrator struct {
-	groupIDs    []uint32
+	groupIDs    []uint64
 	transitions []*univalue.Univalue
 }
 
-func (this *Arbitrator) Insert(groupIDs []uint32, newTrans []*univalue.Univalue) int {
+func (this *Arbitrator) Insert(groupIDs []uint64, newTrans []*univalue.Univalue) int {
 	this.transitions = append(this.transitions, newTrans...)
 	this.groupIDs = append(this.groupIDs, groupIDs...)
 	return len(this.groupIDs)
 }
 
-func (this *Arbitrator) Detect(groupIDs []uint32, newTrans []*univalue.Univalue) []*Conflict {
+func (this *Arbitrator) Detect(groupIDs []uint64, newTrans []*univalue.Univalue) []*Conflict {
 	if this.Insert(groupIDs, newTrans) == 0 {
 		return []*Conflict{}
 	}
@@ -75,7 +75,7 @@ func (this *Arbitrator) Detect(groupIDs []uint32, newTrans []*univalue.Univalue)
 			continue
 		}
 
-		conflictTxs := []uint32{}
+		conflictTxs := []uint64{}
 		slice.Foreach(newTrans[ranges[i]+offset:ranges[i+1]], func(_ int, v **univalue.Univalue) {
 			conflictTxs = append(conflictTxs, (*v).GetTx())
 		})

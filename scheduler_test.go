@@ -20,21 +20,18 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"math/big"
-	"math/rand"
 	"os"
-	"sort"
 	"strconv"
 	"testing"
 	"time"
 
-	mapi "github.com/arcology-network/common-lib/exp/map"
 	slice "github.com/arcology-network/common-lib/exp/slice"
 	eucommon "github.com/arcology-network/common-lib/types"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	ethcore "github.com/ethereum/go-ethereum/core"
 )
 
-func TestSchedulerAdd(t *testing.T) {
+func TestSchedulerAddAndLoadConflicts(t *testing.T) {
 	file := "./tmp/history"
 	os.Remove(file) // Clean up the file if it exists
 
@@ -86,7 +83,40 @@ func TestSchedulerAdd(t *testing.T) {
 	os.Remove(file)
 }
 
-func TestScheduler(t *testing.T) {
+func TestSchedulerNoConflictWithDeferred(t *testing.T) {
+	scheduler, _ := NewScheduler("", true) // No conflict db file.
+
+	alice := []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+	aaddr := ethcommon.BytesToAddress(alice)
+
+	callAlice0 := &eucommon.StandardMessage{
+		ID:     0,
+		Native: &ethcore.Message{To: &aaddr, Data: []byte{5, 5, 5, 5, 0, 0, 0, 0}},
+	}
+
+	callAlice1 := &eucommon.StandardMessage{
+		ID:     1,
+		Native: &ethcore.Message{To: &aaddr, Data: []byte{5, 5, 5, 5, 1, 1, 1, 1}},
+	}
+
+	callAlice2 := &eucommon.StandardMessage{
+		ID:     2,
+		Native: &ethcore.Message{To: &aaddr, Data: []byte{5, 5, 5, 5, 2, 2, 2, 2}},
+	}
+
+	// Produce a new schedule for the given transactions based on the conflicts information.
+	rawSch := scheduler.New([]*eucommon.StandardMessage{
+		callAlice0,
+		callAlice1,
+		callAlice2,
+	})
+
+	if optimized := rawSch.Optimize(); len(optimized) != 2 || len(optimized[0]) != 2 || len(optimized[1]) != 1 {
+		t.Error("Wrong generation size", optimized[0], optimized[1])
+	}
+}
+
+func TestSchedulerWithConflicInfo(t *testing.T) {
 	scheduler, _ := NewScheduler("", true) // No conflict db file.
 
 	alice := []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
@@ -94,8 +124,13 @@ func TestScheduler(t *testing.T) {
 	carol := []byte("cccccccccccccccccccccccccccccccccccccccc")
 	david := []byte("dddddddddddddddddddddddddddddddddddddddd")
 
-	scheduler.Add([20]byte(alice), [4]byte{1, 1, 1, 1}, [20]byte(bob), [4]byte{2, 2, 2, 2})
-	scheduler.Add([20]byte(carol), [4]byte{3, 3, 3, 3}, [20]byte(david), [4]byte{4, 4, 4, 4})
+	scheduler.Add(
+		[20]byte(alice), [4]byte{1, 1, 1, 1},
+		[20]byte(bob), [4]byte{2, 2, 2, 2})
+
+	scheduler.Add(
+		[20]byte(carol), [4]byte{3, 3, 3, 3},
+		[20]byte(david), [4]byte{4, 4, 4, 4})
 
 	aaddr := ethcommon.BytesToAddress(alice)
 	callAlice := &eucommon.StandardMessage{
@@ -134,21 +169,25 @@ func TestScheduler(t *testing.T) {
 	}
 
 	// Produce a new schedule for the given transactions based on the conflicts information.
+	// There should be 2 generations in the schedule.
+	// 1. [Transfer], [deployment]
+	// 2. [Alice, Carol]
+	// 3. [Bob, David]
 	rawSch := scheduler.New([]*eucommon.StandardMessage{
-		callAlice,
+		callAlice, // Conflict with callCarol
 		callBob,
-		callCarol,
+		callCarol, // Conflict with callAlice
 		callDavid,
 		deployment0,
 		transfer,
 	})
 
 	if len(rawSch.Generations) != 2 || len(rawSch.Generations[0]) != 2 || len(rawSch.Generations[1]) != 2 {
-		t.Error("Wrong generation size")
+		t.Error("Wrong generation size", len(rawSch.Generations))
 	}
 
-	if optimized := rawSch.Optimize(); len(optimized) != 3 || len(optimized[0]) != 2 || len(optimized[1]) != 2 {
-		t.Error("Wrong generation size")
+	if optimized := rawSch.Optimize(); len(optimized) != 2 || len(optimized[0]) != 2 || len(optimized[1]) != 2 {
+		t.Error("Wrong optimized generation size", len(optimized))
 	}
 
 	// Check that the schedule is correct.
@@ -166,23 +205,4 @@ func TestScheduler(t *testing.T) {
 	t0 := time.Now()
 	scheduler.New(msgs)
 	fmt.Println("Scheduler", len(msgs), time.Since(t0))
-}
-
-func TestMapBinarySearchComparison(t *testing.T) {
-	arr := slice.NewDo[int](1000000, func(_ int) int { return rand.Intn(1000000) })
-
-	t0 := time.Now()
-	m := mapi.FromSlice(arr, func(int) bool { return true })
-	v := false
-	for i := 0; i < len(arr); i++ {
-		v = m[i]
-	}
-	fmt.Println("Map", time.Since(t0), v)
-
-	t0 = time.Now()
-	sort.Ints(arr)
-	for i := 0; i < len(arr); i++ {
-		sort.SearchInts(arr, i)
-	}
-	fmt.Println("Binary", time.Since(t0), v)
 }

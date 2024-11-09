@@ -28,8 +28,9 @@ type Schedule struct {
 	Unknows      []*eucommon.StandardMessage // Messages with unknown conflicts with others
 	WithConflict []*eucommon.StandardMessage // Messages with some known conflicts
 	Sequentials  []*eucommon.StandardMessage // Callees that are marked as sequential only
-	Generations  [][]*eucommon.StandardMessage
-	CallCounts   []map[string]int
+
+	Generations [][]*eucommon.StandardMessage
+	CallCounts  []map[string]int
 }
 
 // The function outputs the optimized schedule. The shedule is a 3 dimensional array.
@@ -37,30 +38,49 @@ type Schedule struct {
 // parallel transaction arrays. These arrays are the transactions that can be executed in parallel.
 // The third dimension is the transactions in the sequntial order.
 func (this *Schedule) Optimize() [][][]*eucommon.StandardMessage {
-	sch := [][][]*eucommon.StandardMessage{{ // Transfers and deployments will be executed first
-		append(this.Transfers, this.Deployments...),
-		append(this.WithConflict, this.Sequentials...),
+	sch := [][][]*eucommon.StandardMessage{{
+		append(this.Transfers, this.Deployments...),    // Transfers and deployments will be executed first in parallel
+		append(this.WithConflict, this.Sequentials...), // Sequential only ones, can be empty.
 	}}
 
-	sch = append(sch, slice.Transform(this.Unknows, func(_ int, msg *eucommon.StandardMessage) []*eucommon.StandardMessage {
-		return []*eucommon.StandardMessage{msg}
-	}))
+	sch = append(sch, this.Generations)
 
-	for i := 0; i < len(this.Generations); i++ {
-		if i == 0 {
-			this.Generations[i] = append(this.Generations[i], this.Unknows...)
+	// Txs with unknown conflicts will be next. Unknow may also need to schedule deferred calls.
+	if len(this.Unknows) > 0 {
+		_, msgSets := slice.GroupBy(this.Unknows, func(_ int, msg *eucommon.StandardMessage) *string {
+			v := string(Compact(msg.Native.To[:], msg.Native.Data[:]))
+			return &v
+		})
+
+		deferred := []*eucommon.StandardMessage{}
+		for i, msgs := range msgSets {
+			if len(msgs) > 1 {
+				v := slice.PopBack(&msgs) // Use the last message as the deferred call
+				deferred = append(deferred, *v)
+				msgSets[i] = msgs
+			}
 		}
 
-		sch = append(sch, slice.Transform(this.Generations[i], func(_ int, msg *eucommon.StandardMessage) []*eucommon.StandardMessage {
+		// Add the preceeding messages to the schedule
+		unknowsSeq := slice.Transform(slice.Flatten(msgSets), func(_ int, msg *eucommon.StandardMessage) []*eucommon.StandardMessage {
 			return []*eucommon.StandardMessage{msg}
-		}))
+		})
+		sch = append(sch, unknowsSeq)
+
+		// Add deferred calls to the schedule
+		deferredSeq := slice.Transform(deferred, func(_ int, msg *eucommon.StandardMessage) []*eucommon.StandardMessage {
+			return []*eucommon.StandardMessage{msg}
+		})
+		sch = append(sch, deferredSeq)
 	}
 
+	// Remove empty generations if any.
 	slice.RemoveIf(&sch, func(i int, gen [][]*eucommon.StandardMessage) bool {
 		slice.RemoveIf(&gen, func(_ int, msgs []*eucommon.StandardMessage) bool {
 			return len(msgs) == 0
 		})
 		return len(gen) == 0
 	})
+
 	return sch
 }

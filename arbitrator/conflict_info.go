@@ -25,25 +25,25 @@ import (
 
 type Conflict struct {
 	key     string
-	self    uint32
-	groupID []uint32
-	txIDs   []uint32
+	self    uint64
+	groupID []uint64
+	txIDs   []uint64
 	Err     error
 }
 
-func (this Conflict) ToPairs() [][2]uint32 {
-	pairs := make([][2]uint32, 0, len(this.txIDs)*(len(this.txIDs)+1)/2-len(this.txIDs))
+func (this Conflict) ToPairs() [][2]uint64 {
+	pairs := make([][2]uint64, 0, len(this.txIDs)*(len(this.txIDs)+1)/2-len(this.txIDs))
 	for i := 0; i < len(this.txIDs); i++ {
-		pairs = append(pairs, [2]uint32{this.self, this.txIDs[i]})
+		pairs = append(pairs, [2]uint64{this.self, this.txIDs[i]})
 	}
 	return pairs
 }
 
 type Conflicts []*Conflict
 
-func (this Conflicts) ToDict() (map[uint32]uint64, map[uint32]uint64, [][2]uint32) {
-	txDict := make(map[uint32]uint64)
-	groupIDdict := make(map[uint32]uint64)
+func (this Conflicts) ToDict() (map[uint64]uint64, map[uint64]uint64, [][2]uint64) {
+	txDict := make(map[uint64]uint64)
+	groupIDdict := make(map[uint64]uint64)
 	for _, v := range this {
 		for i := 0; i < len(v.txIDs); i++ {
 			txDict[v.txIDs[i]] += 1
@@ -62,8 +62,8 @@ func (this Conflicts) Keys() []string {
 	return keys
 }
 
-func (this Conflicts) ToPairs() [][2]uint32 {
-	dict := make(map[[2]uint32]int)
+func (this Conflicts) ToPairs() [][2]uint64 {
+	dict := make(map[[2]uint64]int)
 	for _, v := range this {
 		pairs := v.ToPairs()
 		for _, pair := range pairs {

@@ -29,7 +29,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 1, 0, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
 
 		arib := new(Arbitrator)
-		ids := arib.Detect([]uint32{0, 1}, []*univalue.Univalue{_0})
+		ids := arib.Detect([]uint64{0, 1}, []*univalue.Univalue{_0})
 
 		conflictdict, _, _ := Conflicts(ids).ToDict()
 		if len(conflictdict) != 0 {
@@ -41,7 +41,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 1, 0, 0, noncommutative.NewBytes([]byte{2, 3}), nil)
 
 		arib := new(Arbitrator)
-		ids := arib.Detect([]uint32{0, 1}, []*univalue.Univalue{_0, _1})
+		ids := arib.Detect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
 		conflictdict, _, _ := Conflicts(ids).ToDict()
 		if len(conflictdict) != 0 {
@@ -54,7 +54,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 0, 2, noncommutative.NewBytes([]byte{2, 3}), nil)
 
 		arib := new(Arbitrator)
-		ids := arib.Detect([]uint32{0, 1}, []*univalue.Univalue{_0, _1})
+		ids := arib.Detect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
 		conflictdict, _, _ := Conflicts(ids).ToDict()
 		if len(conflictdict) != 0 {
@@ -68,7 +68,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 2, 0, noncommutative.NewBytes([]byte{2, 3}), nil)
 
 		arib := new(Arbitrator)
-		ids := arib.Detect([]uint32{0, 1}, []*univalue.Univalue{_0, _1})
+		ids := arib.Detect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
 		conflictdict, _, _ := Conflicts(ids).ToDict()
 		if len(conflictdict) != 1 {
@@ -80,10 +80,10 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 2, 0, 2, noncommutative.NewBytes([]byte{1, 2}), nil)
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 2, 0, 0, noncommutative.NewBytes([]byte{2, 3}), nil)
 
-		sorted := univalue.Univalues([]*univalue.Univalue{_0, _1}).Sort([]uint32{0, 1})
+		sorted := univalue.Univalues([]*univalue.Univalue{_0, _1}).Sort([]uint64{0, 1})
 
 		arib := new(Arbitrator)
-		ids := arib.Detect([]uint32{0, 1}, sorted)
+		ids := arib.Detect([]uint64{0, 1}, sorted)
 
 		conflictdict, _, _ := Conflicts(ids).ToDict()
 		if len(conflictdict) != 1 {
@@ -95,10 +95,10 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 2, 0, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 2, 0, 2, noncommutative.NewBytes([]byte{2, 3}), nil)
 
-		sorted := univalue.Univalues([]*univalue.Univalue{_0, _1}).Sort([]uint32{0, 1})
+		sorted := univalue.Univalues([]*univalue.Univalue{_0, _1}).Sort([]uint64{0, 1})
 
 		arib := new(Arbitrator)
-		ids := arib.Detect([]uint32{0, 1}, sorted)
+		ids := arib.Detect([]uint64{0, 1}, sorted)
 
 		conflictdict, _, _ := Conflicts(ids).ToDict()
 		if len(conflictdict) != 1 {
@@ -110,10 +110,10 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 0, 2, noncommutative.NewBytes([]byte{1, 2}), nil)
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 2, 0, 2, noncommutative.NewBytes([]byte{2, 3}), nil)
 
-		sorted := univalue.Univalues([]*univalue.Univalue{_0, _1}).Sort([]uint32{0, 1})
+		sorted := univalue.Univalues([]*univalue.Univalue{_0, _1}).Sort([]uint64{0, 1})
 
 		arib := new(Arbitrator)
-		ids := arib.Detect([]uint32{0, 1}, sorted)
+		ids := arib.Detect([]uint64{0, 1}, sorted)
 
 		conflictdict, _, _ := Conflicts(ids).ToDict()
 		if len(conflictdict) != 1 {
@@ -127,7 +127,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{2, 3}), nil)
 
 		arib := new(Arbitrator)
-		ids := arib.Detect([]uint32{0, 1}, []*univalue.Univalue{_0, _1})
+		ids := arib.Detect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
 		conflictdict, _, _ := Conflicts(ids).ToDict()
 		if len(conflictdict) != 1 {
@@ -141,7 +141,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{2, 3}), nil)
 
 		arib := new(Arbitrator)
-		ids := arib.Detect([]uint32{0, 1}, []*univalue.Univalue{_0, _1})
+		ids := arib.Detect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
 		conflictdict, _, _ := Conflicts(ids).ToDict()
 		if len(conflictdict) != 1 {
@@ -155,7 +155,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 2, 0, 0, noncommutative.NewBytes([]byte{2, 3}), nil)
 
 		arib := new(Arbitrator)
-		ids := arib.Detect([]uint32{0, 1}, []*univalue.Univalue{_0, _1})
+		ids := arib.Detect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
 		conflictdict, _, _ := Conflicts(ids).ToDict()
 		if len(conflictdict) != 1 {
@@ -168,7 +168,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{2, 3}), nil)
 
 		arib := new(Arbitrator)
-		ids := arib.Detect([]uint32{0, 1}, []*univalue.Univalue{_0, _1})
+		ids := arib.Detect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
 		conflictdict, _, _ := Conflicts(ids).ToDict()
 		if len(conflictdict) != 1 {
@@ -181,7 +181,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 2, 2, 1, noncommutative.NewBytes([]byte{2, 3}), nil)
 
 		arib := new(Arbitrator)
-		ids := arib.Detect([]uint32{0, 1}, []*univalue.Univalue{_0, _1})
+		ids := arib.Detect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
 		conflictdict, _, _ := Conflicts(ids).ToDict()
 		if len(conflictdict) != 1 {
