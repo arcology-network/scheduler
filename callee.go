@@ -40,7 +40,7 @@ type Callee struct {
 	AddrAndSign [12]byte   // Short address of the callee, first 8 bytes from the function + signature [4]byte
 	Indices     []uint32   // Indices of the conflicting callee indices.
 	Sequential  bool       // A sequential / parallel only calls
-	Except      [][12]byte // Sequntial or Paralle call exceptions
+	Except      [][12]byte // Sequntial or Paralle call exception the following ones.
 
 	Calls      uint32 // Total number of calls
 	AvgGas     uint32 // Average gas used
@@ -58,7 +58,7 @@ func NewCallee(idx uint32, addr []byte, funSign []byte) *Callee {
 
 func (*Callee) IsPropertyPath(path string) bool {
 	return len(path) > stgcommon.ETH10_ACCOUNT_FULL_LENGTH &&
-		strings.Contains(path[stgcommon.ETH10_ACCOUNT_FULL_LENGTH:], "/func/")
+		strings.Contains(path[stgcommon.ETH10_ACCOUNT_FULL_LENGTH:], stgcommon.ETH10_FUNC_PROPERTY_PREFIX)
 }
 
 // The function creates a compact representation of the callee information
@@ -104,7 +104,7 @@ func (this *Callee) parseCalleeSignature(path string) string {
 	addrStr = strings.TrimPrefix(addrStr[:idx], "0x")
 
 	addr, _ := hex.DecodeString(addrStr)
-	return string(append(addr[:SHORT_CONTRACT_ADDRESS_LENGTH], sign...))
+	return string(append(addr[:stgcommon.SHORT_CONTRACT_ADDRESS_LENGTH], sign...))
 }
 
 // Use the transitions to set the callee information
@@ -117,13 +117,13 @@ func (this *Callee) setCalleeInfo(trans []*univalue.Univalue, dict map[string]*C
 		}
 
 		// Set execution method
-		if strings.HasSuffix(*tran.GetPath(), EXECUTION_METHOD) && tran.Value() != nil {
+		if strings.HasSuffix(*tran.GetPath(), stgcommon.EXECUTION_METHOD) && tran.Value() != nil {
 			flag, _, _ := tran.Value().(stgcommon.Type).Get()
-			calleeInfo.Sequential = flag.([]byte)[0] == SEQUENTIAL_EXECUTION
+			calleeInfo.Sequential = flag.([]byte)[0] == stgcommon.SEQUENTIAL_EXECUTION
 		}
 
 		// Set the excepted transitions
-		if strings.HasSuffix(*tran.GetPath(), EXECUTION_EXCEPTED) {
+		if strings.HasSuffix(*tran.GetPath(), stgcommon.EXECUTION_EXCEPTED) {
 			subPaths, _, _ := tran.Value().(*commutative.Path).Get()
 			subPathSet := subPaths.(*deltaset.DeltaSet[string])
 			for _, subPath := range subPathSet.Elements() {
@@ -133,7 +133,7 @@ func (this *Callee) setCalleeInfo(trans []*univalue.Univalue, dict map[string]*C
 		}
 
 		// Set the Deferrable value
-		if strings.HasSuffix(*tran.GetPath(), DEFERRED_FUNC) && tran.Value() != nil {
+		if strings.HasSuffix(*tran.GetPath(), stgcommon.DEFERRED_FUNC) && tran.Value() != nil {
 			flag, _, _ := tran.Value().(stgcommon.Type).Get()
 			calleeInfo.Deferrable = flag.([]byte)[0] > 0
 		}
@@ -200,8 +200,8 @@ func (Callees) Decode(buffer []byte) interface{} {
 	return Callees(callees)
 }
 
-func (Callees) From(addr []byte, funSigns ...[]byte) [][CALLEE_ID_LENGTH]byte {
-	callees := make([][CALLEE_ID_LENGTH]byte, len(funSigns))
+func (Callees) From(addr []byte, funSigns ...[]byte) [][stgcommon.CALLEE_ID_LENGTH]byte {
+	callees := make([][stgcommon.CALLEE_ID_LENGTH]byte, len(funSigns))
 	for i, funSign := range funSigns {
 		callees[i] = new(codec.Bytes12).FromSlice(
 			Compact(addr, funSign),
@@ -217,9 +217,9 @@ func ToKey(msg *commontype.StandardMessage) string {
 	}
 
 	if len(msg.Native.Data) == 0 {
-		return string((*msg.Native.To)[:FUNCTION_SIGNATURE_LENGTH])
+		return string((*msg.Native.To)[:stgcommon.FUNCTION_SIGNATURE_LENGTH])
 	}
-	return CallToKey((*msg.Native.To)[:], msg.Native.Data[:FUNCTION_SIGNATURE_LENGTH])
+	return CallToKey((*msg.Native.To)[:], msg.Native.Data[:stgcommon.FUNCTION_SIGNATURE_LENGTH])
 }
 
 // func CallToKey(addr []byte, funSign []byte) string {

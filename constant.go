@@ -19,31 +19,18 @@
 // that shareed by other packages.
 package scheduler
 
-import "github.com/arcology-network/common-lib/exp/slice"
+import (
+	"github.com/arcology-network/common-lib/exp/slice"
 
-const (
-	SHORT_CONTRACT_ADDRESS_LENGTH = 8 //8 bytes for address
-	FUNCTION_SIGNATURE_LENGTH     = 4 // 4 bytes for signature
-	CALLEE_ID_LENGTH              = SHORT_CONTRACT_ADDRESS_LENGTH + FUNCTION_SIGNATURE_LENGTH
-	MAX_CONFLICT_RATIO            = 0.5
-	MAX_NUM_CONFLICTS             = 256
-
-	PROPERTY_PATH        = "func/"
-	PROPERTY_PATH_LENGTH = len(PROPERTY_PATH)
-	EXECUTION_METHOD     = "execution"
-	EXECUTION_EXCEPTED   = "except/"
-	DEFERRED_FUNC        = "defer"
-
-	PARALLEL_EXECUTION   = uint8(0) // The default method
-	SEQUENTIAL_EXECUTION = uint8(255)
+	stgcommon "github.com/arcology-network/storage-committer/common"
 )
 
 func CallToKey(addr []byte, funSign []byte) string {
-	return string(addr[:FUNCTION_SIGNATURE_LENGTH]) + string(funSign[:FUNCTION_SIGNATURE_LENGTH])
+	return string(addr[:stgcommon.FUNCTION_SIGNATURE_LENGTH]) + string(funSign[:stgcommon.FUNCTION_SIGNATURE_LENGTH])
 }
 
 // The function creates a compact representation of the callee information
 func Compact(addr []byte, funSign []byte) []byte {
 	addr = slice.Clone(addr) // Make sure the original data is not modified
-	return append(addr[:SHORT_CONTRACT_ADDRESS_LENGTH], funSign[:FUNCTION_SIGNATURE_LENGTH]...)
+	return append(addr[:stgcommon.SHORT_CONTRACT_ADDRESS_LENGTH], funSign[:stgcommon.FUNCTION_SIGNATURE_LENGTH]...)
 }

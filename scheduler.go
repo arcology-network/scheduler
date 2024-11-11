@@ -18,18 +18,20 @@
 package scheduler
 
 import (
+	"encoding/hex"
 	"math"
 	"sort"
+	"strings"
 
-	"github.com/arcology-network/common-lib/codec"
 	associative "github.com/arcology-network/common-lib/exp/associative"
 	mapi "github.com/arcology-network/common-lib/exp/map"
 	slice "github.com/arcology-network/common-lib/exp/slice"
 	eucommon "github.com/arcology-network/common-lib/types"
+	stgcommon "github.com/arcology-network/storage-committer/common"
+	"github.com/arcology-network/storage-committer/type/univalue"
 )
 
 type Scheduler struct {
-	fildb          string
 	calleeDict     map[string]uint32 // A calleeDict table to find the index of a calleeDict by its address + signature.
 	callees        []*Callee
 	deferByDefault bool // If the scheduler should schedule the deferred transactions by default.
@@ -39,32 +41,30 @@ type Scheduler struct {
 // instructs the scheduler to schedule the deferred transactions if it is true.
 func NewScheduler(fildb string, deferByDefault bool) (*Scheduler, error) {
 	return &Scheduler{
-		fildb:          fildb,
 		calleeDict:     make(map[string]uint32),
 		deferByDefault: deferByDefault,
 	}, nil
 }
 
-// Add a deferred function to the scheduler.
-func (this *Scheduler) Import(rawCallees []*Callee) []*Callee {
-	length := len(this.callees)
-	for _, callee := range rawCallees {
-		lftAddr := new(codec.Bytes20).FromBytes(callee.AddrAndSign[:8])
-		lftSign := new(codec.Bytes4).FromBytes(callee.AddrAndSign[8:])
+func (this *Scheduler) Import(propertyTransitions []*univalue.Univalue) {
+	for _, tran := range propertyTransitions {
+		path := *tran.GetPath()
+		acctStr := path[stgcommon.ETH10_ACCOUNT_PREFIX_LENGTH:stgcommon.ETH10_ACCOUNT_FULL_LENGTH]
+		acctBytes, _ := hex.DecodeString(acctStr)
 
-		for _, rgtAddrAndSign := range callee.Except {
-			rgtAddr := new(codec.Bytes20).FromBytes(rgtAddrAndSign[:8])
-			rgtSign := new(codec.Bytes4).FromBytes(rgtAddrAndSign[8:])
-			this.Add(lftAddr, lftSign, rgtAddr, rgtSign)
+		funcSign := path[stgcommon.ETH10_ACCOUNT_FULL_LENGTH+stgcommon.PROPERTY_PATH_LENGTH : stgcommon.ETH10_ACCOUNT_FULL_LENGTH+stgcommon.PROPERTY_PATH_LENGTH+stgcommon.FUNCTION_SIGNATURE_LENGTH]
+		_, callee, _ := this.Find([20]byte(acctBytes), [4]byte([]byte(funcSign)))
+
+		if strings.Contains(path[stgcommon.ETH10_ACCOUNT_FULL_LENGTH:], stgcommon.PROPERTY_PATH) {
+			callee.Deferrable = true
 		}
 	}
-	return this.callees[length:]
 }
 
 // The function will find the index of the entry by its address and signature.
 // If the entry is found, the index will be returned. If the entry is not found, the index will be added to the scheduler.
 func (this *Scheduler) Find(addr [20]byte, sig [4]byte) (uint32, *Callee, bool) {
-	lftKey := string(append(addr[:SHORT_CONTRACT_ADDRESS_LENGTH], sig[:]...)) // Join the address and signature to create a unique key.
+	lftKey := string(append(addr[:stgcommon.SHORT_CONTRACT_ADDRESS_LENGTH], sig[:]...)) // Join the address and signature to create a unique key.
 	idx, ok := this.calleeDict[lftKey]
 	if !ok {
 		idx = uint32(len(this.callees))
