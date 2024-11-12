@@ -66,7 +66,6 @@ func TestCallee(t *testing.T) {
 		}
 	}
 
-	t0 := time.Now()
 	for i := 0; i < numCalls; i++ {
 		encoded, err := callees[i].Encode()
 		if err != nil {
@@ -79,7 +78,6 @@ func TestCallee(t *testing.T) {
 			t.Error("Failed to encode/decode")
 		}
 	}
-	t.Log("Time Spent to encode / Decode :", numCalls, time.Since(t0))
 }
 
 func BenchmarkTestCallee(t *testing.B) {

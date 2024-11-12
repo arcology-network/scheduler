@@ -111,7 +111,7 @@ func TestSchedulerNoConflictWithDeferred(t *testing.T) {
 		callAlice2,
 	})
 
-	if optimized := rawSch.Optimize(); len(optimized) != 2 || len(optimized[0]) != 2 || len(optimized[1]) != 1 {
+	if optimized := rawSch.Optimize(scheduler); len(optimized) != 2 || len(optimized[0]) != 2 || len(optimized[1]) != 1 {
 		t.Error("Wrong generation size", optimized[0], optimized[1])
 	}
 }
@@ -186,7 +186,7 @@ func TestSchedulerWithConflicInfo(t *testing.T) {
 		t.Error("Wrong generation size", len(rawSch.Generations))
 	}
 
-	if optimized := rawSch.Optimize(); len(optimized) != 2 || len(optimized[0]) != 2 || len(optimized[1]) != 2 {
+	if optimized := rawSch.Optimize(scheduler); len(optimized) != 2 || len(optimized[0]) != 2 || len(optimized[1]) != 2 {
 		t.Error("Wrong optimized generation size", len(optimized))
 	}
 

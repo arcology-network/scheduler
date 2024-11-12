@@ -61,83 +61,58 @@ func (*Callee) IsPropertyPath(path string) bool {
 		strings.Contains(path[stgcommon.ETH10_ACCOUNT_FULL_LENGTH:], stgcommon.ETH10_FUNC_PROPERTY_PREFIX)
 }
 
-// The function creates a compact representation of the callee information
-// func (*Callee) Compact(addr []byte, funSign []byte) []byte {
-// 	addr = slice.Clone(addr) // Make sure the original data is not modified
-// 	return append(addr[:.SHORT_CONTRACT_ADDRESS_LENGTH], funSign[:.FUNCTION_SIGNATURE_LENGTH]...)
-// }
-
-// Convert the transaction to a map of callee information
-func (this *Callee) ToCallee(trans []*univalue.Univalue) map[string]*Callee {
-	propTrans := slice.MoveIf(&trans, func(_ int, v *univalue.Univalue) bool {
-		return new(Callee).IsPropertyPath(*v.GetPath())
-	})
-
-	dict := map[string]*Callee{}
-	for _, v := range propTrans {
-		addrAndSign := this.parseCalleeSignature(*v.GetPath())
-		if _, ok := dict[addrAndSign]; len(addrAndSign) != 0 && !ok {
-			calleeInfo := &Callee{}
-			calleeInfo.AddrAndSign = new(codec.Bytes12).FromBytes([]byte(addrAndSign))
-			dict[addrAndSign] = calleeInfo
-		}
-	}
-	this.setCalleeInfo(propTrans, dict)
-	return dict
-}
-
 // Extract the callee signature from the path string
-func (this *Callee) parseCalleeSignature(path string) string {
+func (this *Callee) parseCalleeSignature(path string) (string, []byte, []byte) {
 	idx := strings.Index(path, stgcommon.ETH10_FUNC_PROPERTY_PREFIX)
 	if idx == len(path) {
-		return ""
+		return "", []byte{}, []byte{}
 	}
 
 	fullPath := path[idx+len(stgcommon.ETH10_FUNC_PROPERTY_PREFIX):]
 	sign, _ := hex.DecodeString(fullPath)
 
 	if len(sign) == 0 {
-		return ""
+		return "", []byte{}, []byte{}
 	}
 	addrStr := path[stgcommon.ETH10_ACCOUNT_PREFIX_LENGTH:]
 	idx = strings.Index(addrStr, "/")
 	addrStr = strings.TrimPrefix(addrStr[:idx], "0x")
 
 	addr, _ := hex.DecodeString(addrStr)
-	return string(append(addr[:stgcommon.SHORT_CONTRACT_ADDRESS_LENGTH], sign...))
+	return string(append(addr[:stgcommon.SHORT_CONTRACT_ADDRESS_LENGTH], sign...)),
+		addr, sign
 }
 
-// Use the transitions to set the callee information
-func (this *Callee) setCalleeInfo(trans []*univalue.Univalue, dict map[string]*Callee) {
-	for _, tran := range trans {
-		addrAndSign := this.parseCalleeSignature(*tran.GetPath())
-		calleeInfo := dict[addrAndSign]
-		if calleeInfo == nil {
-			continue
+// Initialize from a univalue
+func (this *Callee) init(trans ...*univalue.Univalue) {
+	for _, v := range trans {
+		if this == nil {
+			return
 		}
 
 		// Set execution method
-		if strings.HasSuffix(*tran.GetPath(), stgcommon.EXECUTION_METHOD) && tran.Value() != nil {
-			flag, _, _ := tran.Value().(stgcommon.Type).Get()
-			calleeInfo.Sequential = flag.([]byte)[0] == stgcommon.SEQUENTIAL_EXECUTION
+		if strings.HasSuffix(*v.GetPath(), stgcommon.EXECUTION_METHOD) && v.Value() != nil {
+			flag, _, _ := v.Value().(stgcommon.Type).Get()
+			this.Sequential = flag.([]byte)[0] == stgcommon.SEQUENTIAL_EXECUTION
 		}
 
 		// Set the excepted transitions
-		if strings.HasSuffix(*tran.GetPath(), stgcommon.EXECUTION_EXCEPTED) {
-			subPaths, _, _ := tran.Value().(*commutative.Path).Get()
-			subPathSet := subPaths.(*deltaset.DeltaSet[string])
+		if strings.HasSuffix(*v.GetPath(), stgcommon.EXECUTION_EXCEPTED) {
+			subPaths, _, _ := v.Value().(*commutative.Path).Get()
+			subPathSet := subPaths.(*deltaset.DeltaSet[string]) // Get all the conflicting ones.
 			for _, subPath := range subPathSet.Elements() {
 				k := new(codec.Bytes12).FromBytes([]byte(subPath))
-				calleeInfo.Except = append(calleeInfo.Except, k)
+				this.Except = append(this.Except, k)
 			}
 		}
 
 		// Set the Deferrable value
-		if strings.HasSuffix(*tran.GetPath(), stgcommon.DEFERRED_FUNC) && tran.Value() != nil {
-			flag, _, _ := tran.Value().(stgcommon.Type).Get()
-			calleeInfo.Deferrable = flag.([]byte)[0] > 0
+		if strings.HasSuffix(*v.GetPath(), stgcommon.DEFERRED_FUNC) && v.Value() != nil {
+			flag, _, _ := v.Value().(stgcommon.Type).Get()
+			this.Deferrable = flag.([]byte)[0] > 0
 		}
 	}
+
 }
 
 // 10x faster and 2x smaller than json marshal/unmarshal

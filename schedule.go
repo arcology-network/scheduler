@@ -37,7 +37,7 @@ type Schedule struct {
 // The first dimension is the generation number. The second dimension is a set of
 // parallel transaction arrays. These arrays are the transactions that can be executed in parallel.
 // The third dimension is the transactions in the sequntial order.
-func (this *Schedule) Optimize() [][][]*eucommon.StandardMessage {
+func (this *Schedule) Optimize(scheduler *Scheduler) [][][]*eucommon.StandardMessage {
 	sch := [][][]*eucommon.StandardMessage{{
 		append(this.Transfers, this.Deployments...),    // Transfers and deployments will be executed first in parallel
 		append(this.WithConflict, this.Sequentials...), // Sequential only ones, can be empty.
@@ -55,6 +55,17 @@ func (this *Schedule) Optimize() [][][]*eucommon.StandardMessage {
 		deferred := []*eucommon.StandardMessage{}
 		for i, msgs := range msgSets {
 			if len(msgs) > 1 {
+				// Check if a deferred call is needed.
+				key := GenerateKey(msgs[0]) // Key
+				if idx, ok := scheduler.calleeDict[string(key)]; ok {
+					if !scheduler.callees[idx].Deferrable {
+						continue // No deferred call is needed explicitly.
+					}
+				} else {
+					if !scheduler.deferByDefault { // The callee is not found, use the default value in this case.
+						continue
+					}
+				}
 				v := slice.PopBack(&msgs) // Use the last message as the deferred call
 				deferred = append(deferred, *v)
 				msgSets[i] = msgs

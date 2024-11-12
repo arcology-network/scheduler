@@ -18,11 +18,10 @@
 package scheduler
 
 import (
-	"encoding/hex"
 	"math"
 	"sort"
-	"strings"
 
+	"github.com/arcology-network/common-lib/codec"
 	associative "github.com/arcology-network/common-lib/exp/associative"
 	mapi "github.com/arcology-network/common-lib/exp/map"
 	slice "github.com/arcology-network/common-lib/exp/slice"
@@ -47,17 +46,10 @@ func NewScheduler(fildb string, deferByDefault bool) (*Scheduler, error) {
 }
 
 func (this *Scheduler) Import(propertyTransitions []*univalue.Univalue) {
-	for _, tran := range propertyTransitions {
-		path := *tran.GetPath()
-		acctStr := path[stgcommon.ETH10_ACCOUNT_PREFIX_LENGTH:stgcommon.ETH10_ACCOUNT_FULL_LENGTH]
-		acctBytes, _ := hex.DecodeString(acctStr)
-
-		funcSign := path[stgcommon.ETH10_ACCOUNT_FULL_LENGTH+stgcommon.PROPERTY_PATH_LENGTH : stgcommon.ETH10_ACCOUNT_FULL_LENGTH+stgcommon.PROPERTY_PATH_LENGTH+stgcommon.FUNCTION_SIGNATURE_LENGTH]
-		_, callee, _ := this.Find([20]byte(acctBytes), [4]byte([]byte(funcSign)))
-
-		if strings.Contains(path[stgcommon.ETH10_ACCOUNT_FULL_LENGTH:], stgcommon.PROPERTY_PATH) {
-			callee.Deferrable = true
-		}
+	for _, v := range propertyTransitions {
+		_, addr, sign := new(Callee).parseCalleeSignature(*v.GetPath())
+		_, callee, _ := this.Find(codec.Bytes20{}.FromBytes(addr[:]), codec.Bytes4{}.FromSlice(sign[:]))
+		callee.init(v)
 	}
 }
 
@@ -203,8 +195,12 @@ func (this *Scheduler) ScheduleDeferred(paraMsgInfo *associative.Pairs[uint32, *
 		// If the first and last index of the same callee are different, then
 		// more than one instance of the same callee is there.
 		if first != last && this.deferByDefault {
-			deferredMsgs = append(deferredMsgs, *deferred)
-			slice.RemoveAt(paraMsgInfo.Slice(), last) // Move the last call to the second generation as a deferred call.
+			key := Compact((*paraMsgInfo)[i].Second.Native.To[:], (*paraMsgInfo)[i].Second.Native.Data[:])
+
+			if v, ok := this.calleeDict[string(key)]; ok && this.callees[v].Deferrable {
+				deferredMsgs = append(deferredMsgs, *deferred)
+				slice.RemoveAt(paraMsgInfo.Slice(), last) // Move the last call to the second generation as a deferred call.
+			}
 		}
 	}
 	return deferredMsgs
@@ -262,3 +258,22 @@ func (this *Scheduler) StaticSchedule(stdMsgs []*eucommon.StandardMessage) (*Sch
 
 	return sch, pairs
 }
+
+// // Convert the transaction to a map of callee information
+// func (this *Scheduler) TransToCallees(trans []*univalue.Univalue) map[string]*Callee {
+// 	propTrans := slice.MoveIf(&trans, func(_ int, v *univalue.Univalue) bool {
+// 		return new(Callee).IsPropertyPath(*v.GetPath())
+// 	})
+
+// 	dict := map[string]*Callee{}
+// 	for _, v := range propTrans {
+// 		addrAndSign := this.parseCalleeSignature(*v.GetPath())
+// 		if _, ok := dict[addrAndSign]; len(addrAndSign) != 0 && !ok {
+// 			calleeInfo := &Callee{}
+// 			calleeInfo.AddrAndSign = new(codec.Bytes12).FromBytes([]byte(addrAndSign))
+// 			dict[addrAndSign] = calleeInfo
+// 		}
+// 	}
+// 	this.setCalleeInfo(propTrans, dict)
+// 	return dict
+// }

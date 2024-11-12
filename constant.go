@@ -21,6 +21,7 @@ package scheduler
 
 import (
 	"github.com/arcology-network/common-lib/exp/slice"
+	eucommon "github.com/arcology-network/common-lib/types"
 
 	stgcommon "github.com/arcology-network/storage-committer/common"
 )
@@ -32,5 +33,12 @@ func CallToKey(addr []byte, funSign []byte) string {
 // The function creates a compact representation of the callee information
 func Compact(addr []byte, funSign []byte) []byte {
 	addr = slice.Clone(addr) // Make sure the original data is not modified
+	return append(addr[:stgcommon.SHORT_CONTRACT_ADDRESS_LENGTH], funSign[:stgcommon.FUNCTION_SIGNATURE_LENGTH]...)
+}
+
+// The function creates a compact representation of the callee information
+func GenerateKey(msg *eucommon.StandardMessage) []byte {
+	addr := msg.Native.To[:] // Make sure the original data is not modified
+	funSign := msg.Native.Data[:]
 	return append(addr[:stgcommon.SHORT_CONTRACT_ADDRESS_LENGTH], funSign[:stgcommon.FUNCTION_SIGNATURE_LENGTH]...)
 }
