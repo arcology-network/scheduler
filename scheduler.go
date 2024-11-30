@@ -258,22 +258,3 @@ func (this *Scheduler) StaticSchedule(stdMsgs []*eucommon.StandardMessage) (*Sch
 
 	return sch, pairs
 }
-
-// // Convert the transaction to a map of callee information
-// func (this *Scheduler) TransToCallees(trans []*univalue.Univalue) map[string]*Callee {
-// 	propTrans := slice.MoveIf(&trans, func(_ int, v *univalue.Univalue) bool {
-// 		return new(Callee).IsPropertyPath(*v.GetPath())
-// 	})
-
-// 	dict := map[string]*Callee{}
-// 	for _, v := range propTrans {
-// 		addrAndSign := this.parseCalleeSignature(*v.GetPath())
-// 		if _, ok := dict[addrAndSign]; len(addrAndSign) != 0 && !ok {
-// 			calleeInfo := &Callee{}
-// 			calleeInfo.AddrAndSign = new(codec.Bytes12).FromBytes([]byte(addrAndSign))
-// 			dict[addrAndSign] = calleeInfo
-// 		}
-// 	}
-// 	this.setCalleeInfo(propTrans, dict)
-// 	return dict
-// }

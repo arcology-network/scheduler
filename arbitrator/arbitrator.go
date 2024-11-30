@@ -56,17 +56,30 @@ func (this *Arbitrator) Detect(groupIDs []uint64, newTrans []*univalue.Univalue)
 		}
 
 		offset := int(1)
-		if newTrans[ranges[i]].Writes() == 0 { // Whyen write == 0, there are only two possibilities: 1. delta write only; 2. read only
+		if newTrans[ranges[i]].Writes() == 0 {
+			// Whyen write == 0, there are only 3 possibilities:
+			// 1. delta write only
+			// 2. read only
+			// 3. idempotent write (delete for now)
 			subTrans := newTrans[ranges[i]+1 : ranges[i+1]]
 
-			if newTrans[ranges[i]].IsReadOnly() || newTrans[ranges[i]].IsDeltaWriteOnly() { // Read delta write
-				if newTrans[ranges[i]].IsReadOnly() { // Read only
+			// Read / delta write / delete only
+			if newTrans[ranges[i]].IsReadOnly() || newTrans[ranges[i]].IsDeltaWriteOnly() || newTrans[ranges[i]].IsDeleteOnly() {
+				// Read only
+				if newTrans[ranges[i]].IsReadOnly() {
 					offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsReadOnly() })
 				}
 
-				if newTrans[ranges[i]].IsDeltaWriteOnly() { // Delta write only
+				// Delta write only
+				if newTrans[ranges[i]].IsDeltaWriteOnly() {
 					offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsDeltaWriteOnly() })
 				}
+
+				// Delete only
+				if newTrans[ranges[i]].IsDeleteOnly() { // Delta write only
+					offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsDeleteOnly() })
+				}
+
 				offset = common.IfThen(offset < 0, ranges[i+1]-ranges[i], offset+1) // offset == -1 means no conflict found
 			}
 		}
