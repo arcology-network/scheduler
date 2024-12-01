@@ -64,7 +64,18 @@ func (this *Arbitrator) Detect(groupIDs []uint64, newTrans []*univalue.Univalue)
 			subTrans := newTrans[ranges[i]+1 : ranges[i+1]]
 
 			// Read / delta write / delete only
-			if newTrans[ranges[i]].IsReadOnly() || newTrans[ranges[i]].IsDeltaWriteOnly() || newTrans[ranges[i]].IsDeleteOnly() {
+			if newTrans[ranges[i]].IsReadOnly() || newTrans[ranges[i]].IsDeltaWriteOnly() || newTrans[ranges[i]].IsDeleteOnly() || newTrans[ranges[i]].IsCommutativeWriteOnly() {
+
+				// To skip the numeric commutative writes as long as there is no reads.
+				if newTrans[ranges[i]].IsCommutativeWriteOnly() {
+					offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsCommutativeWriteOnly() })
+				}
+
+				// Read only
+				if newTrans[ranges[i]].IsReadOnly() {
+					offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsReadOnly() })
+				}
+
 				// Read only
 				if newTrans[ranges[i]].IsReadOnly() {
 					offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsReadOnly() })
