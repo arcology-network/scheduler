@@ -116,6 +116,39 @@ func TestSchedulerNoConflictWithDeferred(t *testing.T) {
 	}
 }
 
+func TestSchedulerNoConflictWithoutDeferred(t *testing.T) {
+	scheduler, _ := NewScheduler("", false) // No conflict db file.
+
+	alice := []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+	aaddr := ethcommon.BytesToAddress(alice)
+
+	callAlice0 := &eucommon.StandardMessage{
+		ID:     0,
+		Native: &ethcore.Message{To: &aaddr, Data: []byte{5, 5, 5, 5, 0, 0, 0, 0}},
+	}
+
+	callAlice1 := &eucommon.StandardMessage{
+		ID:     1,
+		Native: &ethcore.Message{To: &aaddr, Data: []byte{5, 5, 5, 5, 1, 1, 1, 1}},
+	}
+
+	callAlice2 := &eucommon.StandardMessage{
+		ID:     2,
+		Native: &ethcore.Message{To: &aaddr, Data: []byte{5, 5, 5, 5, 2, 2, 2, 2}},
+	}
+
+	// Produce a new schedule for the given transactions based on the conflicts information.
+	rawSch := scheduler.New([]*eucommon.StandardMessage{
+		callAlice0,
+		callAlice1,
+		callAlice2,
+	})
+
+	if optimized := rawSch.Optimize(scheduler); len(optimized) != 1 || len(optimized[0]) != 3 {
+		t.Error("Wrong generation size", optimized[0])
+	}
+}
+
 func TestSchedulerWithConflicInfo(t *testing.T) {
 	scheduler, _ := NewScheduler("", true) // No conflict db file.
 
