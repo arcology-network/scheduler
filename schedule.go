@@ -29,7 +29,7 @@ type Schedule struct {
 	WithConflict []*eucommon.StandardMessage // Messages with some known conflicts
 	Sequentials  []*eucommon.StandardMessage // Callees that are marked as sequential only
 
-	Generations [][]*eucommon.StandardMessage
+	Generations [][][]*eucommon.StandardMessage
 	CallCounts  []map[string]int
 }
 
@@ -38,12 +38,14 @@ type Schedule struct {
 // parallel transaction arrays. These arrays are the transactions that can be executed in parallel.
 // The third dimension is the transactions in the sequntial order.
 func (this *Schedule) Optimize(scheduler *Scheduler) [][][]*eucommon.StandardMessage {
+
+	//  Transfers + deployments can be executed in parallel with withConflict + sequentials.
 	sch := [][][]*eucommon.StandardMessage{{
 		append(this.Transfers, this.Deployments...),    // Transfers and deployments will be executed first in parallel
 		append(this.WithConflict, this.Sequentials...), // Sequential only ones, can be empty.
 	}}
 
-	sch = append(sch, this.Generations)
+	sch = append(sch, this.Generations...)
 
 	// Txs with unknown conflicts will be next. Unknow may also need to schedule deferred calls.
 	if len(this.Unknows) > 0 {
@@ -56,15 +58,17 @@ func (this *Schedule) Optimize(scheduler *Scheduler) [][][]*eucommon.StandardMes
 		for i, msgs := range msgSets {
 			if len(msgs) > 1 {
 				// Check if a deferred call is needed.
-				key := GenerateKey(msgs[0]) // Key
-				if idx, ok := scheduler.calleeDict[string(key)]; ok {
-					if !scheduler.callees[idx].Deferrable {
-						continue // No deferred call is needed explicitly.
+				key := GenerateKey(msgs[i])                           // Key
+				if idx, ok := scheduler.calleeDict[string(key)]; ok { // If a known callee is found.
+					if !scheduler.callees[idx].Deferrable { // Check if the callee is specifically marked as deferrable.
+						continue // No, skip this one.
 					}
+					// Schedule the deferred call
 				} else {
 					if !scheduler.deferByDefault { // The callee is not found, use the default value in this case.
 						continue
 					}
+					// Schedule the deferred call
 				}
 				v := slice.PopBack(&msgs) // Use the last message as the deferred call
 				deferred = append(deferred, *v)

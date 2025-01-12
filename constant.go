@@ -38,7 +38,7 @@ func Compact(addr []byte, funSign []byte) []byte {
 
 // The function creates a compact representation of the callee information
 func GenerateKey(msg *eucommon.StandardMessage) []byte {
-	addr := msg.Native.To[:] // Make sure the original data is not modified
+	addr := slice.Clone(msg.Native.To[:]) // Make sure the original data is not modified
 	funSign := msg.Native.Data[:]
 	return append(addr[:stgcommon.SHORT_CONTRACT_ADDRESS_LENGTH], funSign[:stgcommon.FUNCTION_SIGNATURE_LENGTH]...)
 }

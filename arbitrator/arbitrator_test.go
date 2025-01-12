@@ -24,6 +24,19 @@ import (
 	univalue "github.com/arcology-network/storage-committer/type/univalue"
 )
 
+func TestArbiDoubleDelete(t *testing.T) { // Delta writes only, should be no conflict
+	_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
+	_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
+
+	arib := new(Arbitrator)
+	ids := arib.Detect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+
+	conflictdict, _, _ := Conflicts(ids).ToDict()
+	if len(conflictdict) != 0 {
+		t.Error("Error: There should be NO conflict")
+	}
+}
+
 func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 	t.Run("one entry", func(t *testing.T) { // Reads only, should be no conflict
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 1, 0, 0, noncommutative.NewBytes([]byte{1, 2}), nil)

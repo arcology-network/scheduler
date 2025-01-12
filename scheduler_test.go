@@ -202,7 +202,7 @@ func TestSchedulerWithConflicInfo(t *testing.T) {
 	}
 
 	// Produce a new schedule for the given transactions based on the conflicts information.
-	// There should be 2 generations in the schedule.
+	// There should be 3 generations in the schedule.
 	// 1. [Transfer], [deployment]
 	// 2. [Alice, Carol]
 	// 3. [Bob, David]
@@ -219,7 +219,7 @@ func TestSchedulerWithConflicInfo(t *testing.T) {
 		t.Error("Wrong generation size", len(rawSch.Generations))
 	}
 
-	if optimized := rawSch.Optimize(scheduler); len(optimized) != 2 || len(optimized[0]) != 2 || len(optimized[1]) != 2 {
+	if optimized := rawSch.Optimize(scheduler); len(optimized) != 3 || len(optimized[0]) != 2 || len(optimized[1]) != 2 {
 		t.Error("Wrong optimized generation size", len(optimized))
 	}
 
