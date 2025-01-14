@@ -49,6 +49,9 @@ func NewScheduler(fildb string, deferByDefault bool) (*Scheduler, error) {
 func (this *Scheduler) Import(propertyTransitions []*univalue.Univalue) {
 	for _, v := range propertyTransitions {
 		_, addr, sign := new(Callee).parseCalleeSignature(*v.GetPath())
+		if len(addr) == 0 || len(sign) == 0 {
+			continue
+		}
 		_, callee, _ := this.Find(codec.Bytes20{}.FromBytes(addr[:]), codec.Bytes4{}.FromSlice(sign[:]))
 		callee.init(v)
 	}
@@ -69,15 +72,19 @@ func (this *Scheduler) Find(addr [20]byte, sig [4]byte) (uint32, *Callee, bool) 
 
 // Add a conflict pair to the scheduler
 func (this *Scheduler) Add(lftAddr [20]byte, lftSig [4]byte, rgtAddr [20]byte, rgtSig [4]byte) bool {
-	lftIdx, _, lftExist := this.Find(lftAddr, lftSig)
-	rgtIdx, _, rgtExist := this.Find(rgtAddr, rgtSig)
+	lftIdx, _, _ := this.Find(lftAddr, lftSig)
+	rgtIdx, _, _ := this.Find(rgtAddr, rgtSig)
 
-	if lftExist && rgtExist {
-		return false // The conflict pair is already recorded.
+	if !slice.Contains(this.callees[lftIdx].Indices, rgtIdx, func(a uint32, b uint32) bool {
+		return a == b
+	}) {
+		this.callees[lftIdx].Indices = append(this.callees[lftIdx].Indices, rgtIdx)
 	}
-
-	this.callees[lftIdx].Indices = append(this.callees[lftIdx].Indices, rgtIdx)
-	this.callees[rgtIdx].Indices = append(this.callees[rgtIdx].Indices, lftIdx)
+	if !slice.Contains(this.callees[rgtIdx].Indices, lftIdx, func(a uint32, b uint32) bool {
+		return a == b
+	}) {
+		this.callees[rgtIdx].Indices = append(this.callees[rgtIdx].Indices, lftIdx)
+	}
 	return true
 }
 
@@ -117,25 +124,30 @@ func (this *Scheduler) New(stdMsgs []*eucommon.StandardMessage) *Schedule {
 		// Load the conflict dictionary with the conflicts of the FIRST callee, from which the search will start.
 		// Add the first callee's conflicts to the conflict dictionary.
 		blacklist := mapi.FromSlice(this.callees[seedCallee.First].Indices, func(k uint32) bool { return true })
-
+		paraMsgIds := mapi.FromSlice(paraMsgs.Firsts(), func(_ uint32) bool {
+			return true
+		})
 		// Look for the parallel transactions that aren't conflicting with the current set of transactions.
 		for i := 0; i < len(msgPairs); i++ {
 			targetMsg := msgPairs[i]
 
 			// The current callee isn't conflicting with any transaction in the unique callee set
-			if !blacklist[targetMsg.First] && !mapi.ContainsAny(blacklist, this.callees[targetMsg.First].Indices) {
+			if !blacklist[targetMsg.First] && !mapi.ContainsAny(paraMsgIds, this.callees[targetMsg.First].Indices) {
 				// Add the new callee's conflicts to the conflict dictionary.
 				mapi.Insert(blacklist, this.callees[targetMsg.First].Indices, func(_ int, k uint32) (uint32, bool) {
 					return k, true
 				})
 
 				paraMsgs = append(paraMsgs, targetMsg) // Add the current callee to the parallel transaction set.
-				slice.RemoveAt(&msgPairs, i)           // Remove the current callee, since it is already in the parallel set.
+				paraMsgIds[targetMsg.First] = true
+				slice.RemoveAt(&msgPairs, i) // Remove the current callee, since it is already in the parallel set.
+				i--
 			}
 		}
 
 		// If it only contains one transaction, then there is no need to continue.
 		if len(paraMsgs) == 1 {
+			sch.WithConflict = append(sch.WithConflict, paraMsgs.Seconds()...)
 			break
 		}
 
@@ -149,7 +161,7 @@ func (this *Scheduler) New(stdMsgs []*eucommon.StandardMessage) *Schedule {
 
 		sch.Generations = append(sch.Generations, paraGen) // Insert the parallel transaction first
 		if len(deferred) > 0 {
-			deferGen := slice.Transform(paraMsgs.Seconds(), func(_ int, msg *eucommon.StandardMessage) []*eucommon.StandardMessage {
+			deferGen := slice.Transform(deferred.Seconds(), func(_ int, msg *eucommon.StandardMessage) []*eucommon.StandardMessage {
 				return []*eucommon.StandardMessage{msg}
 			})
 
@@ -168,7 +180,7 @@ func (this *Scheduler) New(stdMsgs []*eucommon.StandardMessage) *Schedule {
 	})
 
 	// Whatever left in the msgPairs array is the sequential transaction set.
-	sch.WithConflict = (*associative.Pairs[uint32, *eucommon.StandardMessage])(&msgPairs).Seconds()
+	sch.WithConflict = append(sch.WithConflict, (*associative.Pairs[uint32, *eucommon.StandardMessage])(&msgPairs).Seconds()...)
 	return sch
 }
 
@@ -183,26 +195,44 @@ func (this *Scheduler) ScheduleDeferred(paraMsgInfo *associative.Pairs[uint32, *
 	})
 
 	deferredMsgs := associative.Pairs[uint32, *eucommon.StandardMessage]{} // An empty deferred transaction set.
-	for i := 0; i < len(*paraMsgInfo); i++ {
+	i := 0
+
+	first := 0
+	last := 0
+	for {
+
 		// Find the first and last instance of the same callee.
-		first, _ := slice.FindFirstIf(*paraMsgInfo, func(_ int, v *associative.Pair[uint32, *eucommon.StandardMessage]) bool {
+		tmpfirst, _ := slice.FindFirstIf(*paraMsgInfo, func(_ int, v *associative.Pair[uint32, *eucommon.StandardMessage]) bool {
 			return (*paraMsgInfo)[i].First == v.First
 		})
 
 		// Find the first and last instance of the same callee.
-		last, deferred := slice.FindLastIf(*paraMsgInfo, func(_ int, v *associative.Pair[uint32, *eucommon.StandardMessage]) bool {
+		tmplast, deferred := slice.FindLastIf(*paraMsgInfo, func(_ int, v *associative.Pair[uint32, *eucommon.StandardMessage]) bool {
 			return (*paraMsgInfo)[i].First == v.First
 		})
+
+		if last != 0 && last == tmplast {
+			break
+		}
+		first = tmpfirst
+		last = tmplast
 
 		// If the first and last index of the same callee are different, then
 		// more than one instance of the same callee is there.
-		if first != last { // One instance of the callee.
+		// if first != last && this.deferByDefault {
+		if first != last {
 			key := Compact((*paraMsgInfo)[i].Second.Native.To[:], (*paraMsgInfo)[i].Second.Native.Data[:])
 
-			if v, ok := this.calleeDict[string(key)]; (ok && this.callees[v].Deferrable) || this.deferByDefault {
+			if v, ok := this.calleeDict[string(key)]; this.deferByDefault || (ok && this.callees[v].Deferrable) {
 				deferredMsgs = append(deferredMsgs, *deferred)
 				slice.RemoveAt(paraMsgInfo.Slice(), last) // Move the last call to the second generation as a deferred call.
+				i = last
 			}
+		} else {
+			i = last + 1
+		}
+		if i >= len(*paraMsgInfo) {
+			break
 		}
 	}
 	return deferredMsgs
