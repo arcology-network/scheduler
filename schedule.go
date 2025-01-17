@@ -58,7 +58,7 @@ func (this *Schedule) Optimize(scheduler *Scheduler) [][][]*eucommon.StandardMes
 		for i, msgs := range msgSets {
 			if len(msgs) > 1 {
 				// Check if a deferred call is needed.
-				key := GenerateKey(msgs[i])                           // Key
+				key := GenerateKey(msgs[0])                           // Key
 				if idx, ok := scheduler.calleeDict[string(key)]; ok { // If a known callee is found.
 					if !scheduler.callees[idx].Deferrable { // Check if the callee is specifically marked as deferrable.
 						continue // No, skip this one.
