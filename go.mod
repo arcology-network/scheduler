@@ -4,15 +4,14 @@ go 1.22
 
 replace github.com/ethereum/go-ethereum v1.14.8 => ../concurrent-evm/
 
-// replace github.com/arcology-network/common-lib => ../common-lib/
+replace github.com/arcology-network/common-lib => ../common-lib/
 
-// replace github.com/arcology-network/storage-committer => ../storage-committer/
-
-require github.com/ethereum/go-ethereum v1.14.8
+replace github.com/arcology-network/storage-committer => ../storage-committer/
 
 require (
-	github.com/arcology-network/common-lib v1.9.1-0.20250114032930-d9548e98ccd0
-	github.com/arcology-network/storage-committer v1.9.1-0.20250115083055-49b463a27754
+	github.com/arcology-network/common-lib v1.9.1-0.20250310070859-c426a24990fb
+	github.com/arcology-network/storage-committer v1.9.1-0.20250310074249-58b948eb5f8a
+	github.com/ethereum/go-ethereum v1.14.8
 )
 
 require (
