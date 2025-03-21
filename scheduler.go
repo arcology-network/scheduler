@@ -72,14 +72,20 @@ func (this *Scheduler) Find(addr [20]byte, sig [4]byte) (uint32, *Callee, bool) 
 
 // Add a conflict pair to the scheduler
 func (this *Scheduler) Add(lftAddr [20]byte, lftSig [4]byte, rgtAddr [20]byte, rgtSig [4]byte) bool {
-	lftIdx, _, _ := this.Find(lftAddr, lftSig)
-	rgtIdx, _, _ := this.Find(rgtAddr, rgtSig)
+	lftIdx, _, lftFound := this.Find(lftAddr, lftSig)
+	rgtIdx, _, rgtFound := this.Find(rgtAddr, rgtSig)
 
+	if lftFound && rgtFound {
+		return false // Recorded already
+	}
+
+	// If doesn't exist, add the conflict pair to the scheduler.
 	if !slice.Contains(this.callees[lftIdx].Indices, rgtIdx, func(a uint32, b uint32) bool {
 		return a == b
 	}) {
 		this.callees[lftIdx].Indices = append(this.callees[lftIdx].Indices, rgtIdx)
 	}
+
 	if !slice.Contains(this.callees[rgtIdx].Indices, lftIdx, func(a uint32, b uint32) bool {
 		return a == b
 	}) {
