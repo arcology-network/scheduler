@@ -22,8 +22,10 @@ import (
 
 	common "github.com/arcology-network/common-lib/common"
 	"github.com/arcology-network/common-lib/exp/slice"
+	intf "github.com/arcology-network/storage-committer/common"
 	stgcommon "github.com/arcology-network/storage-committer/common"
 	univalue "github.com/arcology-network/storage-committer/type/univalue"
+	"github.com/holiman/uint256"
 )
 
 type Arbitrator struct {
@@ -84,6 +86,18 @@ func (this *Arbitrator) Detect(groupIDs []uint64, newTrans []*univalue.Univalue)
 			// Idempotent write (delete only / new only, for now)
 			if newTrans[ranges[i]].IsDeleteOnly() { // Delta write only
 				offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsDeleteOnly() })
+				offset = common.IfThen(offset < 0, ranges[i+1]-ranges[i], offset+1) // offset == -1 means no conflict found
+			}
+
+			if newTrans[ranges[i]].IsCommutativeWriteOnly() {
+				offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool {
+					flag := v.IsCommutativeWriteOnly()
+					if flag {
+						return newTrans[ranges[i]].Value().(intf.Type).Min().(uint256.Int) != v.Value().(intf.Type).Min().(uint256.Int) ||
+							newTrans[ranges[i]].Value().(intf.Type).Max().(uint256.Int) != v.Value().(intf.Type).Max().(uint256.Int)
+					}
+					return false
+				})
 				offset = common.IfThen(offset < 0, ranges[i+1]-ranges[i], offset+1) // offset == -1 means no conflict found
 			}
 		}

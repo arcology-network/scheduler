@@ -20,13 +20,19 @@ package arbitrator
 import (
 	"testing"
 
+	"github.com/arcology-network/storage-committer/type/commutative"
 	noncommutative "github.com/arcology-network/storage-committer/type/noncommutative"
 	univalue "github.com/arcology-network/storage-committer/type/univalue"
+	"github.com/holiman/uint256"
 )
 
 func TestArbiDoubleDelete(t *testing.T) { // Delta writes only, should be no conflict
-	_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
-	_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
+	v0 := commutative.NewBoundedU256FromU64(1, 100)
+	v0.SetValue(*uint256.NewInt(10))
+	v1 := commutative.NewBoundedU256FromU64(1, 100)
+	v1.SetValue(*uint256.NewInt(20))
+	_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v0, nil)
+	_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v1, nil)
 
 	arib := new(Arbitrator)
 	ids := arib.Detect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
