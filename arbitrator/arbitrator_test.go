@@ -27,20 +27,94 @@ import (
 )
 
 func TestArbiDoubleDelete(t *testing.T) { // Delta writes only, should be no conflict
-	v0 := commutative.NewBoundedU256FromU64(1, 100)
-	v0.SetValue(*uint256.NewInt(10))
-	v1 := commutative.NewBoundedU256FromU64(1, 100)
-	v1.SetValue(*uint256.NewInt(20))
-	_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v0, nil)
-	_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v1, nil)
+	t.Run("delettion vs delettion", func(t *testing.T) {
+		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
+		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
 
-	arib := new(Arbitrator)
-	ids := arib.Detect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+		_0.SetIsDeleted(true)
+		_1.SetIsDeleted(true)
 
-	conflictdict, _, _ := Conflicts(ids).ToDict()
-	if len(conflictdict) != 0 {
-		t.Error("Error: There should be NO conflict")
-	}
+		arib := new(Arbitrator)
+		ids := arib.Detect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+
+		conflictdict, _, _ := Conflicts(ids).ToDict()
+		if len(conflictdict) != 0 {
+			t.Error("Error: There should be NO conflict")
+		}
+	})
+
+	t.Run("write vs write", func(t *testing.T) {
+		v0 := commutative.NewBoundedU256FromU64(1, 100)
+		v0.SetValue(*uint256.NewInt(10))
+		v1 := commutative.NewBoundedU256FromU64(1, 100)
+		v1.SetValue(*uint256.NewInt(20))
+
+		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v0, nil)
+		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v1, nil)
+
+		arib := new(Arbitrator)
+		ids := arib.Detect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+
+		conflictdict, _, _ := Conflicts(ids).ToDict()
+		if len(conflictdict) != 0 {
+			t.Error("Error: There should be NO conflict")
+		}
+	})
+
+	t.Run("Read vs write", func(t *testing.T) {
+		v0 := commutative.NewBoundedU256FromU64(1, 100)
+		v0.SetValue(*uint256.NewInt(10))
+		v1 := commutative.NewBoundedU256FromU64(1, 100)
+		v1.SetValue(*uint256.NewInt(20))
+
+		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 1, 1, 1, v0, nil)
+		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v1, nil)
+
+		arib := new(Arbitrator)
+		ids := arib.Detect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+
+		conflictdict, _, _ := Conflicts(ids).ToDict()
+		if len(conflictdict) != 1 {
+			t.Error("Error: There should be ONE conflict")
+		}
+	})
+
+	t.Run("Read vs delete", func(t *testing.T) {
+		v0 := commutative.NewBoundedU256FromU64(1, 100)
+		v0.SetValue(*uint256.NewInt(10))
+		v1 := commutative.NewBoundedU256FromU64(1, 100)
+		v1.SetValue(*uint256.NewInt(20))
+
+		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 1, 1, 1, v0, nil)
+		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
+
+		arib := new(Arbitrator)
+		ids := arib.Detect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+
+		conflictdict, _, _ := Conflicts(ids).ToDict()
+		if len(conflictdict) != 1 {
+			t.Error("Error: There should be ONE conflict")
+		}
+	})
+
+	t.Run("Read vs delta write", func(t *testing.T) {
+		v0 := commutative.NewBoundedU256FromU64(1, 100)
+		v0.SetValue(*uint256.NewInt(10))
+		v1 := commutative.NewBoundedU256FromU64(1, 100)
+		v1.SetValue(*uint256.NewInt(20))
+
+		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 1, 0, 0, v0, nil)
+		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 0, 1, v1, nil)
+
+		arib := new(Arbitrator)
+		ids := arib.Detect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+
+		conflictdict, _, _ := Conflicts(ids).ToDict()
+		if len(conflictdict) != 1 {
+			t.Error("Error: There should be ONE conflict")
+		}
+	})
+
 }
 
 func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {

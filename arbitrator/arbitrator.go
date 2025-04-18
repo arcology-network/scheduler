@@ -89,9 +89,16 @@ func (this *Arbitrator) Detect(groupIDs []uint64, newTrans []*univalue.Univalue)
 				offset = common.IfThen(offset < 0, ranges[i+1]-ranges[i], offset+1) // offset == -1 means no conflict found
 			}
 
+			// This is a special treatment for commutative initialization only. A commutative initialization can be broken into
+			// two operations: 1. Initialization 2. delta write. but No READ.
+			// Two initializations aren't conflicting if they have the same min/max, because they are commutative.
+			// two delta writes aren't conflicting either. So two initializations with inital values aren't conflicting either.
+			// But if one of them is a read, then it is a conflict.
 			if newTrans[ranges[i]].IsCommutativeWriteOnly() {
 				offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool {
 					flag := v.IsCommutativeWriteOnly()
+
+					// If the input min/max is different, then it is a conflict.
 					if flag {
 						return newTrans[ranges[i]].Value().(intf.Type).Min().(uint256.Int) != v.Value().(intf.Type).Min().(uint256.Int) ||
 							newTrans[ranges[i]].Value().(intf.Type).Max().(uint256.Int) != v.Value().(intf.Type).Max().(uint256.Int)
