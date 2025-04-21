@@ -26,24 +26,8 @@ import (
 	"github.com/holiman/uint256"
 )
 
-func TestArbiDoubleDelete(t *testing.T) { // Delta writes only, should be no conflict
-	t.Run("delettion vs delettion", func(t *testing.T) {
-		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
-		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
-
-		_0.SetIsDeleted(true)
-		_1.SetIsDeleted(true)
-
-		arib := new(Arbitrator)
-		ids := arib.Detect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
-
-		conflictdict, _, _ := Conflicts(ids).ToDict()
-		if len(conflictdict) != 0 {
-			t.Error("Error: There should be NO conflict")
-		}
-	})
-
-	t.Run("write vs write", func(t *testing.T) {
+func TestArbiOnCumulative(t *testing.T) { // Delta writes only, should be no conflict
+	t.Run("init / init", func(t *testing.T) {
 		v0 := commutative.NewBoundedU256FromU64(1, 100)
 		v0.SetValue(*uint256.NewInt(10))
 		v1 := commutative.NewBoundedU256FromU64(1, 100)
@@ -61,7 +45,88 @@ func TestArbiDoubleDelete(t *testing.T) { // Delta writes only, should be no con
 		}
 	})
 
-	t.Run("Read vs write", func(t *testing.T) {
+	t.Run("Nil init / Nil init", func(t *testing.T) {
+		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
+		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
+
+		arib := new(Arbitrator)
+		ids := arib.Detect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+
+		conflictdict, _, _ := Conflicts(ids).ToDict()
+		if len(conflictdict) != 0 {
+			t.Error("Error: There should be NO conflict")
+		}
+	})
+
+	t.Run("Nil init / Delete", func(t *testing.T) {
+		v0 := commutative.NewBoundedU256FromU64(1, 100)
+		v0.SetValue(*uint256.NewInt(10))
+
+		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v0, nil)
+		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
+
+		arib := new(Arbitrator)
+		ids := arib.Detect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+
+		conflictdict, _, _ := Conflicts(ids).ToDict()
+		if len(conflictdict) != 1 {
+			t.Error("Error: There should be ONE conflict")
+		}
+	})
+
+	t.Run("init + write/ init + write", func(t *testing.T) {
+		v0 := commutative.NewBoundedU256FromU64(1, 100)
+		v0.SetValue(*uint256.NewInt(10))
+		v1 := commutative.NewBoundedU256FromU64(1, 100)
+		v1.SetValue(*uint256.NewInt(20))
+
+		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 1, 1, v0, nil)
+		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 1, v1, nil)
+
+		arib := new(Arbitrator)
+		ids := arib.Detect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+
+		conflictdict, _, _ := Conflicts(ids).ToDict()
+		if len(conflictdict) != 0 {
+			t.Error("Error: There should be NO conflict")
+		}
+	})
+
+	t.Run("deletion / deletion", func(t *testing.T) {
+		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
+		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
+
+		_0.SetIsDeleted(true)
+		_1.SetIsDeleted(true)
+
+		arib := new(Arbitrator)
+		ids := arib.Detect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+
+		conflictdict, _, _ := Conflicts(ids).ToDict()
+		if len(conflictdict) != 0 {
+			t.Error("Error: There should be NO conflict")
+		}
+	})
+
+	t.Run("Cumulative write / Cumulative write", func(t *testing.T) {
+		v0 := commutative.NewBoundedU256FromU64(1, 100)
+		v0.SetValue(*uint256.NewInt(10))
+		v1 := commutative.NewBoundedU256FromU64(1, 100)
+		v1.SetValue(*uint256.NewInt(20))
+
+		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v0, nil)
+		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v1, nil)
+
+		arib := new(Arbitrator)
+		ids := arib.Detect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+
+		conflictdict, _, _ := Conflicts(ids).ToDict()
+		if len(conflictdict) != 0 {
+			t.Error("Error: There should be NO conflict")
+		}
+	})
+
+	t.Run("Read / Cumulative write", func(t *testing.T) {
 		v0 := commutative.NewBoundedU256FromU64(1, 100)
 		v0.SetValue(*uint256.NewInt(10))
 		v1 := commutative.NewBoundedU256FromU64(1, 100)
@@ -79,7 +144,7 @@ func TestArbiDoubleDelete(t *testing.T) { // Delta writes only, should be no con
 		}
 	})
 
-	t.Run("Read vs delete", func(t *testing.T) {
+	t.Run("Read+write / Init with nil", func(t *testing.T) {
 		v0 := commutative.NewBoundedU256FromU64(1, 100)
 		v0.SetValue(*uint256.NewInt(10))
 		v1 := commutative.NewBoundedU256FromU64(1, 100)
@@ -97,7 +162,7 @@ func TestArbiDoubleDelete(t *testing.T) { // Delta writes only, should be no con
 		}
 	})
 
-	t.Run("Read vs delta write", func(t *testing.T) {
+	t.Run("Read / delta write", func(t *testing.T) {
 		v0 := commutative.NewBoundedU256FromU64(1, 100)
 		v0.SetValue(*uint256.NewInt(10))
 		v1 := commutative.NewBoundedU256FromU64(1, 100)
@@ -111,10 +176,9 @@ func TestArbiDoubleDelete(t *testing.T) { // Delta writes only, should be no con
 
 		conflictdict, _, _ := Conflicts(ids).ToDict()
 		if len(conflictdict) != 1 {
-			t.Error("Error: There should be ONE conflict")
+			t.Error("Error: There should be ONE conflict, actual:", len(conflictdict))
 		}
 	})
-
 }
 
 func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
@@ -129,7 +193,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 			t.Error("Error: There should be NO conflict")
 		}
 	})
-	t.Run("read & read write", func(t *testing.T) { // Reads only, should be no conflict
+	t.Run("noncommutative read & read noncommutative write", func(t *testing.T) { // Reads only, should be no conflict
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 1, 0, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 1, 0, 0, noncommutative.NewBytes([]byte{2, 3}), nil)
 
@@ -256,7 +320,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 		}
 	})
 
-	t.Run("read-Write & read-write write", func(t *testing.T) { // write vs delta wirte, should be 1 conflict
+	t.Run("read-Write & read-write write", func(t *testing.T) { // write / delta wirte, should be 1 conflict
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 2, 2, 1, noncommutative.NewBytes([]byte{1, 2}), nil)
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{2, 3}), nil)
 
@@ -269,7 +333,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 		}
 	})
 
-	t.Run("read-Write & read-write write", func(t *testing.T) { // write vs delta wirte, should be 1 conflict
+	t.Run("read-Write & read-write write", func(t *testing.T) { // write / delta wirte, should be 1 conflict
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 2, 2, 1, noncommutative.NewBytes([]byte{2, 3}), nil)
 
