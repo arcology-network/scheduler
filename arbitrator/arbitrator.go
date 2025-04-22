@@ -94,29 +94,30 @@ func (this *Arbitrator) Detect(groupIDs []uint64, newTrans []*univalue.Univalue)
 			},
 		)
 
-		// if len(conflicts) > 0 {
-		// 	if newTrans[ranges[i]].Writes() == 0 {
-		// 		if newTrans[ranges[i]].IsDeltaWriteOnly() { // Delta write only
-		// 			offset, _ = slice.FindFirstIf(newTrans[ranges[i]+1:ranges[i+1]],
-		// 				func(_ int, v *univalue.Univalue) bool {
-		// 					return !v.IsDeltaWriteOnly()
-		// 				})
-		// 		} else { // Read only
-		// 			offset, _ = slice.FindFirstIf(newTrans[ranges[i]+1:ranges[i+1]],
-		// 				func(_ int, v *univalue.Univalue) bool {
-		// 					return v.Writes() > 0 || v.DeltaWrites() > 0
-		// 				})
-		// 		}
-		// 		offset = common.IfThen(offset < 0, ranges[i+1]-ranges[i], offset+1) // offset == -1 means no conflict found
-		// 	}
-		// }
+		// Check if the cumulative value is out of limits
+		if len(conflicts) > 0 {
+			if newTrans[ranges[i]].Writes() == 0 {
+				if newTrans[ranges[i]].IsDeltaWriteOnly() { // Delta write only
+					offset, _ = slice.FindFirstIf(newTrans[ranges[i]+1:ranges[i+1]],
+						func(_ int, v *univalue.Univalue) bool {
+							return !v.IsDeltaWriteOnly()
+						})
+				} else { // Read only
+					offset, _ = slice.FindFirstIf(newTrans[ranges[i]+1:ranges[i+1]],
+						func(_ int, v *univalue.Univalue) bool {
+							return v.Writes() > 0 || v.DeltaWrites() > 0
+						})
+				}
+				offset = common.IfThen(offset < 0, ranges[i+1]-ranges[i], offset+1) // offset == -1 means no conflict found
+			}
+		}
 
-		// dict := common.MapFromSlice(conflictTxs, true) //Conflict dict
-		// trans := slice.CopyIf(newTrans[ranges[i]+offset:ranges[i+1]], func(_ int, v *univalue.Univalue) bool { return (*dict)[v.GetTx()] })
+		dict := common.MapFromSlice(conflictTxs, true) //Conflict dict
+		trans := slice.CopyIf(newTrans[ranges[i]+offset:ranges[i+1]], func(_ int, v *univalue.Univalue) bool { return (*dict)[v.GetTx()] })
 
-		// if outOfLimits := (&Accumulator{}).CheckMinMax(trans); outOfLimits != nil {
-		// 	conflicts = append(conflicts, outOfLimits...)
-		// }
+		if outOfLimits := (&Accumulator{}).CheckMinMax(trans); outOfLimits != nil {
+			conflicts = append(conflicts, outOfLimits...)
+		}
 	}
 
 	// if len(conflicts) > 0 {
