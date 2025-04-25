@@ -52,14 +52,14 @@ func (this *Scheduler) Import(propertyTransitions []*univalue.Univalue) {
 		if len(addr) == 0 || len(sign) == 0 {
 			continue
 		}
-		_, callee, _ := this.Find(codec.Bytes20{}.FromBytes(addr[:]), codec.Bytes4{}.FromSlice(sign[:]))
+		_, callee := this.Find(codec.Bytes20{}.FromBytes(addr[:]), codec.Bytes4{}.FromSlice(sign[:]))
 		callee.init(v)
 	}
 }
 
 // The function will find the index of the entry by its address and signature.
 // If the entry is found, the index will be returned. If the entry is not found, the index will be added to the scheduler.
-func (this *Scheduler) Find(addr [20]byte, sig [4]byte) (uint32, *Callee, bool) {
+func (this *Scheduler) Find(addr [20]byte, sig [4]byte) (uint32, *Callee) {
 	lftKey := string(append(addr[:stgcommon.SHORT_CONTRACT_ADDRESS_LENGTH], sig[:]...)) // Join the address and signature to create a unique key.
 	idx, ok := this.calleeDict[lftKey]
 	if !ok {
@@ -67,15 +67,15 @@ func (this *Scheduler) Find(addr [20]byte, sig [4]byte) (uint32, *Callee, bool) 
 		this.callees = append(this.callees, NewCallee(idx, addr[:], sig[:]))
 		this.calleeDict[lftKey] = idx
 	}
-	return idx, this.callees[idx], ok
+	return idx, this.callees[idx]
 }
 
 // Add a conflict pair to the scheduler
 func (this *Scheduler) Add(lftAddr [20]byte, lftSig [4]byte, rgtAddr [20]byte, rgtSig [4]byte) bool {
-	lftIdx, _, lftFound := this.Find(lftAddr, lftSig)
-	rgtIdx, _, rgtFound := this.Find(rgtAddr, rgtSig)
+	lftIdx, lftCallee := this.Find(lftAddr, lftSig)
+	rgtIdx, rgtCallee := this.Find(rgtAddr, rgtSig)
 
-	if lftFound && rgtFound {
+	if lftCallee.IsInConflictList(rgtIdx) && rgtCallee.IsInConflictList(lftIdx) {
 		return false // Recorded already
 	}
 
@@ -96,7 +96,7 @@ func (this *Scheduler) Add(lftAddr [20]byte, lftSig [4]byte, rgtAddr [20]byte, r
 
 // Add a deferred function to the scheduler.
 func (this *Scheduler) AddDeferred(addr [20]byte, funSig [4]byte) {
-	idx, _, _ := this.Find(addr, funSig)
+	idx, _ := this.Find(addr, funSig)
 	this.callees[idx].Deferrable = true
 }
 

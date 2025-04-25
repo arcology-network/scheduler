@@ -19,6 +19,7 @@ package scheduler
 
 import (
 	"encoding/hex"
+	"slices"
 	"strings"
 
 	"github.com/arcology-network/common-lib/codec"
@@ -45,6 +46,11 @@ type Callee struct {
 	Calls      uint32 // Total number of calls
 	AvgGas     uint32 // Average gas used
 	Deferrable bool   // If one of the calls should be deferred to the second generation.
+}
+
+// If the conflict entry is recorded already, return true.
+func (this *Callee) IsInConflictList(idx uint32) bool {
+	return slices.IndexFunc(this.Indices, func(i uint32) bool { return i == idx }) != -1
 }
 
 func NewCallee(idx uint32, addr []byte, funSign []byte) *Callee {
