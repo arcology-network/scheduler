@@ -127,8 +127,8 @@ func (this *Arbitrator) Detect(groupIDs []uint64, newTrans []*univalue.Univalue)
 		}
 	}
 
-	// if len(conflicts) > 0 {
-	// 	fmt.Println("range: ", ranges)
-	// }
+	if len(conflicts) > 0 {
+		Conflicts(conflicts).Print()
+	}
 	return conflicts
 }

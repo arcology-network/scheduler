@@ -42,6 +42,12 @@ func (this Conflict) ToPairs() [][2]uint64 {
 	return pairs
 }
 
+func (this *Conflict) Print() {
+	this.selfTran.Print()
+	fmt.Println(" ----- conflict with ----- ")
+	univalue.Univalues(this.conflictTrans).Print()
+}
+
 type Conflicts []*Conflict
 
 func (this Conflicts) ToDict() (map[uint64]uint64, map[uint64]uint64, [][2]uint64) {
@@ -78,10 +84,7 @@ func (this Conflicts) ToPairs() [][2]uint64 {
 
 func (this Conflicts) Print() {
 	for _, v := range this {
-		fmt.Println(v.txIDs, ": ", v.key)
-		fmt.Println("self: ", v.self)
-		v.selfTran.Print()
-		fmt.Println(" ----- conflict with ----- ")
-		univalue.Univalues(v.conflictTrans).Print()
+		v.Print()
+		fmt.Println()
 	}
 }
