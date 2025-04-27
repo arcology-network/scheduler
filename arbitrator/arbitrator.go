@@ -22,7 +22,6 @@ import (
 
 	common "github.com/arcology-network/common-lib/common"
 	"github.com/arcology-network/common-lib/exp/slice"
-	stgcommon "github.com/arcology-network/storage-committer/common"
 	univalue "github.com/arcology-network/storage-committer/type/univalue"
 )
 
@@ -58,17 +57,23 @@ func (this *Arbitrator) Detect(groupIDs []uint64, newTrans []*univalue.Univalue)
 		first := newTrans[ranges[i]]
 		subTrans := newTrans[ranges[i]+1 : ranges[i+1]]
 
+		var err error
 		var offset int
 		if first.IsReadOnly() { // Read only
 			offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsReadOnly() })
-		} else if first.IsCommutativeInitOnly() { // Initialization of commutative values only
-			offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsCommutativeInitOnly() })
+			err = errors.New("read with non read only")
+		} else if first.IsCommutativeInitOrWriteOnly(first) { // Initialization of commutative values only
+			offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsCommutativeInitOrWriteOnly(first) })
+			err = errors.New("Commutative Initialization with non commutative initialization")
 		} else if first.IsDeltaWriteOnly() { // Delta write only
 			offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsDeltaWriteOnly() })
+			err = errors.New("Delta write with non delta write only")
 		} else if first.IsDeleteOnly() { // Delta write only
 			offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsDeleteOnly() })
+			err = errors.New("Delete with non delete only")
 		} else if first.IsNilInitOnly() { // Initialization with nil only.
 			offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsNilInitOnly() })
+			err = errors.New("Nil initialization with non nil initialization")
 		}
 
 		if offset <= 0 {
@@ -86,11 +91,13 @@ func (this *Arbitrator) Detect(groupIDs []uint64, newTrans []*univalue.Univalue)
 
 		conflicts = append(conflicts,
 			&Conflict{
-				key:     *newTrans[ranges[i]].GetPath(),
-				self:    newTrans[ranges[i]].GetTx(),
-				groupID: groupIDs[ranges[i]+offset : ranges[i+1]],
-				txIDs:   conflictTxs,
-				Err:     errors.New(stgcommon.WARN_ACCESS_CONFLICT),
+				key:           *newTrans[ranges[i]].GetPath(),
+				self:          newTrans[ranges[i]].GetTx(),
+				selfTran:      newTrans[ranges[i]],
+				groupID:       groupIDs[ranges[i]+offset : ranges[i+1]],
+				conflictTrans: newTrans[ranges[i]+offset : ranges[i+1]],
+				txIDs:         conflictTxs,
+				Err:           err,
 			},
 		)
 

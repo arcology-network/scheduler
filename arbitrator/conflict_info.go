@@ -21,14 +21,17 @@ import (
 	"fmt"
 
 	mapi "github.com/arcology-network/common-lib/exp/map"
+	univalue "github.com/arcology-network/storage-committer/type/univalue"
 )
 
 type Conflict struct {
-	key     string
-	self    uint64
-	groupID []uint64
-	txIDs   []uint64
-	Err     error
+	key           string
+	self          uint64
+	groupID       []uint64
+	txIDs         []uint64
+	selfTran      *univalue.Univalue
+	conflictTrans []*univalue.Univalue
+	Err           error
 }
 
 func (this Conflict) ToPairs() [][2]uint64 {
@@ -75,6 +78,10 @@ func (this Conflicts) ToPairs() [][2]uint64 {
 
 func (this Conflicts) Print() {
 	for _, v := range this {
-		fmt.Println(v.key, "      ", v.txIDs)
+		fmt.Println(v.txIDs, ": ", v.key)
+		fmt.Println("self: ", v.self)
+		v.selfTran.Print()
+		fmt.Println(" ----- conflict with ----- ")
+		univalue.Univalues(v.conflictTrans).Print()
 	}
 }

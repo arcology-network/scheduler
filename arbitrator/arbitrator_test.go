@@ -26,7 +26,7 @@ import (
 	"github.com/holiman/uint256"
 )
 
-func TestArbiOnCumulative(t *testing.T) { // Delta writes only, should be no conflict
+func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no conflict
 	t.Run("init / init", func(t *testing.T) {
 		v0 := commutative.NewBoundedU256FromU64(1, 100)
 		v0.SetValue(*uint256.NewInt(10))
@@ -44,6 +44,40 @@ func TestArbiOnCumulative(t *testing.T) { // Delta writes only, should be no con
 			t.Error("Error: There should be NO conflict")
 		}
 	})
+
+	t.Run("init + write / init + write", func(t *testing.T) {
+		v0 := commutative.NewBoundedU256FromU64(1, 100)
+		v0.SetValue(*uint256.NewInt(10))
+		v1 := commutative.NewBoundedU256FromU64(1, 100)
+		v1.SetValue(*uint256.NewInt(20))
+
+		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 1, 1, v0, nil)
+		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v1, nil)
+
+		arib := new(Arbitrator)
+		ids := arib.Detect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+
+		conflictdict, _, _ := Conflicts(ids).ToDict()
+		if len(conflictdict) != 0 {
+			t.Error("Error: There should be NO conflict")
+		}
+	})
+
+	// t.Run("init path/ init path", func(t *testing.T) {
+	// 	v0 := commutative.NewPath()
+	// 	v1 := commutative.NewPath()
+
+	// 	_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v0, nil)
+	// 	_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v1, nil)
+
+	// 	arib := new(Arbitrator)
+	// 	ids := arib.Detect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+
+	// 	conflictdict, _, _ := Conflicts(ids).ToDict()
+	// 	if len(conflictdict) != 0 {
+	// 		t.Error("Error: There should be NO conflict")
+	// 	}
+	// })
 
 	t.Run("Nil init / Nil init", func(t *testing.T) {
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
@@ -193,7 +227,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 			t.Error("Error: There should be NO conflict")
 		}
 	})
-	t.Run("noncommutative read & read noncommutative write", func(t *testing.T) { // Reads only, should be no conflict
+	t.Run("noncommutative read & read", func(t *testing.T) { // Reads only, should be no conflict
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 1, 0, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 1, 0, 0, noncommutative.NewBytes([]byte{2, 3}), nil)
 
