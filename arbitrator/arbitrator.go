@@ -26,23 +26,23 @@ import (
 )
 
 type Arbitrator struct {
-	groupIDs    []uint64
+	sequenceIDs []uint64
 	transitions []*univalue.Univalue
 }
 
-func (this *Arbitrator) Insert(groupIDs []uint64, newTrans []*univalue.Univalue) int {
+func (this *Arbitrator) Insert(sequenceIDs []uint64, newTrans []*univalue.Univalue) int {
 	this.transitions = append(this.transitions, newTrans...)
-	this.groupIDs = append(this.groupIDs, groupIDs...)
-	return len(this.groupIDs)
+	this.sequenceIDs = append(this.sequenceIDs, sequenceIDs...)
+	return len(this.sequenceIDs)
 }
 
-func (this *Arbitrator) Detect(groupIDs []uint64, newTrans []*univalue.Univalue) []*Conflict {
-	if this.Insert(groupIDs, newTrans) == 0 {
+func (this *Arbitrator) Detect(sequenceIDs []uint64, newTrans []*univalue.Univalue) []*Conflict {
+	if this.Insert(sequenceIDs, newTrans) == 0 {
 		return []*Conflict{}
 	}
 
 	// t0 := time.Now()
-	univalue.Univalues(newTrans).Sort(groupIDs)
+	univalue.Univalues(newTrans).Sort(sequenceIDs)
 
 	ranges := slice.FindAllIndics(newTrans, func(lhv, rhv *univalue.Univalue) bool {
 		return *lhv.GetPath() == *rhv.GetPath()
@@ -94,7 +94,7 @@ func (this *Arbitrator) Detect(groupIDs []uint64, newTrans []*univalue.Univalue)
 				key:           *newTrans[ranges[i]].GetPath(),
 				self:          newTrans[ranges[i]].GetTx(),
 				selfTran:      newTrans[ranges[i]],
-				groupID:       groupIDs[ranges[i]+offset : ranges[i+1]],
+				sequenceID:    sequenceIDs[ranges[i]+offset : ranges[i+1]],
 				conflictTrans: newTrans[ranges[i]+offset : ranges[i+1]],
 				txIDs:         conflictTxs,
 				Err:           err,
@@ -127,8 +127,8 @@ func (this *Arbitrator) Detect(groupIDs []uint64, newTrans []*univalue.Univalue)
 		}
 	}
 
-	if len(conflicts) > 0 {
-		Conflicts(conflicts).Print()
-	}
+	// if len(conflicts) > 0 {
+	// 	Conflicts(conflicts).Print()
+	// }
 	return conflicts
 }
