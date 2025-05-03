@@ -63,21 +63,21 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 		}
 	})
 
-	// t.Run("init path/ init path", func(t *testing.T) {
-	// 	v0 := commutative.NewPath()
-	// 	v1 := commutative.NewPath()
+	t.Run("init path/ init path", func(t *testing.T) {
+		v0 := commutative.NewPath()
+		v1 := commutative.NewPath()
 
-	// 	_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v0, nil)
-	// 	_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v1, nil)
+		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v0, nil)
+		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v1, nil)
 
-	// 	arib := new(Arbitrator)
-	// 	ids := arib.Detect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+		arib := new(Arbitrator)
+		ids := arib.Detect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
-	// 	conflictdict, _, _ := Conflicts(ids).ToDict()
-	// 	if len(conflictdict) != 0 {
-	// 		t.Error("Error: There should be NO conflict")
-	// 	}
-	// })
+		conflictdict, _, _ := Conflicts(ids).ToDict()
+		if len(conflictdict) != 0 {
+			t.Error("Error: There should be NO conflict")
+		}
+	})
 
 	t.Run("Nil init / Nil init", func(t *testing.T) {
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
@@ -86,9 +86,10 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 		arib := new(Arbitrator)
 		ids := arib.Detect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
+		// Nil init never exists, so it should be treated as a conflict
 		conflictdict, _, _ := Conflicts(ids).ToDict()
-		if len(conflictdict) != 0 {
-			t.Error("Error: There should be NO conflict")
+		if len(conflictdict) != 1 {
+			t.Error("Error: There should be ONE conflict")
 		}
 	})
 
@@ -220,7 +221,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 1, 0, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
 
 		arib := new(Arbitrator)
-		ids := arib.Detect([]uint64{0, 1}, []*univalue.Univalue{_0})
+		ids := arib.Detect([]uint64{0}, []*univalue.Univalue{_0})
 
 		conflictdict, _, _ := Conflicts(ids).ToDict()
 		if len(conflictdict) != 0 {

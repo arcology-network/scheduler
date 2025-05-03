@@ -62,8 +62,8 @@ func (this *Arbitrator) Detect(sequenceIDs []uint64, newTrans []*univalue.Unival
 		if first.IsReadOnly() { // Read only
 			offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsReadOnly() })
 			err = errors.New("read with non read only")
-		} else if first.IsCommutativeInitOrWriteOnly(first) { // Initialization of commutative values only
-			offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsCommutativeInitOrWriteOnly(first) })
+		} else if first.IsCumulativeWriteOnly(first) { // Initialization of commutative values only
+			offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsCumulativeWriteOnly(first) })
 			err = errors.New("Commutative Initialization with non commutative initialization")
 		} else if first.IsDeltaWriteOnly() { // Delta write only
 			offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsDeltaWriteOnly() })
@@ -78,6 +78,7 @@ func (this *Arbitrator) Detect(sequenceIDs []uint64, newTrans []*univalue.Unival
 
 		if offset <= 0 {
 			offset = common.IfThen(offset < 0, ranges[i+1]-ranges[i], offset+1) // ONLY offset == -1 means no conflict found
+			err = errors.New("Gneral conflict")
 		}
 
 		if ranges[i]+offset == ranges[i+1] {
@@ -127,8 +128,8 @@ func (this *Arbitrator) Detect(sequenceIDs []uint64, newTrans []*univalue.Unival
 		}
 	}
 
-	// if len(conflicts) > 0 {
-	// 	Conflicts(conflicts).Print()
-	// }
+	if len(conflicts) > 0 {
+		Conflicts(conflicts).Print()
+	}
 	return conflicts
 }
