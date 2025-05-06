@@ -8,10 +8,12 @@ replace github.com/arcology-network/common-lib => ../common-lib/
 
 replace github.com/arcology-network/storage-committer => ../storage-committer/
 
+require github.com/ethereum/go-ethereum v1.14.8
+
 require (
-	github.com/arcology-network/common-lib v1.9.1-0.20250310070859-c426a24990fb
-	github.com/arcology-network/storage-committer v1.9.1-0.20250310074249-58b948eb5f8a
-	github.com/ethereum/go-ethereum v1.14.8
+	github.com/arcology-network/common-lib v1.9.1-0.20250506135036-0987f5477aab
+	github.com/arcology-network/storage-committer v1.9.1-0.20250506141106-d93badc23ca3
+	github.com/holiman/uint256 v1.2.4
 )
 
 require (
@@ -46,7 +48,6 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.1 // indirect
 	github.com/holiman/bloomfilter/v2 v2.0.3 // indirect
-	github.com/holiman/uint256 v1.2.4 // indirect
 	github.com/klauspost/compress v1.17.4 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect

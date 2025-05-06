@@ -41,6 +41,10 @@ func (this *Arbitrator) Detect(groupIDs []uint64, newTrans []*univalue.Univalue)
 		return []*Conflict{}
 	}
 
+	slice.RemoveIf(&newTrans, func(_ int, v *univalue.Univalue) bool {
+		return v.IsReadOnly() && v.Reads() == 0
+	})
+
 	// t0 := time.Now()
 	univalue.Univalues(newTrans).Sort(groupIDs)
 
