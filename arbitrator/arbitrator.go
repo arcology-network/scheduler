@@ -23,113 +23,97 @@ import (
 	common "github.com/arcology-network/common-lib/common"
 	"github.com/arcology-network/common-lib/exp/slice"
 	univalue "github.com/arcology-network/storage-committer/type/univalue"
+	"golang.org/x/exp/maps"
 )
 
 type Arbitrator struct {
-	sequenceIDs []uint64
-	transitions []*univalue.Univalue
+	dict map[string]any
+}
+
+func NewArbitrator() *Arbitrator {
+	return &Arbitrator{
+		dict: make(map[string]any),
+	}
 }
 
 func (this *Arbitrator) Insert(sequenceIDs []uint64, newTrans []*univalue.Univalue) int {
-	this.transitions = append(this.transitions, newTrans...)
-	this.sequenceIDs = append(this.sequenceIDs, sequenceIDs...)
-	return len(this.sequenceIDs)
+	for i, tran := range newTrans {
+		tran.Setsequence(sequenceIDs[i])
+		if vArr, ok := this.dict[*newTrans[i].GetPath()]; !ok {
+			this.dict[*newTrans[i].GetPath()] = newTrans[i]
+		} else {
+			if common.IsType[*univalue.Univalue](vArr) {
+				this.dict[*newTrans[i].GetPath()] = []*univalue.Univalue{vArr.(*univalue.Univalue), tran}
+				continue
+			}
+			this.dict[*newTrans[i].GetPath()] = append(vArr.([]*univalue.Univalue), tran)
+		}
+	}
+	return len(this.dict)
 }
 
-func (this *Arbitrator) Detect(sequenceIDs []uint64, newTrans []*univalue.Univalue) []*Conflict {
-	if this.Insert(sequenceIDs, newTrans) == 0 {
-		return []*Conflict{}
-	}
-
-	// t0 := time.Now()
-	univalue.Univalues(newTrans).Sort(sequenceIDs)
-
-	ranges := slice.FindAllIndics(newTrans, func(lhv, rhv *univalue.Univalue) bool {
-		return *lhv.GetPath() == *rhv.GetPath()
+func (this *Arbitrator) Detect() []*Conflict {
+	keys := maps.Keys(this.dict)
+	conflists := make([]*Conflict, len(keys))
+	slice.ParallelForeach(keys, 8, func(i int, k *string) {
+		if vArr, ok := this.dict[*k]; ok && !common.IsType[*univalue.Univalue](vArr) {
+			conflists[i] = this.LookupForConflict(vArr.([]*univalue.Univalue))
+		}
 	})
 
-	conflicts := []*Conflict{}
-	for i := 0; i < len(ranges)-1; i++ {
-		if ranges[i]+1 == ranges[i+1] {
-			continue // Only one entry
-		}
+	return slice.Remove(&conflists, nil)
+}
 
-		first := newTrans[ranges[i]]
-		subTrans := newTrans[ranges[i]+1 : ranges[i+1]]
+func (this *Arbitrator) LookupForConflict(newTrans []*univalue.Univalue) *Conflict {
+	univalue.Univalues(newTrans).Sort()
 
-		var err error
-		var offset int
-		if first.IsReadOnly() { // Read only
-			offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsReadOnly() })
-			err = errors.New("read with non read only")
-		} else if first.IsCumulativeWriteOnly(first) { // Initialization of commutative values only
-			offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsCumulativeWriteOnly(first) })
-			err = errors.New("Commutative Initialization with non commutative initialization")
-		} else if first.IsDeltaWriteOnly() { // Delta write only
-			offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsDeltaWriteOnly() })
-			err = errors.New("Delta write with non delta write only")
-		} else if first.IsDeleteOnly() { // Delta write only
-			offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsDeleteOnly() })
-			err = errors.New("Delete with non delete only")
-		} else if first.IsNilInitOnly() { // Initialization with nil only.
-			offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsNilInitOnly() })
-			err = errors.New("Nil initialization with non nil initialization")
-		}
+	first := newTrans[0]
+	subTrans := newTrans[1:]
 
-		if offset <= 0 {
-			offset = common.IfThen(offset < 0, ranges[i+1]-ranges[i], offset+1) // ONLY offset == -1 means no conflict found
-			err = errors.New("Gneral conflict")
-		}
-
-		if ranges[i]+offset == ranges[i+1] {
-			continue
-		}
-
-		conflictTxs := []uint64{}
-		slice.Foreach(newTrans[ranges[i]+offset:ranges[i+1]], func(_ int, v **univalue.Univalue) {
-			conflictTxs = append(conflictTxs, (*v).GetTx())
-		})
-
-		conflicts = append(conflicts,
-			&Conflict{
-				key:           *newTrans[ranges[i]].GetPath(),
-				self:          newTrans[ranges[i]].GetTx(),
-				selfTran:      newTrans[ranges[i]],
-				sequenceID:    sequenceIDs[ranges[i]+offset : ranges[i+1]],
-				conflictTrans: newTrans[ranges[i]+offset : ranges[i+1]],
-				txIDs:         conflictTxs,
-				Err:           err,
-			},
-		)
-
-		// Check if the cumulative value is out of limits
-		if len(conflicts) > 0 {
-			if newTrans[ranges[i]].Writes() == 0 {
-				if newTrans[ranges[i]].IsDeltaWriteOnly() { // Delta write only
-					offset, _ = slice.FindFirstIf(newTrans[ranges[i]+1:ranges[i+1]],
-						func(_ int, v *univalue.Univalue) bool {
-							return !v.IsDeltaWriteOnly()
-						})
-				} else { // Read only
-					offset, _ = slice.FindFirstIf(newTrans[ranges[i]+1:ranges[i+1]],
-						func(_ int, v *univalue.Univalue) bool {
-							return v.Writes() > 0 || v.DeltaWrites() > 0
-						})
-				}
-				offset = common.IfThen(offset < 0, ranges[i+1]-ranges[i], offset+1) // offset == -1 means no conflict found
-			}
-		}
-
-		dict := common.MapFromSlice(conflictTxs, true) //Conflict dict
-		trans := slice.CopyIf(newTrans[ranges[i]+offset:ranges[i+1]], func(_ int, v *univalue.Univalue) bool { return (*dict)[v.GetTx()] })
-
-		if outOfLimits := (&Accumulator{}).CheckMinMax(trans); outOfLimits != nil {
-			conflicts = append(conflicts, outOfLimits...)
-		}
+	var err error
+	var offset int
+	if first.IsReadOnly() { // Read only
+		offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsReadOnly() })
+		err = errors.New("read with non read only")
+	} else if first.IsCumulativeWriteOnly(first) { // Initialization of commutative values only
+		offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsCumulativeWriteOnly(first) })
+		err = errors.New("Commutative Initialization with non commutative initialization")
+	} else if first.IsDeltaWriteOnly() { // Delta write only
+		offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsDeltaWriteOnly() })
+		err = errors.New("Delta write with non delta write only")
+	} else if first.IsDeleteOnly() { // Delta write only
+		offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsDeleteOnly() })
+		err = errors.New("Delete with non delete only")
+	} else if first.IsNilInitOnly() { // Initialization with nil only.
+		offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsNilInitOnly() })
+		err = errors.New("Nil initialization with non nil initialization")
 	}
 
-	if len(conflicts) > 0 {
-		Conflicts(conflicts).Print()
+	if offset < 0 {
+		return (&Accumulator{}).CheckMinMax(newTrans)
 	}
-	return conflicts
+
+	if outOfLimit := (&Accumulator{}).CheckMinMax(newTrans[:offset]); outOfLimit != nil {
+		return outOfLimit
+	}
+
+	offset++ // The offet is actually the index of the origina index minus 1, because the first was used as the reference. Here we add it back.
+	return &Conflict{
+		key:           *newTrans[0].GetPath(),
+		self:          newTrans[0].GetTx(),
+		selfTran:      newTrans[0],
+		sequenceID:    slice.Transform(newTrans[offset:], func(_ int, v *univalue.Univalue) uint64 { return v.Getsequence() }),
+		conflictTrans: newTrans[offset:],
+		txIDs:         slice.Transform(newTrans[offset:], func(_ int, v *univalue.Univalue) uint64 { return (*v).GetTx() }),
+		Err:           err,
+	}
+}
+
+func (this *Arbitrator) Clear() {
+	clear(this.dict)
+}
+
+func (this *Arbitrator) InsertDectect(sequenceIDs []uint64, newTrans []*univalue.Univalue) []*Conflict {
+	this.Insert(sequenceIDs, newTrans)
+	return this.Detect()
 }

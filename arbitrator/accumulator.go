@@ -35,7 +35,7 @@ import (
 type Accumulator struct{}
 
 // check if the value is either underflowed or overflowed. It returns the conflict if it is out of bounds.
-func (this *Accumulator) CheckMinMax(transitions []*univalue.Univalue) []*Conflict {
+func (this *Accumulator) CheckMinMax(transitions []*univalue.Univalue) *Conflict {
 	if len(transitions) <= 1 ||
 		(transitions)[0].Value() == nil ||
 		!(transitions)[0].Value().(intf.Type).IsCommutative() ||
@@ -63,30 +63,32 @@ func (this *Accumulator) CheckMinMax(transitions []*univalue.Univalue) []*Confli
 	underflowed := this.isOutOfLimits(*(transitions)[0].GetPath(), negatives)
 	if underflowed != nil {
 		underflowed.Err = errors.New(stgcommon.WARN_OUT_OF_LOWER_LIMIT)
+		return underflowed
 	}
 
 	// check overflow
 	overflowed := this.isOutOfLimits(*(transitions)[0].GetPath(), positives)
 	if overflowed != nil {
 		overflowed.Err = errors.New(stgcommon.WARN_OUT_OF_UPPER_LIMIT)
+		return overflowed
 	}
 
-	if overflowed == nil && underflowed == nil {
-		return nil
-	}
+	// if overflowed == nil && underflowed == nil {
+	// 	return nil
+	// }
 
-	conflicts := []*Conflict{}
-	if underflowed != nil {
-		conflicts = append(conflicts, underflowed)
-	}
+	// conflicts := []*Conflict{}
+	// if underflowed != nil {
+	// 	conflicts = append(conflicts, underflowed)
+	// }
 
-	if overflowed != nil {
-		conflicts = append(conflicts, overflowed)
-	}
-	return conflicts
+	// if overflowed != nil {
+	// 	conflicts = append(conflicts, overflowed)
+	// }
+	return nil
 }
 
-// categorize transitions into two groups, one is negative, the other is positive.
+// categorize transitions into two groups, one is negative, one positive.
 func (*Accumulator) Categorize(transitions []*univalue.Univalue) ([]*univalue.Univalue, []*univalue.Univalue) {
 	offset, _ := slice.FindFirstIf(transitions, func(_ int, v *univalue.Univalue) bool { return v.Value().(intf.Type).DeltaSign() })
 
