@@ -65,7 +65,7 @@ func (this *Arbitrator) Detect() []*Conflict {
 }
 
 func (this *Arbitrator) LookupForConflict(newTrans []*univalue.Univalue) *Conflict {
-	univalue.Univalues(newTrans).Sort()
+	univalue.Univalues(newTrans).SortByTx()
 
 	first := newTrans[0]
 	subTrans := newTrans[1:]
@@ -113,7 +113,7 @@ func (this *Arbitrator) Clear() {
 	clear(this.dict)
 }
 
-func (this *Arbitrator) InsertDectect(sequenceIDs []uint64, newTrans []*univalue.Univalue) []*Conflict {
+func (this *Arbitrator) InsertAndDetect(sequenceIDs []uint64, newTrans []*univalue.Univalue) []*Conflict {
 	this.Insert(sequenceIDs, newTrans)
 	return this.Detect()
 }
