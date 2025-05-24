@@ -36,10 +36,7 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v0, nil)
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v1, nil)
 
-		arib := NewArbitrator()
-		arib.Insert([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
-
-		conflicts := arib.Detect()
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 0 {
@@ -57,9 +54,7 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v1, nil)
 
 		// arib := new(Arbitrator)
-		arib := NewArbitrator()
-		arib.Insert([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
-		conflicts := arib.Detect()
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 0 {
@@ -76,9 +71,7 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 1, 1, v0, nil)
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v1, nil)
 
-		arib := NewArbitrator()
-		arib.Insert([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
-		conflicts := arib.Detect()
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 0 {
@@ -93,9 +86,7 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v0, nil)
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v1, nil)
 
-		arib := NewArbitrator()
-		arib.Insert([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
-		conflicts := arib.Detect()
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 0 {
@@ -107,9 +98,7 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
 
-		arib := NewArbitrator()
-		arib.Insert([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
-		conflicts := arib.Detect()
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
 		// Nil init never exists, so it should be treated as a conflict
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
@@ -125,9 +114,7 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v0, nil)
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
 
-		arib := NewArbitrator()
-		arib.Insert([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
-		conflicts := arib.Detect()
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 1 {
@@ -144,9 +131,7 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 1, 1, v0, nil)
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 1, v1, nil)
 
-		arib := NewArbitrator()
-		arib.Insert([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
-		conflicts := arib.Detect()
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 0 {
@@ -161,9 +146,7 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 		_0.SetIsDeleted(true)
 		_1.SetIsDeleted(true)
 
-		arib := NewArbitrator()
-		arib.Insert([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
-		conflicts := arib.Detect()
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 0 {
@@ -180,9 +163,7 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v0, nil)
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v1, nil)
 
-		arib := NewArbitrator()
-		arib.Insert([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
-		conflicts := arib.Detect()
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 0 {
@@ -199,9 +180,7 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 1, 1, 1, v0, nil)
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v1, nil)
 
-		arib := NewArbitrator()
-		arib.Insert([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
-		conflicts := arib.Detect()
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 1 {
@@ -218,9 +197,7 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 1, 1, 1, v0, nil)
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
 
-		arib := NewArbitrator()
-		arib.Insert([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
-		conflicts := arib.Detect()
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 1 {
@@ -237,9 +214,7 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 1, 0, 0, v0, nil)
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 0, 1, v1, nil)
 
-		arib := NewArbitrator()
-		arib.Insert([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
-		conflicts := arib.Detect()
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 1 {
@@ -252,9 +227,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 	t.Run("one entry", func(t *testing.T) { // Reads only, should be no conflict
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 1, 0, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
 
-		arib := NewArbitrator()
-		arib.Insert([]uint64{0}, []*univalue.Univalue{_0})
-		conflicts := arib.Detect()
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 0 {
@@ -265,9 +238,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 1, 0, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 1, 0, 0, noncommutative.NewBytes([]byte{2, 3}), nil)
 
-		arib := NewArbitrator()
-		arib.Insert([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
-		conflicts := arib.Detect()
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 0 {
@@ -279,9 +250,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 0, 1, noncommutative.NewBytes([]byte{1, 2}), nil)
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 0, 2, noncommutative.NewBytes([]byte{2, 3}), nil)
 
-		arib := NewArbitrator()
-		arib.Insert([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
-		conflicts := arib.Detect()
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 0 {
@@ -294,9 +263,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 2, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 2, 0, noncommutative.NewBytes([]byte{2, 3}), nil)
 
-		arib := NewArbitrator()
-		arib.Insert([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
-		conflicts := arib.Detect()
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 1 {
@@ -312,9 +279,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 
 		// sorted := univalue.Univalues([]*univalue.Univalue{_0, _1}).Sort()
 
-		arib := NewArbitrator()
-		arib.Insert([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
-		conflicts := arib.Detect()
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 1 {
@@ -328,9 +293,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 		_0.Setsequence(0)
 		_1.Setsequence(1)
 
-		arib := NewArbitrator()
-		arib.Insert([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
-		conflicts := arib.Detect()
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 1 {
@@ -344,9 +307,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 		_0.Setsequence(0)
 		_1.Setsequence(1)
 
-		arib := NewArbitrator()
-		arib.Insert([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
-		conflicts := arib.Detect()
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 1 {
@@ -359,9 +320,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{2, 3}), nil)
 
-		arib := NewArbitrator()
-		arib.Insert([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
-		conflicts := arib.Detect()
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 1 {
@@ -374,9 +333,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 2, 0, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{2, 3}), nil)
 
-		arib := NewArbitrator()
-		arib.Insert([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
-		conflicts := arib.Detect()
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 1 {
@@ -389,9 +346,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 2, 0, 0, noncommutative.NewBytes([]byte{2, 3}), nil)
 
-		arib := NewArbitrator()
-		arib.Insert([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
-		conflicts := arib.Detect()
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 1 {
@@ -403,9 +358,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 2, 2, 1, noncommutative.NewBytes([]byte{1, 2}), nil)
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{2, 3}), nil)
 
-		arib := NewArbitrator()
-		arib.Insert([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
-		conflicts := arib.Detect()
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 1 {
@@ -417,9 +370,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 2, 2, 1, noncommutative.NewBytes([]byte{2, 3}), nil)
 
-		arib := NewArbitrator()
-		arib.Insert([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
-		conflicts := arib.Detect()
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 1 {

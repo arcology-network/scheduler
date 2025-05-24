@@ -39,9 +39,9 @@ func NewArbitrator() *Arbitrator {
 	}
 }
 
-func (this *Arbitrator) Insert(sequenceIDs []uint64, newTrans []*univalue.Univalue) int {
+func (this *Arbitrator) Insert(newTrans []*univalue.Univalue) int {
 	for i, tran := range newTrans {
-		tran.Setsequence(sequenceIDs[i])
+		// tran.Setsequence(sequenceIDs[i])
 		if vArr, ok := this.dict[*newTrans[i].GetPath()]; !ok {
 			this.dict[*newTrans[i].GetPath()] = newTrans[i] // First time insert, using the element itself to save memory.
 		} else {
@@ -61,10 +61,6 @@ func (this *Arbitrator) Insert(sequenceIDs []uint64, newTrans []*univalue.Unival
 }
 
 func (this *Arbitrator) Detect() []*Conflict {
-	if len(this.dict) == 1 {
-		return nil
-	}
-
 	keys := maps.Keys(this.dict)
 	conflists := make([]*Conflict, len(keys))
 	slice.ParallelForeach(keys, 8, func(i int, k *string) {
@@ -132,7 +128,12 @@ func (this *Arbitrator) Clear() {
 	clear(this.dict)
 }
 
+// Test function
 func (this *Arbitrator) InsertAndDetect(sequenceIDs []uint64, newTrans []*univalue.Univalue) []*Conflict {
-	this.Insert(sequenceIDs, newTrans)
+	for i, _ := range newTrans {
+		newTrans[i].Setsequence(sequenceIDs[i])
+	}
+
+	this.Insert(newTrans)
 	return this.Detect()
 }
