@@ -100,27 +100,31 @@ func (*Accumulator) Categorize(transitions []*univalue.Univalue) ([]*univalue.Un
 
 // check if the value is out of limits defined by the user. It can be different from the type bounds.
 // It returns the conflict if it is out of bounds.
-func (this *Accumulator) isOutOfLimits(k string, transitions []*univalue.Univalue) *Conflict {
-	if len(transitions) <= 1 {
+func (this *Accumulator) isOutOfLimits(k string, newTrans []*univalue.Univalue) *Conflict {
+	if len(newTrans) <= 1 {
 		return nil
 	}
 
-	initialv := transitions[0].Value().(intf.Type).Clone().(intf.Type)
+	initialv := newTrans[0].Value().(intf.Type).Clone().(intf.Type)
 
-	typedVals := slice.Transform(transitions, func(_ int, v *univalue.Univalue) intf.Type {
+	typedVals := slice.Transform(newTrans, func(_ int, v *univalue.Univalue) intf.Type {
 		return v.Value().(intf.Type)
 	})
 
-	_, length, err := initialv.ApplyDelta(typedVals[1:])
+	_, offset, err := initialv.ApplyDelta(typedVals[1:])
 	if err == nil {
 		return nil
 	}
 
-	txIDs := []uint64{}
-	slice.Foreach(transitions[length+1:], func(_ int, v **univalue.Univalue) { txIDs = append(txIDs, (*v).GetTx()) })
+	// txIDs := []uint64{}
+	// slice.Foreach(newTrans[offset+1:], func(_ int, v **univalue.Univalue) { txIDs = append(txIDs, (*v).GetTx()) })
 
 	return &Conflict{
-		key:   k,
-		txIDs: txIDs,
+		key:           k,
+		self:          newTrans[0].GetTx(),
+		selfTran:      newTrans[0],
+		sequenceID:    slice.Transform(newTrans[offset+1:], func(_ int, v *univalue.Univalue) uint64 { return v.Getsequence() }),
+		conflictTrans: newTrans[offset:],
+		txIDs:         slice.Transform(newTrans[offset+1:], func(_ int, v *univalue.Univalue) uint64 { return (*v).GetTx() }),
 	}
 }

@@ -23,16 +23,19 @@ import (
 	common "github.com/arcology-network/common-lib/common"
 	"github.com/arcology-network/common-lib/exp/slice"
 	univalue "github.com/arcology-network/storage-committer/type/univalue"
+	"github.com/google/btree"
 	"golang.org/x/exp/maps"
 )
 
 type Arbitrator struct {
 	dict map[string]any
+	// lookup map[string]*btree.BTreeG[*univalue.Univalue]
 }
 
 func NewArbitrator() *Arbitrator {
 	return &Arbitrator{
 		dict: make(map[string]any),
+		// lookup: make(map[string]*btree.BTreeG[*univalue.Univalue]),
 	}
 }
 
@@ -40,23 +43,39 @@ func (this *Arbitrator) Insert(sequenceIDs []uint64, newTrans []*univalue.Unival
 	for i, tran := range newTrans {
 		tran.Setsequence(sequenceIDs[i])
 		if vArr, ok := this.dict[*newTrans[i].GetPath()]; !ok {
-			this.dict[*newTrans[i].GetPath()] = newTrans[i]
+			this.dict[*newTrans[i].GetPath()] = newTrans[i] // First time insert, using the element itself to save memory.
 		} else {
-			if common.IsType[*univalue.Univalue](vArr) {
+			if common.IsType[*univalue.Univalue](vArr) { // Second time insert, put the first and the second into a slice.
 				this.dict[*newTrans[i].GetPath()] = []*univalue.Univalue{vArr.(*univalue.Univalue), tran}
+
+				tree := btree.NewG(2, univalue.LessByTx)
+				tree.ReplaceOrInsert(tran)
 				continue
 			}
+			// 2+ element insert, put all the elements into a slice.
 			this.dict[*newTrans[i].GetPath()] = append(vArr.([]*univalue.Univalue), tran)
+			// this.lookup[*newTrans[i].GetPath()].ReplaceOrInsert(tran)
 		}
 	}
 	return len(this.dict)
 }
 
 func (this *Arbitrator) Detect() []*Conflict {
+	if len(this.dict) == 1 {
+		return nil
+	}
+
 	keys := maps.Keys(this.dict)
 	conflists := make([]*Conflict, len(keys))
 	slice.ParallelForeach(keys, 8, func(i int, k *string) {
-		if vArr, ok := this.dict[*k]; ok && !common.IsType[*univalue.Univalue](vArr) {
+		if vArr, ok := this.dict[*k]; ok && common.IsType[[]*univalue.Univalue](vArr) {
+			conflists[i] = this.LookupForConflict(vArr.([]*univalue.Univalue))
+		}
+	})
+
+	//
+	slice.ParallelForeach(keys, 8, func(i int, k *string) {
+		if vArr, ok := this.dict[*k]; ok && common.IsType[[]*univalue.Univalue](vArr) {
 			conflists[i] = this.LookupForConflict(vArr.([]*univalue.Univalue))
 		}
 	})

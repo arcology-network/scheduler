@@ -19,33 +19,12 @@ package arbitrator
 
 import (
 	"testing"
-	"time"
 
 	"github.com/arcology-network/storage-committer/type/commutative"
 	noncommutative "github.com/arcology-network/storage-committer/type/noncommutative"
 	univalue "github.com/arcology-network/storage-committer/type/univalue"
-	btree "github.com/google/btree"
 	"github.com/holiman/uint256"
 )
-
-func TestArrayMap(t *testing.T) {
-	m := make(map[uint64]string)
-	t0 := time.Now()
-	for i := 0; i < 1000000; i++ {
-		m[uint64(i)] = ""
-	}
-	t1 := time.Now()
-	t.Log("Array map time:", t1.Sub(t0))
-
-	btree.New(2)
-	bMap := make(map[uint64]*btree.BTree)
-	t0 = time.Now()
-	for i := 0; i < 1000000; i++ {
-		bMap[uint64(i)] = btree.New(3)
-	}
-	t1 = time.Now()
-	t.Log("Btree time:", t1.Sub(t0))
-}
 
 func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no conflict
 	t.Run("init / init", func(t *testing.T) {
