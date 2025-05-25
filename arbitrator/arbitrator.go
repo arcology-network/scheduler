@@ -23,7 +23,6 @@ import (
 	common "github.com/arcology-network/common-lib/common"
 	"github.com/arcology-network/common-lib/exp/slice"
 	univalue "github.com/arcology-network/storage-committer/type/univalue"
-	"github.com/google/btree"
 	"golang.org/x/exp/maps"
 )
 
@@ -48,8 +47,8 @@ func (this *Arbitrator) Insert(newTrans []*univalue.Univalue) int {
 			if common.IsType[*univalue.Univalue](vArr) { // Second time insert, put the first and the second into a slice.
 				this.dict[*newTrans[i].GetPath()] = []*univalue.Univalue{vArr.(*univalue.Univalue), tran}
 
-				tree := btree.NewG(2, univalue.LessByTx)
-				tree.ReplaceOrInsert(tran)
+				// tree := btree.NewG(2, univalue.LessByTx)
+				// tree.ReplaceOrInsert(tran)
 				continue
 			}
 			// 2+ element insert, put all the elements into a slice.
