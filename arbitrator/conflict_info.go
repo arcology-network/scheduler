@@ -46,7 +46,7 @@ func (this *Conflict) Print() {
 	this.selfTran.Print()
 	fmt.Println(" ----- conflict with ----- ")
 	univalue.Univalues(this.conflictTrans).Print()
-	fmt.Println("Season: ", this.Err)
+	fmt.Println("Reason: ", this.Err)
 }
 
 type Conflicts []*Conflict
