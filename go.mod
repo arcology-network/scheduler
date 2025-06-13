@@ -4,16 +4,17 @@ go 1.22
 
 replace github.com/ethereum/go-ethereum v1.14.8 => ../concurrent-evm/
 
-replace github.com/arcology-network/common-lib => ../common-lib/
+// replace github.com/arcology-network/common-lib => ../common-lib/
 
-replace github.com/arcology-network/storage-committer => ../storage-committer/
+// replace github.com/arcology-network/storage-committer => ../storage-committer/
 
 require github.com/ethereum/go-ethereum v1.14.8
 
 require (
-	github.com/arcology-network/common-lib v1.9.1-0.20250506135036-0987f5477aab
-	github.com/arcology-network/storage-committer v1.9.1-0.20250506141106-d93badc23ca3
+	github.com/arcology-network/common-lib v1.9.1-0.20250613001412-0529984b08ff
+	github.com/arcology-network/storage-committer v1.9.1-0.20250613004728-e65a2bc7058d
 	github.com/holiman/uint256 v1.2.4
+	golang.org/x/exp v0.0.0-20231206192017-f3f8817b8deb
 )
 
 require (
@@ -45,7 +46,6 @@ require (
 	github.com/gofrs/flock v0.8.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/snappy v0.0.5-0.20220116011046-fa5810519dcb // indirect
-	github.com/google/btree v1.1.3 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.1 // indirect
 	github.com/holiman/bloomfilter/v2 v2.0.3 // indirect
@@ -70,7 +70,6 @@ require (
 	github.com/tklauser/numcpus v0.7.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	golang.org/x/crypto v0.20.0 // indirect
-	golang.org/x/exp v0.0.0-20231206192017-f3f8817b8deb // indirect
 	golang.org/x/mod v0.14.0 // indirect
 	golang.org/x/net v0.21.0 // indirect
 	golang.org/x/sync v0.5.0 // indirect
