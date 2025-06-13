@@ -27,7 +27,7 @@ import (
 type Conflict struct {
 	key           string
 	self          uint64
-	groupID       []uint64
+	sequenceID    []uint64 // Multiple transactions may have the same ID for them to be in the same job sequence.
 	txIDs         []uint64
 	selfTran      *univalue.Univalue
 	conflictTrans []*univalue.Univalue
@@ -46,22 +46,22 @@ func (this *Conflict) Print() {
 	this.selfTran.Print()
 	fmt.Println(" ----- conflict with ----- ")
 	univalue.Univalues(this.conflictTrans).Print()
-	fmt.Println("Season: ", this.Err)
+	fmt.Println("Reason: ", this.Err)
 }
 
 type Conflicts []*Conflict
 
 func (this Conflicts) ToDict() (map[uint64]uint64, map[uint64]uint64, [][2]uint64) {
 	txDict := make(map[uint64]uint64)
-	groupIDdict := make(map[uint64]uint64)
+	sequenceIDdict := make(map[uint64]uint64)
 	for _, v := range this {
 		for i := 0; i < len(v.txIDs); i++ {
 			txDict[v.txIDs[i]] += 1
-			groupIDdict[v.groupID[i]] += 1
+			sequenceIDdict[v.sequenceID[i]] += 1
 		}
 	}
 
-	return txDict, groupIDdict, this.ToPairs()
+	return txDict, sequenceIDdict, this.ToPairs()
 }
 
 func (this Conflicts) Keys() []string {

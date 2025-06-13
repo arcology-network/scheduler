@@ -35,7 +35,7 @@ import (
 type Accumulator struct{}
 
 // check if the value is either underflowed or overflowed. It returns the conflict if it is out of bounds.
-func (this *Accumulator) CheckMinMax(transitions []*univalue.Univalue) []*Conflict {
+func (this *Accumulator) CheckMinMax(transitions []*univalue.Univalue) *Conflict {
 	if len(transitions) <= 1 ||
 		(transitions)[0].Value() == nil ||
 		!(transitions)[0].Value().(intf.Type).IsCommutative() ||
@@ -63,30 +63,32 @@ func (this *Accumulator) CheckMinMax(transitions []*univalue.Univalue) []*Confli
 	underflowed := this.isOutOfLimits(*(transitions)[0].GetPath(), negatives)
 	if underflowed != nil {
 		underflowed.Err = errors.New(stgcommon.WARN_OUT_OF_LOWER_LIMIT)
+		return underflowed
 	}
 
 	// check overflow
 	overflowed := this.isOutOfLimits(*(transitions)[0].GetPath(), positives)
 	if overflowed != nil {
 		overflowed.Err = errors.New(stgcommon.WARN_OUT_OF_UPPER_LIMIT)
+		return overflowed
 	}
 
-	if overflowed == nil && underflowed == nil {
-		return nil
-	}
+	// if overflowed == nil && underflowed == nil {
+	// 	return nil
+	// }
 
-	conflicts := []*Conflict{}
-	if underflowed != nil {
-		conflicts = append(conflicts, underflowed)
-	}
+	// conflicts := []*Conflict{}
+	// if underflowed != nil {
+	// 	conflicts = append(conflicts, underflowed)
+	// }
 
-	if overflowed != nil {
-		conflicts = append(conflicts, overflowed)
-	}
-	return conflicts
+	// if overflowed != nil {
+	// 	conflicts = append(conflicts, overflowed)
+	// }
+	return nil
 }
 
-// categorize transitions into two groups, one is negative, the other is positive.
+// categorize transitions into two groups, one is negative, one positive.
 func (*Accumulator) Categorize(transitions []*univalue.Univalue) ([]*univalue.Univalue, []*univalue.Univalue) {
 	offset, _ := slice.FindFirstIf(transitions, func(_ int, v *univalue.Univalue) bool { return v.Value().(intf.Type).DeltaSign() })
 
@@ -98,27 +100,31 @@ func (*Accumulator) Categorize(transitions []*univalue.Univalue) ([]*univalue.Un
 
 // check if the value is out of limits defined by the user. It can be different from the type bounds.
 // It returns the conflict if it is out of bounds.
-func (this *Accumulator) isOutOfLimits(k string, transitions []*univalue.Univalue) *Conflict {
-	if len(transitions) <= 1 {
+func (this *Accumulator) isOutOfLimits(k string, newTrans []*univalue.Univalue) *Conflict {
+	if len(newTrans) <= 1 {
 		return nil
 	}
 
-	initialv := transitions[0].Value().(intf.Type).Clone().(intf.Type)
+	initialv := newTrans[0].Value().(intf.Type).Clone().(intf.Type)
 
-	typedVals := slice.Transform(transitions, func(_ int, v *univalue.Univalue) intf.Type {
+	typedVals := slice.Transform(newTrans, func(_ int, v *univalue.Univalue) intf.Type {
 		return v.Value().(intf.Type)
 	})
 
-	_, length, err := initialv.ApplyDelta(typedVals[1:])
+	_, offset, err := initialv.ApplyDelta(typedVals[1:])
 	if err == nil {
 		return nil
 	}
 
-	txIDs := []uint64{}
-	slice.Foreach(transitions[length+1:], func(_ int, v **univalue.Univalue) { txIDs = append(txIDs, (*v).GetTx()) })
+	// txIDs := []uint64{}
+	// slice.Foreach(newTrans[offset+1:], func(_ int, v **univalue.Univalue) { txIDs = append(txIDs, (*v).GetTx()) })
 
 	return &Conflict{
-		key:   k,
-		txIDs: txIDs,
+		key:           k,
+		self:          newTrans[0].GetTx(),
+		selfTran:      newTrans[0],
+		sequenceID:    slice.Transform(newTrans[offset+1:], func(_ int, v *univalue.Univalue) uint64 { return v.Getsequence() }),
+		conflictTrans: newTrans[offset:],
+		txIDs:         slice.Transform(newTrans[offset+1:], func(_ int, v *univalue.Univalue) uint64 { return (*v).GetTx() }),
 	}
 }
