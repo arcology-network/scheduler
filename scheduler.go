@@ -230,8 +230,9 @@ func (this *Scheduler) ScheduleDeferred(paraMsgInfo *associative.Pairs[uint32, *
 			key := Compact((*paraMsgInfo)[i].Second.Native.To[:], (*paraMsgInfo)[i].Second.Native.Data[:])
 
 			if v, ok := this.calleeDict[string(key)]; this.deferByDefault || (ok && this.callees[v].Deferrable) {
+				(*deferred).Second.IsDeferred = true // Mark the message as deferred.
 				deferredMsgs = append(deferredMsgs, *deferred)
-				slice.RemoveAt(paraMsgInfo.Slice(), last) // Move the last call to the second generation as a deferred call.
+				slice.RemoveAt(paraMsgInfo.Slice(), last) // Move the last call to the second generation as a deferred TX.
 				i = last
 			}
 		} else {
