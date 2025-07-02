@@ -224,18 +224,25 @@ func (this *Scheduler) ScheduleDeferred(paraMsgInfo *associative.Pairs[uint32, *
 		last = tmplast
 
 		// If the first and last index of the same callee are different, then
-		// more than one instance of the same callee is there.
-		// if first != last && this.deferByDefault {
-		if first != last {
-			key := Compact((*paraMsgInfo)[i].Second.Native.To[:], (*paraMsgInfo)[i].Second.Native.Data[:])
+		// more than one instance to the same callee is there.
+		key := Compact((*paraMsgInfo)[i].Second.Native.To[:], (*paraMsgInfo)[i].Second.Native.Data[:])
+		if v, ok := this.calleeDict[string(key)]; this.deferByDefault || (ok && this.callees[v].Deferrable) {
+			(*deferred).Second.IsDeferred = true // Mark the message as deferred.
+		}
 
-			if v, ok := this.calleeDict[string(key)]; this.deferByDefault || (ok && this.callees[v].Deferrable) {
-				(*deferred).Second.IsDeferred = true // Mark the message as deferred.
-				deferredMsgs = append(deferredMsgs, *deferred)
-				slice.RemoveAt(paraMsgInfo.Slice(), last) // Move the last call to the second generation as a deferred TX.
-				i = last
-			}
-		} else {
+		if first != last {
+			// if v, ok := this.calleeDict[string(key)]; this.deferByDefault || (ok && this.callees[v].Deferrable) {
+			// 	(*deferred).Second.IsDeferred = true // Mark the message as deferred.
+
+			// Move the last call to the second generation as a deferred TX.
+			deferredMsgs = append(deferredMsgs, *deferred)
+			slice.RemoveAt(paraMsgInfo.Slice(), last)
+			i = last
+			// }
+		} else { // Only one instance to the callee is found, Keep it in the first generation.
+			// if v, ok := this.calleeDict[string(key)]; this.deferByDefault || (ok && this.callees[v].Deferrable) {
+			// 	(*deferred).Second.IsDeferred = true // Mark the message as deferred.
+			// }
 			i = last + 1
 		}
 		if i >= len(*paraMsgInfo) {
