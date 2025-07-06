@@ -64,17 +64,17 @@ func NewCallee(idx uint32, addr []byte, funSign []byte) *Callee {
 
 func (*Callee) IsPropertyPath(path string) bool {
 	return len(path) > stgcommon.ETH10_ACCOUNT_FULL_LENGTH &&
-		strings.Contains(path[stgcommon.ETH10_ACCOUNT_FULL_LENGTH:], stgcommon.ETH10_FUNC_PROPERTY_PREFIX)
+		strings.Contains(path[stgcommon.ETH10_ACCOUNT_FULL_LENGTH:], stgcommon.PROPERTY_PATH_PREFIX)
 }
 
 // Extract the callee signature from the path string
 func (this *Callee) parseCalleeSignature(path string) (string, []byte, []byte) {
-	idx := strings.Index(path, stgcommon.ETH10_FUNC_PROPERTY_PREFIX)
+	idx := strings.Index(path, stgcommon.PROPERTY_PATH_PREFIX)
 	if idx == len(path) {
 		return "", []byte{}, []byte{}
 	}
 
-	fullPath := path[idx+len(stgcommon.ETH10_FUNC_PROPERTY_PREFIX):]
+	fullPath := path[idx+len(stgcommon.PROPERTY_PATH_PREFIX):]
 	sign, _ := hex.DecodeString(fullPath)
 
 	if len(sign) == 0 {
@@ -89,7 +89,7 @@ func (this *Callee) parseCalleeSignature(path string) (string, []byte, []byte) {
 		addr, sign
 }
 
-// Initialize from a univalue
+// Initialize from univalues
 func (this *Callee) init(trans ...*univalue.Univalue) {
 	for _, v := range trans {
 		if this == nil {
@@ -97,7 +97,7 @@ func (this *Callee) init(trans ...*univalue.Univalue) {
 		}
 
 		// Set execution method
-		if strings.HasSuffix(*v.GetPath(), stgcommon.EXECUTION_METHOD) && v.Value() != nil {
+		if strings.HasSuffix(*v.GetPath(), stgcommon.EXECUTION_PARALLELISM) && v.Value() != nil {
 			flag, _, _ := v.Value().(stgcommon.Type).Get()
 			this.Sequential = flag.([]byte)[0] == stgcommon.SEQUENTIAL_EXECUTION
 		}
@@ -113,7 +113,7 @@ func (this *Callee) init(trans ...*univalue.Univalue) {
 		}
 
 		// Set the Deferrable value
-		if strings.HasSuffix(*v.GetPath(), stgcommon.DEFERRED_FUNC) && v.Value() != nil {
+		if strings.HasSuffix(*v.GetPath(), stgcommon.DEFERRED) && v.Value() != nil {
 			flag, _, _ := v.Value().(stgcommon.Type).Get()
 			this.Deferrable = flag.([]byte)[0] > 0
 		}
