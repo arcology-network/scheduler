@@ -56,7 +56,7 @@ func (this *Callee) IsInConflictList(idx uint32) bool {
 func NewCallee(idx uint32, addr []byte, funSign []byte) *Callee {
 	return &Callee{
 		Index:       idx,
-		AddrAndSign: new(codec.Bytes12).FromSlice(Compact(addr, funSign)),
+		AddrAndSign: codec.Bytes12{}.FromBytes(Compact(addr, funSign)),
 		Except:      [][12]byte{},
 		Deferrable:  false,
 	}
@@ -64,17 +64,17 @@ func NewCallee(idx uint32, addr []byte, funSign []byte) *Callee {
 
 func (*Callee) IsPropertyPath(path string) bool {
 	return len(path) > stgcommon.ETH10_ACCOUNT_FULL_LENGTH &&
-		strings.Contains(path[stgcommon.ETH10_ACCOUNT_FULL_LENGTH:], stgcommon.PROPERTY_PATH_PREFIX)
+		strings.Contains(path[stgcommon.ETH10_ACCOUNT_FULL_LENGTH:], stgcommon.FULL_FUNC_PATH)
 }
 
 // Extract the callee signature from the path string
 func (this *Callee) parseCalleeSignature(path string) (string, []byte, []byte) {
-	idx := strings.Index(path, stgcommon.PROPERTY_PATH_PREFIX)
-	if idx == len(path) {
+	idx := strings.Index(path, stgcommon.FULL_FUNC_PATH)
+	if idx < 0 {
 		return "", []byte{}, []byte{}
 	}
 
-	fullPath := path[idx+len(stgcommon.PROPERTY_PATH_PREFIX):]
+	fullPath := path[idx+len(stgcommon.FULL_FUNC_PATH):]
 	sign, _ := hex.DecodeString(fullPath)
 
 	if len(sign) == 0 {
@@ -107,7 +107,7 @@ func (this *Callee) init(trans ...*univalue.Univalue) {
 			subPaths, _, _ := v.Value().(*commutative.Path).Get()
 			subPathSet := subPaths.(*deltaset.DeltaSet[string]) // Get all the conflicting ones.
 			for _, subPath := range subPathSet.Elements() {
-				k := new(codec.Bytes12).FromBytes([]byte(subPath))
+				k := codec.Bytes12{}.FromBytes([]byte(subPath))
 				this.Except = append(this.Except, k)
 			}
 		}
@@ -137,11 +137,10 @@ func (this *Callee) Encode() ([]byte, error) {
 	}).Encode(), nil
 }
 
-// new(codec.Bytes12).FromSlice(slice.Clone(fields[1])[:])
 func (this *Callee) Decode(data []byte) *Callee {
 	fields, _ := codec.Byteset{}.Decode(data).(codec.Byteset)
 	this.Index = uint32(new(codec.Uint32).Decode(fields[0]).(codec.Uint32))
-	this.AddrAndSign = new(codec.Bytes12).FromSlice(slice.Clone(fields[1])[:])
+	this.AddrAndSign = new(codec.Bytes12).FromBytes(slice.Clone(fields[1])[:])
 	this.Indices = new(codec.Uint32s).Decode(fields[2]).(codec.Uint32s)
 	this.Sequential = bool(new(codec.Bool).Decode(fields[3]).(codec.Bool))
 	this.Except = new(codec.Bytes12s).Decode(fields[4]).(codec.Bytes12s)
@@ -184,7 +183,7 @@ func (Callees) Decode(buffer []byte) interface{} {
 func (Callees) From(addr []byte, funSigns ...[]byte) [][stgcommon.CALLEE_ID_LENGTH]byte {
 	callees := make([][stgcommon.CALLEE_ID_LENGTH]byte, len(funSigns))
 	for i, funSign := range funSigns {
-		callees[i] = new(codec.Bytes12).FromSlice(
+		callees[i] = new(codec.Bytes12).FromBytes(
 			Compact(addr, funSign),
 		)
 	}

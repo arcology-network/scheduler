@@ -52,7 +52,7 @@ func (this *Scheduler) Import(propertyTransitions []*univalue.Univalue) {
 		if len(addr) == 0 || len(sign) == 0 {
 			continue
 		}
-		_, callee := this.Find(codec.Bytes20{}.FromBytes(addr[:]), codec.Bytes4{}.FromSlice(sign[:]))
+		_, callee := this.Find(codec.Bytes20{}.FromBytes(addr[:]), codec.Bytes4{}.FromBytes(sign[:]))
 		callee.init(v)
 	}
 }
