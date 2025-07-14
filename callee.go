@@ -113,7 +113,7 @@ func (this *Callee) init(trans ...*univalue.Univalue) {
 		}
 
 		// Set the Deferrable value
-		if strings.HasSuffix(*v.GetPath(), stgcommon.DEFERRED) && v.Value() != nil {
+		if strings.HasSuffix(*v.GetPath(), stgcommon.REQUIRED_GAS_PREPAYMENT) && v.Value() != nil {
 			flag, _, _ := v.Value().(stgcommon.Type).Get()
 			this.Deferrable = flag.([]byte)[0] > 0
 		}
