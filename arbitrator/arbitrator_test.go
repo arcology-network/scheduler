@@ -313,8 +313,8 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 	t.Run("Read & Delta-write", func(t *testing.T) { // Read delta write, should be 1 conflict
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 2, 0, 2, noncommutative.NewBytes([]byte{1, 2}), nil)
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 2, 0, 0, noncommutative.NewBytes([]byte{2, 3}), nil)
-		_0.Setsequence(0)
-		_1.Setsequence(1)
+		_0.SetSequence(0)
+		_1.SetSequence(1)
 
 		// sorted := univalue.Univalues([]*univalue.Univalue{_0, _1}).Sort()
 
@@ -329,8 +329,8 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 	t.Run("Read & Delta-write", func(t *testing.T) { // Read delta write, should be 1 conflict
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 2, 0, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 2, 0, 2, noncommutative.NewBytes([]byte{2, 3}), nil)
-		_0.Setsequence(0)
-		_1.Setsequence(1)
+		_0.SetSequence(0)
+		_1.SetSequence(1)
 
 		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
@@ -343,8 +343,8 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 	t.Run("Read & Delta-write", func(t *testing.T) { // Read delta write, should be 1 conflict
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 0, 2, noncommutative.NewBytes([]byte{1, 2}), nil)
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 2, 0, 2, noncommutative.NewBytes([]byte{2, 3}), nil)
-		_0.Setsequence(0)
-		_1.Setsequence(1)
+		_0.SetSequence(0)
+		_1.SetSequence(1)
 
 		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 

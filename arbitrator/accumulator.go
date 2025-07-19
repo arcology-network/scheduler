@@ -131,7 +131,7 @@ func (this *Accumulator) isOutOfLimits(k string, newTrans []*univalue.Univalue) 
 		key:           k,
 		self:          newTrans[0].GetTx(),
 		selfTran:      newTrans[0],
-		sequenceID:    slice.Transform(newTrans[offset+1:], func(_ int, v *univalue.Univalue) uint64 { return v.Getsequence() }),
+		sequenceID:    slice.Transform(newTrans[offset+1:], func(_ int, v *univalue.Univalue) uint64 { return v.GetSequence() }),
 		conflictTrans: newTrans[offset:],
 		txIDs:         slice.Transform(newTrans[offset+1:], func(_ int, v *univalue.Univalue) uint64 { return (*v).GetTx() }),
 	}

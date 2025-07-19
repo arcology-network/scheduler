@@ -115,7 +115,7 @@ func (this *Arbitrator) LookupForConflict(newTrans []*univalue.Univalue) *Confli
 		key:           *newTrans[0].GetPath(),
 		self:          newTrans[0].GetTx(),
 		selfTran:      newTrans[0],
-		sequenceID:    slice.Transform(newTrans[offset:], func(_ int, v *univalue.Univalue) uint64 { return v.Getsequence() }),
+		sequenceID:    slice.Transform(newTrans[offset:], func(_ int, v *univalue.Univalue) uint64 { return v.GetSequence() }),
 		conflictTrans: newTrans[offset:],
 		txIDs:         slice.Transform(newTrans[offset:], func(_ int, v *univalue.Univalue) uint64 { return (*v).GetTx() }),
 		Err:           err,
@@ -129,7 +129,7 @@ func (this *Arbitrator) Clear() {
 // Test function
 func (this *Arbitrator) InsertAndDetect(sequenceIDs []uint64, newTrans []*univalue.Univalue) []*Conflict {
 	for i, _ := range newTrans {
-		newTrans[i].Setsequence(sequenceIDs[i])
+		newTrans[i].SetSequence(sequenceIDs[i])
 	}
 
 	this.Insert(newTrans)
