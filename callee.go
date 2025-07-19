@@ -97,13 +97,13 @@ func (this *Callee) init(trans ...*univalue.Univalue) {
 		}
 
 		// Set execution method
-		if strings.HasSuffix(*v.GetPath(), stgcommon.EXECUTION_PARALLELISM) && v.Value() != nil {
+		if strings.HasSuffix(*v.GetPath(), stgcommon.PARALLELISM_LEVEL) && v.Value() != nil {
 			flag, _, _ := v.Value().(stgcommon.Type).Get()
 			this.Sequential = flag.([]byte)[0] == stgcommon.SEQUENTIAL_EXECUTION
 		}
 
 		// Set the excepted transitions
-		if strings.HasSuffix(*v.GetPath(), stgcommon.EXECUTION_EXCEPTED) {
+		if strings.HasSuffix(*v.GetPath(), stgcommon.PARALLELISM_LEVEL) {
 			subPaths, _, _ := v.Value().(*commutative.Path).Get()
 			subPathSet := subPaths.(*deltaset.DeltaSet[string]) // Get all the conflicting ones.
 			for _, subPath := range subPathSet.Elements() {
