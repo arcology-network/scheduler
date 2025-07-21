@@ -20,6 +20,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/arcology-network/common-lib/common"
 	"github.com/arcology-network/common-lib/exp/slice"
 	univalue "github.com/arcology-network/storage-committer/type/univalue"
 )
@@ -71,14 +72,24 @@ func (this *Wildcard) Substitute(trans []*univalue.Univalue) []*univalue.Univalu
 
 	// Remove the duplicates from the WildcardTrans.
 	substitutedOnes := []*univalue.Univalue{}
-	k := trans[0].GetPath()
+	k := trans[0].GetPath() // All the tarns have the same path. So we can use the first one.
 	for _, wildcard := range this.WildcardTrans {
-		wildCardPath := strings.TrimSuffix(*wildcard.GetPath(), "*")
+		wildCardPath := common.GetParentPath(*wildcard.GetPath())
 		if strings.HasPrefix(*k, wildCardPath) {
-			substituted := wildcard.Clone().(*univalue.Univalue)   // make a copy of the wildcard.
-			substituted.SetPath(k)                                 // Set the path to the actual path.
-			substitutedOnes = append(substitutedOnes, substituted) // Add the wildcard to the substituted ones.
-			trans = append(trans, wildcard)
+
+			// All the transitions in the write cache will be properly marked as the wildcard deletion happened
+			// But user may still want to write to the same value again. This will result in there in having
+			// multiple operation to the same path. For example a wildcard delete and then a write.
+			idx, _ := slice.FindFirstIf(trans, func(_ int, v *univalue.Univalue) bool {
+				return v.GetTx() == wildcard.GetTx()
+			})
+
+			if idx == -1 {
+				substituted := wildcard.Clone().(*univalue.Univalue)   // make a copy of the wildcard.
+				substituted.SetPath(k)                                 // Set the path to the actual path.
+				substitutedOnes = append(substitutedOnes, substituted) // Add the wildcard to the substituted ones.
+				trans = append(trans, wildcard)
+			}
 		}
 	}
 	return substitutedOnes

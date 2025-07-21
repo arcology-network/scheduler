@@ -66,14 +66,6 @@ func (this *Arbitrator) Detect() []*Conflict {
 			conflists[i] = this.LookupForConflict(vArr)
 		}
 	})
-
-	//
-	slice.ParallelForeach(keys, 8, func(i int, k *string) {
-		if vArr, ok := this.dict[*k]; ok && common.IsType[[]*univalue.Univalue](vArr) {
-			conflists[i] = this.LookupForConflict(vArr)
-		}
-	})
-
 	return slice.Remove(&conflists, nil)
 }
 
