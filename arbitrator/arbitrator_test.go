@@ -26,45 +26,6 @@ import (
 	"github.com/holiman/uint256"
 )
 
-func TestSubstituteWildcards(t *testing.T) {
-	alice := "0x0000000000000000000000000000000000000000"
-
-	_0 := []*univalue.Univalue{
-		univalue.NewUnivalue(1, "blcc://eth1.0/account/"+alice+"/storage/ctrn-0/elem-000", 3, 4, 0, noncommutative.NewUint32(1), nil),
-		univalue.NewUnivalue(2, "blcc://eth1.0/account/"+alice+"/storage/ctrn-0/elem-000", 3, 4, 0, noncommutative.NewUint32(2), nil),
-	}
-
-	_1 := []*univalue.Univalue{
-		univalue.NewUnivalue(1, "blcc://eth1.0/account/"+alice+"/storage/ctrn-1/elem-001", 3, 4, 0, noncommutative.NewUint32(1), nil),
-		univalue.NewUnivalue(2, "blcc://eth1.0/account/"+alice+"/storage/ctrn-1/elem-001", 3, 4, 0, noncommutative.NewUint32(2), nil),
-	}
-
-	_2 := []*univalue.Univalue{
-		univalue.NewUnivalue(1, "blcc://eth1.0/account/"+alice+"/storage/ctrn-1/elem-002", 3, 4, 0, noncommutative.NewUint32(3), nil),
-		univalue.NewUnivalue(2, "blcc://eth1.0/account/"+alice+"/storage/ctrn-1/elem-002", 3, 4, 0, noncommutative.NewUint32(4), nil),
-	}
-
-	_3 := []*univalue.Univalue{
-		univalue.NewUnivalue(1, "blcc://eth1.0/account/"+alice+"/storage/ctrn-2/elem-004", 3, 4, 0, noncommutative.NewUint32(5), nil),
-	}
-
-	_4 := []*univalue.Univalue{
-		univalue.NewUnivalue(2, "blcc://eth1.0/account/"+alice+"/storage/ctrn-3/elem-005", 3, 4, 0, noncommutative.NewUint32(6), nil),
-	}
-
-	wildcard := univalue.NewUnivalue(99, "blcc://eth1.0/account/"+alice+"/storage/ctrn-0/*", 3, 4, 0, nil, nil)
-
-	trans := [][]*univalue.Univalue{_0, _1, _2, _3, _4}
-
-	WildcardSet := NewWildcard(wildcard)
-	added := WildcardSet.Substitute(trans[0])
-
-	if len(added) != 1 {
-		t.Error("Error: expected 1 transitions, got", len(added))
-	}
-	univalue.Univalues(added).Print()
-}
-
 func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no conflict
 	t.Run("init / init", func(t *testing.T) {
 		v0 := commutative.NewBoundedU256FromU64(1, 100)

@@ -28,26 +28,25 @@ import (
 )
 
 type Arbitrator struct {
-	dict      map[string][]*univalue.Univalue // Using any instead of []*univalue.Univalue is because most of time the there is only one element.
-	wildcards *Wildcard                       // Wildcard elements, which are used to replace the original elements.
+	dict      map[string]*[]*univalue.Univalue // Using any instead of []*univalue.Univalue is because most of time the there is only one element.
+	wildcards *Wildcard                        // Wildcard elements, which are used to replace the original elements.
 
 }
 
 func NewArbitrator() *Arbitrator {
 	return &Arbitrator{
-		dict:      make(map[string][]*univalue.Univalue),
+		dict:      make(map[string]*[]*univalue.Univalue),
 		wildcards: NewWildcard(),
 	}
 }
 
 func (this *Arbitrator) Insert(newTrans []*univalue.Univalue) int {
 	newTrans = this.wildcards.Filter(newTrans) // Filter the wildcards out.
-
 	for i, tran := range newTrans {
 		if vArr, ok := this.dict[*newTrans[i].GetPath()]; !ok {
-			this.dict[*newTrans[i].GetPath()] = []*univalue.Univalue{newTrans[i]} // First time insert, using the element itself to save memory.
+			this.dict[*newTrans[i].GetPath()] = &([]*univalue.Univalue{newTrans[i]}) // First time insert, using the element itself to save memory.
 		} else {
-			this.dict[*newTrans[i].GetPath()] = append(vArr, tran)
+			*vArr = append(*vArr, tran)
 		}
 	}
 	return len(this.dict)
@@ -56,14 +55,15 @@ func (this *Arbitrator) Insert(newTrans []*univalue.Univalue) int {
 func (this *Arbitrator) Detect() []*Conflict {
 	tranSet := mapi.Values(this.dict)
 	for _, trans := range tranSet {
-		this.wildcards.Substitute(trans) // Insert the wildcards into the transition set.
+		// Insert the wildcards into the transition set before detection.
+		this.wildcards.Substitute(trans)
 	}
 
 	keys := maps.Keys(this.dict)
 	conflists := make([]*Conflict, len(keys))
 	slice.ParallelForeach(keys, 8, func(i int, k *string) {
-		if vArr, ok := this.dict[*k]; ok && common.IsType[[]*univalue.Univalue](vArr) {
-			conflists[i] = this.LookupForConflict(vArr)
+		if vArr, ok := this.dict[*k]; ok && common.IsType[[]*univalue.Univalue](*vArr) {
+			conflists[i] = this.LookupForConflict(*vArr)
 		}
 	})
 	return slice.Remove(&conflists, nil)
@@ -120,7 +120,7 @@ func (this *Arbitrator) Clear() {
 
 // Test function
 func (this *Arbitrator) InsertAndDetect(sequenceIDs []uint64, newTrans []*univalue.Univalue) []*Conflict {
-	for i, _ := range newTrans {
+	for i := range newTrans {
 		newTrans[i].SetSequence(sequenceIDs[i])
 	}
 
