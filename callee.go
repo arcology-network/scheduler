@@ -64,17 +64,17 @@ func NewCallee(idx uint32, addr []byte, funSign []byte) *Callee {
 
 func (*Callee) IsPropertyPath(path string) bool {
 	return len(path) > stgcommon.ETH10_ACCOUNT_FULL_LENGTH &&
-		strings.Contains(path[stgcommon.ETH10_ACCOUNT_FULL_LENGTH:], stgcommon.FULL_FUNC_PATH)
+		strings.Contains(path[stgcommon.ETH10_ACCOUNT_FULL_LENGTH:], stgcommon.FULL_PARA_PROP_PATH)
 }
 
 // Extract the callee signature from the path string
 func (this *Callee) parseCalleeSignature(path string) (string, []byte, []byte) {
-	idx := strings.Index(path, stgcommon.FULL_FUNC_PATH)
+	idx := strings.Index(path, stgcommon.FULL_PARA_PROP_PATH)
 	if idx < 0 {
 		return "", []byte{}, []byte{}
 	}
 
-	fullPath := path[idx+len(stgcommon.FULL_FUNC_PATH):]
+	fullPath := path[idx+len(stgcommon.FULL_PARA_PROP_PATH):]
 	sign, _ := hex.DecodeString(fullPath)
 
 	if len(sign) == 0 {
