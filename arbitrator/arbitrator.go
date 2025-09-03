@@ -20,7 +20,6 @@ package arbitrator
 import (
 	"errors"
 
-	common "github.com/arcology-network/common-lib/common"
 	mapi "github.com/arcology-network/common-lib/exp/map"
 	"github.com/arcology-network/common-lib/exp/slice"
 	univalue "github.com/arcology-network/storage-committer/type/univalue"
@@ -56,13 +55,13 @@ func (this *Arbitrator) Detect() []*Conflict {
 	tranSet := mapi.Values(this.dict)
 	for _, trans := range tranSet {
 		// Insert the wildcards into the transition set before detection.
-		this.wildcards.Substitute(trans)
+		this.wildcards.Expand(trans)
 	}
 
 	keys := maps.Keys(this.dict)
 	conflists := make([]*Conflict, len(keys))
 	slice.ParallelForeach(keys, 8, func(i int, k *string) {
-		if vArr, ok := this.dict[*k]; ok && common.IsType[[]*univalue.Univalue](*vArr) {
+		if vArr, ok := this.dict[*k]; ok && len(*vArr) > 1 {
 			conflists[i] = this.LookupForConflict(*vArr)
 		}
 	})
