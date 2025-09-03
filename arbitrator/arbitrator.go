@@ -55,7 +55,7 @@ func (this *Arbitrator) Detect() []*Conflict {
 	tranSet := mapi.Values(this.dict)
 	for _, trans := range tranSet {
 		// Insert the wildcards into the transition set before detection.
-		this.wildcards.Substitute(trans)
+		this.wildcards.Expand(trans)
 	}
 
 	keys := maps.Keys(this.dict)
