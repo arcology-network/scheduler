@@ -11,8 +11,8 @@ replace github.com/ethereum/go-ethereum v1.14.8 => ../concurrent-evm/
 require github.com/ethereum/go-ethereum v1.14.8
 
 require (
-	github.com/arcology-network/common-lib v1.9.1-0.20250613001412-0529984b08ff
-	github.com/arcology-network/storage-committer v1.9.1-0.20250613004728-e65a2bc7058d
+	github.com/arcology-network/common-lib v1.9.1-0.20250904084038-46913d516a25
+	github.com/arcology-network/storage-committer v1.9.1-0.20250904084742-3c998d22800e
 	github.com/holiman/uint256 v1.2.4
 	golang.org/x/exp v0.0.0-20231206192017-f3f8817b8deb
 )
