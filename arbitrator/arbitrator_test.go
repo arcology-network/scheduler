@@ -274,8 +274,8 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 	t.Run("Read & Delta-write", func(t *testing.T) { // Read delta write, should be 1 conflict
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 2, 0, 2, noncommutative.NewBytes([]byte{1, 2}), nil)
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 2, 0, 0, noncommutative.NewBytes([]byte{2, 3}), nil)
-		_0.Setsequence(0)
-		_1.Setsequence(1)
+		_0.SetSequence(0)
+		_1.SetSequence(1)
 
 		// sorted := univalue.Univalues([]*univalue.Univalue{_0, _1}).Sort()
 
@@ -290,8 +290,8 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 	t.Run("Read & Delta-write", func(t *testing.T) { // Read delta write, should be 1 conflict
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 2, 0, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 2, 0, 2, noncommutative.NewBytes([]byte{2, 3}), nil)
-		_0.Setsequence(0)
-		_1.Setsequence(1)
+		_0.SetSequence(0)
+		_1.SetSequence(1)
 
 		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
@@ -304,8 +304,8 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 	t.Run("Read & Delta-write", func(t *testing.T) { // Read delta write, should be 1 conflict
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 0, 2, noncommutative.NewBytes([]byte{1, 2}), nil)
 		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 2, 0, 2, noncommutative.NewBytes([]byte{2, 3}), nil)
-		_0.Setsequence(0)
-		_1.Setsequence(1)
+		_0.SetSequence(0)
+		_1.SetSequence(1)
 
 		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
 
@@ -377,4 +377,22 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 			t.Error("Error: There should be ONE conflict")
 		}
 	})
+
+	t.Run("Clear all / Cumulative write", func(t *testing.T) {
+		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/ctrn/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
+		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/ctrn/0x0000001", 2, 2, 1, noncommutative.NewBytes([]byte{2, 3}), nil)
+
+		_0.Property.SetPreexist(true)
+
+		_2 := univalue.NewUnivalue(2, "blcc://eth1.0/account/ctrn/", 2, 2, 1, commutative.NewPath(), nil)
+		_2.Value().(*commutative.Path).DeltaSet.Removed().AllDeleted = (true)
+
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1, 2}, []*univalue.Univalue{_0, _1, _2})
+
+		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		if len(conflictdict) != 1 {
+			t.Error("Error: There should be NO conflict")
+		}
+	})
+
 }

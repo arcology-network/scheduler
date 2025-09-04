@@ -20,61 +20,51 @@ package arbitrator
 import (
 	"errors"
 
-	common "github.com/arcology-network/common-lib/common"
+	mapi "github.com/arcology-network/common-lib/exp/map"
 	"github.com/arcology-network/common-lib/exp/slice"
 	univalue "github.com/arcology-network/storage-committer/type/univalue"
 	"golang.org/x/exp/maps"
 )
 
 type Arbitrator struct {
-	dict map[string]any
-	// lookup map[string]*btree.BTreeG[*univalue.Univalue]
+	dict      map[string]*[]*univalue.Univalue // Using any instead of []*univalue.Univalue is because most of time the there is only one element.
+	wildcards *Wildcard                        // Wildcard elements, which are used to replace the original elements.
+
 }
 
 func NewArbitrator() *Arbitrator {
 	return &Arbitrator{
-		dict: make(map[string]any),
-		// lookup: make(map[string]*btree.BTreeG[*univalue.Univalue]),
+		dict:      make(map[string]*[]*univalue.Univalue),
+		wildcards: NewWildcard(),
 	}
 }
 
 func (this *Arbitrator) Insert(newTrans []*univalue.Univalue) int {
+	newTrans = this.wildcards.Filter(newTrans) // Filter the wildcards out.
 	for i, tran := range newTrans {
-		// tran.Setsequence(sequenceIDs[i])
 		if vArr, ok := this.dict[*newTrans[i].GetPath()]; !ok {
-			this.dict[*newTrans[i].GetPath()] = newTrans[i] // First time insert, using the element itself to save memory.
+			this.dict[*newTrans[i].GetPath()] = &([]*univalue.Univalue{newTrans[i]}) // First time insert, using the element itself to save memory.
 		} else {
-			if common.IsType[*univalue.Univalue](vArr) { // Second time insert, put the first and the second into a slice.
-				this.dict[*newTrans[i].GetPath()] = []*univalue.Univalue{vArr.(*univalue.Univalue), tran}
-
-				// tree := btree.NewG(2, univalue.LessByTx)
-				// tree.ReplaceOrInsert(tran)
-				continue
-			}
-			// 2+ element insert, put all the elements into a slice.
-			this.dict[*newTrans[i].GetPath()] = append(vArr.([]*univalue.Univalue), tran)
-			// this.lookup[*newTrans[i].GetPath()].ReplaceOrInsert(tran)
+			*vArr = append(*vArr, tran)
 		}
 	}
 	return len(this.dict)
 }
 
 func (this *Arbitrator) Detect() []*Conflict {
+	tranSet := mapi.Values(this.dict)
+	for _, trans := range tranSet {
+		// Insert the wildcards into the transition set before detection.
+		this.wildcards.Expand(trans)
+	}
+
 	keys := maps.Keys(this.dict)
 	conflists := make([]*Conflict, len(keys))
 	slice.ParallelForeach(keys, 8, func(i int, k *string) {
-		if vArr, ok := this.dict[*k]; ok && common.IsType[[]*univalue.Univalue](vArr) {
-			conflists[i] = this.LookupForConflict(vArr.([]*univalue.Univalue))
+		if vArr, ok := this.dict[*k]; ok && len(*vArr) > 1 {
+			conflists[i] = this.LookupForConflict(*vArr)
 		}
 	})
-
-	//
-	slice.ParallelForeach(keys, 8, func(i int, k *string) {
-		if vArr, ok := this.dict[*k]; ok && common.IsType[[]*univalue.Univalue](vArr) {
-			conflists[i] = this.LookupForConflict(vArr.([]*univalue.Univalue))
-		}
-	})
-
 	return slice.Remove(&conflists, nil)
 }
 
@@ -116,7 +106,7 @@ func (this *Arbitrator) LookupForConflict(newTrans []*univalue.Univalue) *Confli
 		key:           *newTrans[0].GetPath(),
 		self:          newTrans[0].GetTx(),
 		selfTran:      newTrans[0],
-		sequenceID:    slice.Transform(newTrans[offset:], func(_ int, v *univalue.Univalue) uint64 { return v.Getsequence() }),
+		sequenceID:    slice.Transform(newTrans[offset:], func(_ int, v *univalue.Univalue) uint64 { return v.GetSequence() }),
 		conflictTrans: newTrans[offset:],
 		txIDs:         slice.Transform(newTrans[offset:], func(_ int, v *univalue.Univalue) uint64 { return (*v).GetTx() }),
 		Err:           err,
@@ -129,8 +119,8 @@ func (this *Arbitrator) Clear() {
 
 // Test function
 func (this *Arbitrator) InsertAndDetect(sequenceIDs []uint64, newTrans []*univalue.Univalue) []*Conflict {
-	for i, _ := range newTrans {
-		newTrans[i].Setsequence(sequenceIDs[i])
+	for i := range newTrans {
+		newTrans[i].SetSequence(sequenceIDs[i])
 	}
 
 	this.Insert(newTrans)

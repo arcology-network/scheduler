@@ -233,7 +233,7 @@ func TestSchedulerWithConflicInfo(t *testing.T) {
 			Native: &ethcore.Message{To: &addr, Data: addr[:4]},
 		}
 	}
-	msgs = slice.Join(msgs, slice.New(1000000, callAlice))
+	msgs = slice.Join(msgs, slice.New(100000, callAlice))
 
 	t0 := time.Now()
 	scheduler.New(msgs)

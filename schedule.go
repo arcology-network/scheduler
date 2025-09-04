@@ -56,7 +56,7 @@ func (this *Schedule) Optimize(scheduler *Scheduler) [][][]*eucommon.StandardMes
 
 		deferred := []*eucommon.StandardMessage{}
 		for i, msgs := range msgSets {
-			if len(msgs) > 1 {
+			if len(msgs) >= 1 {
 				// Check if a deferred call is needed.
 				key := GenerateKey(msgs[0])                           // Key
 				if idx, ok := scheduler.calleeDict[string(key)]; ok { // If a known callee is found.
@@ -70,8 +70,15 @@ func (this *Schedule) Optimize(scheduler *Scheduler) [][][]*eucommon.StandardMes
 					}
 					// Schedule the deferred call
 				}
-				v := slice.PopBack(&msgs) // Use the last message as the deferred call
-				deferred = append(deferred, *v)
+
+				if len(msgs) == 1 {
+					msgs[0].IsDeferred = true // Single deferred message.
+					continue                  // Skip empty sets.
+				}
+
+				msg := slice.PopBack(&msgs) // Use the last message as the deferred call
+				(*msg).IsDeferred = true    // Mark the message as deferred
+				deferred = append(deferred, *msg)
 				msgSets[i] = msgs
 			}
 		}

@@ -28,9 +28,11 @@ import (
 )
 
 // Accumualator is dedicatd to cumulative numeric variables. It check if the value is out of limits defined by
-// the type. It sorts the transitions by the delta sign and type so the negative deltas are in the front of the
-// delta sequence to make sure it has sufficient initial value for the negative deltas. The underflow is always
-// checked first before the overflow.
+// the type.
+//
+// It sorts the transitions by the delta sign and type so the negative deltas are in the front of the
+// delta sequence to make sure it has sufficient initial value for the negative deltas.
+// The underflow is always checked first before the overflow.
 
 type Accumulator struct{}
 
@@ -54,7 +56,10 @@ func (this *Accumulator) CheckMinMax(transitions []*univalue.Univalue) *Conflict
 	sort.SliceStable(transitions, func(i, j int) bool {
 		lhv := transitions[i].Value().(intf.Type)
 		rhv := transitions[i].Value().(intf.Type)
-		return lhv.DeltaSign() != rhv.DeltaSign() && !lhv.DeltaSign()
+		_, lhvSign := lhv.Delta()
+		_, rhvSign := rhv.Delta()
+
+		return lhvSign != rhvSign && !lhvSign
 	})
 
 	negatives, positives := this.Categorize(transitions)
@@ -90,7 +95,10 @@ func (this *Accumulator) CheckMinMax(transitions []*univalue.Univalue) *Conflict
 
 // categorize transitions into two groups, one is negative, one positive.
 func (*Accumulator) Categorize(transitions []*univalue.Univalue) ([]*univalue.Univalue, []*univalue.Univalue) {
-	offset, _ := slice.FindFirstIf(transitions, func(_ int, v *univalue.Univalue) bool { return v.Value().(intf.Type).DeltaSign() })
+	offset, _ := slice.FindFirstIf(transitions, func(_ int, v *univalue.Univalue) bool {
+		_, sign := v.Value().(intf.Type)
+		return sign
+	})
 
 	if offset < 0 {
 		offset = len(transitions)
@@ -123,7 +131,7 @@ func (this *Accumulator) isOutOfLimits(k string, newTrans []*univalue.Univalue) 
 		key:           k,
 		self:          newTrans[0].GetTx(),
 		selfTran:      newTrans[0],
-		sequenceID:    slice.Transform(newTrans[offset+1:], func(_ int, v *univalue.Univalue) uint64 { return v.Getsequence() }),
+		sequenceID:    slice.Transform(newTrans[offset+1:], func(_ int, v *univalue.Univalue) uint64 { return v.GetSequence() }),
 		conflictTrans: newTrans[offset:],
 		txIDs:         slice.Transform(newTrans[offset+1:], func(_ int, v *univalue.Univalue) uint64 { return (*v).GetTx() }),
 	}

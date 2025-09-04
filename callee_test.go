@@ -29,7 +29,7 @@ import (
 // 	callees := make([]*CalleeInfo, numCalls)
 // 	for i := 0; i < numCalls; i++ {
 // 		callee := &CalleeInfo{}
-// 		callee.AddrAndSign = new(codec.Bytes12).FromSlice([]byte{1, 2, 3, 4, 5, 6, 7, 8, 1, 2})
+// 		callee.AddrAndSign = new(codec.Bytes12).FromBytes([]byte{1, 2, 3, 4, 5, 6, 7, 8, 1, 2})
 // 		callee.Sequential = true
 // 		callee.Except = [][12]byte{{1, 2, 3, 4, 5, 6, 7, 8, 1, 2}, {2, 2, 3, 4, 5, 6, 7, 8, 1, 2}}
 // 		callees[i] = callee
@@ -59,7 +59,7 @@ func TestCallee(t *testing.T) {
 	for i := 0; i < numCalls; i++ {
 		callees[i] = &Callee{
 			Index:       uint32(i),
-			AddrAndSign: new(codec.Bytes12).FromSlice([]byte{1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4}),
+			AddrAndSign: new(codec.Bytes12).FromBytes([]byte{1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4}),
 			Indices:     []uint32{1, 2, 3, 4},
 			Sequential:  false,
 			Calls:       uint32(i),
@@ -87,7 +87,7 @@ func BenchmarkTestCallee(t *testing.B) {
 	for i := 0; i < numCalls; i++ {
 		callees[i] = &Callee{
 			Index:       uint32(i),
-			AddrAndSign: new(codec.Bytes12).FromSlice([]byte{1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4}),
+			AddrAndSign: new(codec.Bytes12).FromBytes([]byte{1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4}),
 			Indices:     []uint32{1, 2, 3, 4},
 			Sequential:  false,
 			Calls:       uint32(i),
