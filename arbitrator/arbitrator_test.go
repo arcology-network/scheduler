@@ -378,20 +378,92 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 		}
 	})
 
-	t.Run("Clear all / Cumulative write", func(t *testing.T) {
+	t.Run("Clear Committed / New Byte write", func(t *testing.T) {
+		// Read an element
 		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/ctrn/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
-		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/ctrn/0x0000001", 2, 2, 1, noncommutative.NewBytes([]byte{2, 3}), nil)
+		_0.Property.SetPreexist(false)
 
+		// Clear all committed entries under the path
+		_2 := univalue.NewUnivalue(2, "blcc://eth1.0/account/ctrn/[:]", 0, 2, 1, commutative.NewPath(), nil)
+		_2.Value().(*commutative.Path).DeltaSet.Removed().CommittedDeleted = (true)
+
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 2}, []*univalue.Univalue{_0, _2})
+
+		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		if len(conflictdict) != 0 {
+			t.Error("Error: ", len(conflictdict))
+		}
+	})
+
+	t.Run("Clear All / Byte write", func(t *testing.T) {
+		// Read + write an existing element
+		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/ctrn/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
 		_0.Property.SetPreexist(true)
 
-		_2 := univalue.NewUnivalue(2, "blcc://eth1.0/account/ctrn/", 2, 2, 1, commutative.NewPath(), nil)
-		_2.Value().(*commutative.Path).DeltaSet.Removed().AllDeleted = (true)
+		// Clear all  entries (committed + Added) under the path
+		_2 := univalue.NewUnivalue(2, "blcc://eth1.0/account/ctrn/*", 0, 2, 1, commutative.NewPath(), nil)
+		_2.Value().(*commutative.Path).DeltaSet.Removed().CommittedDeleted = (true)
+		_2.Value().(*commutative.Path).DeltaSet.Removed().StagedAddedDeleted = (true)
 
-		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1, 2}, []*univalue.Univalue{_0, _1, _2})
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 2}, []*univalue.Univalue{_0, _2})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 1 {
-			t.Error("Error: There should be NO conflict")
+			t.Error("Error: ", len(conflictdict))
+		}
+	})
+
+	t.Run("Clear All / existing Byte write", func(t *testing.T) {
+		// Read an element
+		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/ctrn/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
+		_0.Property.SetPreexist(false)
+
+		// Clear all committed entries under the path
+		_2 := univalue.NewUnivalue(2, "blcc://eth1.0/account/ctrn/*", 0, 2, 1, commutative.NewPath(), nil)
+		_2.Value().(*commutative.Path).DeltaSet.Removed().CommittedDeleted = (true)
+		_2.Value().(*commutative.Path).DeltaSet.Removed().StagedAddedDeleted = (true)
+
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 2}, []*univalue.Univalue{_0, _2})
+
+		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		if len(conflictdict) != 1 {
+			t.Error("Error: ", len(conflictdict))
+		}
+	})
+
+	t.Run("Clear Committed / New Byte write", func(t *testing.T) {
+		// Read an element
+		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/ctrn/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
+		_0.Property.SetPreexist(false)
+		// This one isn't pre-exists
+
+		// Clear all committed entries under the path
+		_2 := univalue.NewUnivalue(2, "blcc://eth1.0/account/ctrn/[:]", 0, 2, 1, commutative.NewPath(), nil)
+		_2.Value().(*commutative.Path).DeltaSet.Removed().CommittedDeleted = (true)
+
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 2}, []*univalue.Univalue{_0, _2})
+
+		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		if len(conflictdict) != 0 {
+			t.Error("Error: ", len(conflictdict))
+		}
+	})
+
+	t.Run("Preexist Byte write /  Clear Committed", func(t *testing.T) {
+		// Read an element
+		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/ctrn/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
+		_0.Property.SetPreexist(true)
+		// This one is pre-exists
+
+		// Clear all committed entries under the path
+		_2 := univalue.NewUnivalue(2, "blcc://eth1.0/account/ctrn/[:]", 0, 2, 1, commutative.NewPath(), nil)
+		_2.Value().(*commutative.Path).DeltaSet.Removed().CommittedDeleted = (true)
+
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 2}, []*univalue.Univalue{_0, _2})
+
+		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		if len(conflictdict) != 1 {
+			t.Error("Error: ", len(conflictdict))
 		}
 	})
 

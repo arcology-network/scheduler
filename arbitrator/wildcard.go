@@ -20,7 +20,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/arcology-network/common-lib/common"
 	"github.com/arcology-network/common-lib/exp/slice"
+	"github.com/arcology-network/storage-committer/type/commutative"
 	univalue "github.com/arcology-network/storage-committer/type/univalue"
 )
 
@@ -41,7 +43,9 @@ func NewWildcard(initWildcardTrans ...*univalue.Univalue) *Wildcard {
 func (this *Wildcard) Filter(trans []*univalue.Univalue) []*univalue.Univalue {
 	for _, tran := range trans {
 		if strings.Contains(*tran.GetPath(), "*") || strings.Contains(*tran.GetPath(), "[:]") {
-			// if isWildcard, _ := tran.IsCommittedDeleted(); isWildcard {
+			clearPath, _ := common.TrimWildcardSuffix(*tran.GetPath())
+			tran.SetPath(&clearPath)
+
 			this.WildcardTrans = append(this.WildcardTrans, tran) // Apply the wildcard to the transition
 			// trans[i] = nil
 			// }
@@ -66,28 +70,35 @@ func (this *Wildcard) Expand(trans *[]*univalue.Univalue) []*univalue.Univalue {
 	allExpanded := []*univalue.Univalue{}
 	k := (*trans)[0].GetPath() // All the tarns have the same path. So we can use the first one.
 	for _, wildcard := range this.WildcardTrans {
+		addedDeleted := wildcard.Value().(*commutative.Path).DeltaSet.Removed().StagedAddedDeleted   // Mark the wildcard as a staged deleted one, so that it won't be used in the conflict detection.
+		committedDeleted := wildcard.Value().(*commutative.Path).DeltaSet.Removed().CommittedDeleted // Mark the wildcard as a staged deleted one, so that it won't be used in the conflict detection.
+
 		wildCardPath := *wildcard.GetPath()
 
 		// Has the prefix of the wildcard path but not the same path to prevent duplication.
+		// This is no wildcard / path for now. only whildcard paths / elements.
+		// For example, if the wildcard path is "blcc://eth1.0/account/ctrn/[:]", then it will match
+		// "blcc://eth1.0/account/ctrn/0x0000000"
 		if len(wildCardPath) != len(*k) && strings.HasPrefix(*k, wildCardPath) {
 			// User may still want to write to the cleared path again. If this happens
 			// Only if a transition with the same tx id isn't found, we will insert one.
 			// Otherwise itself is enough for conflict detection.
-			if idx, _ := slice.FindFirstIf(*trans, func(_ int, v *univalue.Univalue) bool { return v.GetTx() == wildcard.GetTx() }); idx == -1 {
-				// On expand it to preexist entries. otherwise there will be independent transitions
-				// for them.
-				if !((*trans)[0].Preexist()) {
-					continue
-				}
 
-				newUnival := new(univalue.Univalue)
-				newUnival.Property = wildcard.Property.Clone()
-				newUnival.SetExpanded(true)
-				newUnival.IncrementWrites(1) // Increment the writes by 1, so that it will be treated as a write operation.
-				newUnival.SetPath(k)
-				newUnival.SetValue(nil) // Set the path to the actual path.
-				*trans = append(*trans, newUnival)
-				allExpanded = append(allExpanded, newUnival) // Add the wildcard to the substituted ones.
+			// Delete the committed entries and this transition is not a preexist one.
+			if (addedDeleted && !(*trans)[0].IsCommitted()) || (committedDeleted && (*trans)[0].IsCommitted()) {
+				if idx, _ := slice.FindFirstIf(*trans, func(_ int, v *univalue.Univalue) bool { return v.GetTx() == wildcard.GetTx() }); idx == -1 {
+					// On expand it to preexist entries. otherwise there will be independent transitions
+					// for them.
+
+					newUnival := new(univalue.Univalue)
+					newUnival.Property = wildcard.Property.Clone()
+					newUnival.SetExpanded(true)
+					newUnival.IncrementWrites(1) // Increment the writes by 1, so that it will be treated as a write operation.
+					newUnival.SetPath(k)
+					newUnival.SetValue(nil) // Set the path to the actual path.
+					*trans = append(*trans, newUnival)
+					allExpanded = append(allExpanded, newUnival) // Add the wildcard to the substituted ones.
+				}
 			}
 		}
 	}
