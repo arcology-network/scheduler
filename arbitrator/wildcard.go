@@ -47,8 +47,6 @@ func (this *Wildcard) Filter(trans []*univalue.Univalue) []*univalue.Univalue {
 			tran.SetPath(&clearPath)
 
 			this.WildcardTrans = append(this.WildcardTrans, tran) // Apply the wildcard to the transition
-			// trans[i] = nil
-			// }
 		}
 	}
 	// slice.Remove(&trans, nil) // Remove the nil elements from

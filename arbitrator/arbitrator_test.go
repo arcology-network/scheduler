@@ -103,7 +103,7 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 		// Nil init never exists, so it should be treated as a conflict
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 1 {
-			t.Error("Error: There should be ONE conflict")
+			t.Error("Error: There should be ONE conflict", len(conflictdict))
 		}
 	})
 
@@ -184,7 +184,7 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 1 {
-			t.Error("Error: There should be ONE conflict")
+			t.Error("Error: There should be ONE conflict", len(conflictdict))
 		}
 	})
 

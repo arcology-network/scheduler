@@ -68,6 +68,11 @@ func (this *Arbitrator) Detect() []*Conflict {
 	return slice.Remove(&conflists, nil)
 }
 
+func (this *Arbitrator) Move(newTrans []*univalue.Univalue) []*univalue.Univalue {
+	slice.Foreach(newTrans, func(i int, v **univalue.Univalue) { (*v).IsInConflict = !(*v).IsReadOnly() })
+	return slice.MoveIf(&newTrans, func(i int, v *univalue.Univalue) bool { return v.IsInConflict })
+}
+
 func (this *Arbitrator) LookupForConflict(newTrans []*univalue.Univalue) *Conflict {
 	univalue.Univalues(newTrans).SortByTx()
 
@@ -75,40 +80,54 @@ func (this *Arbitrator) LookupForConflict(newTrans []*univalue.Univalue) *Confli
 	subTrans := newTrans[1:]
 
 	var err error
-	var offset int
+	conflictTrans := subTrans
 	if first.IsReadOnly() { // Read only
-		offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsReadOnly() })
-		err = errors.New("read with non read only")
+		slice.Foreach(subTrans, func(i int, v **univalue.Univalue) { (*v).IsInConflict = !(*v).IsReadOnly() })
+		conflictTrans = slice.MoveIf(&subTrans, func(i int, v *univalue.Univalue) bool { return v.IsInConflict })
+		err = errors.New("Read with non read only")
 	} else if first.IsCumulativeWriteOnly(first) { // Initialization of commutative values only
-		offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsCumulativeWriteOnly(first) })
+		slice.Foreach(subTrans, func(i int, v **univalue.Univalue) { (*v).IsInConflict = !(*v).IsCumulativeWriteOnly(first) })
+		conflictTrans = slice.MoveIf(&subTrans, func(i int, v *univalue.Univalue) bool { return v.IsInConflict })
 		err = errors.New("Commutative Initialization with non commutative initialization")
+
+		// offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsCumulativeWriteOnly(first) })
+		// err = errors.New("Commutative Initialization with non commutative initialization")
 	} else if first.IsDeltaWriteOnly() { // Delta write only
-		offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsDeltaWriteOnly() })
+		slice.Foreach(subTrans, func(i int, v **univalue.Univalue) { (*v).IsInConflict = !(*v).IsDeltaWriteOnly() })
+		conflictTrans = slice.MoveIf(&subTrans, func(i int, v *univalue.Univalue) bool { return v.IsInConflict })
 		err = errors.New("Delta write with non delta write only")
+
+		// offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsDeltaWriteOnly() })
+		// err = errors.New("Delta write with non delta write only")
 	} else if first.IsDeleteOnly() { // Delta write only
-		offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsDeleteOnly() })
+		slice.Foreach(subTrans, func(i int, v **univalue.Univalue) { (*v).IsInConflict = !(*v).IsDeleteOnly() })
+		conflictTrans = slice.MoveIf(&subTrans, func(i int, v *univalue.Univalue) bool { return v.IsInConflict })
 		err = errors.New("Delete with non delete only")
+
+		// offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsDeleteOnly() })
+		// err = errors.New("Delete with non delete only")
 	} else if first.IsNilInitOnly() { // Initialization with nil only.
-		offset, _ = slice.FindFirstIf(subTrans, func(_ int, v *univalue.Univalue) bool { return !v.IsNilInitOnly() })
+		slice.Foreach(subTrans, func(i int, v **univalue.Univalue) { (*v).IsInConflict = !(*v).IsNilInitOnly() })
+		conflictTrans = slice.MoveIf(&subTrans, func(i int, v *univalue.Univalue) bool { return v.IsInConflict })
 		err = errors.New("Nil initialization with non nil initialization")
 	}
 
-	if offset < 0 {
+	if len(conflictTrans) == 0 {
 		return (&Accumulator{}).CheckMinMax(newTrans)
 	}
 
-	if outOfLimit := (&Accumulator{}).CheckMinMax(newTrans[:offset]); outOfLimit != nil {
+	if outOfLimit := (&Accumulator{}).CheckMinMax(newTrans[:len(newTrans)-len(conflictTrans)]); outOfLimit != nil {
 		return outOfLimit
 	}
 
-	offset++ // The offet is actually the index of the origina index minus 1, because the first was used as the reference. Here we add it back.
+	// offset++ // The offet is actually the index of the origina index minus 1, because the first was used as the reference. Here we add it back.
 	return &Conflict{
 		key:           *newTrans[0].GetPath(),
 		self:          newTrans[0].GetTx(),
 		selfTran:      newTrans[0],
-		sequenceID:    slice.Transform(newTrans[offset:], func(_ int, v *univalue.Univalue) uint64 { return v.GetSequence() }),
-		conflictTrans: newTrans[offset:],
-		txIDs:         slice.Transform(newTrans[offset:], func(_ int, v *univalue.Univalue) uint64 { return (*v).GetTx() }),
+		sequenceID:    slice.Transform(conflictTrans, func(_ int, v *univalue.Univalue) uint64 { return v.GetSequence() }),
+		conflictTrans: conflictTrans,
+		txIDs:         slice.Transform(conflictTrans, func(_ int, v *univalue.Univalue) uint64 { return (*v).GetTx() }),
 		Err:           err,
 	}
 }
