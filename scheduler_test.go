@@ -111,8 +111,8 @@ func TestSchedulerNoConflictWithDeferred(t *testing.T) {
 		callAlice2,
 	})
 
-	if optimized := rawSch.Optimize(scheduler); len(optimized) != 2 || len(optimized[0]) != 2 || len(optimized[1]) != 1 {
-		t.Error("Wrong generation size", optimized[0], optimized[1])
+	if optimized := rawSch.Finalize(); len(optimized) != 1 || len(optimized[0]) != 3 {
+		t.Error("Wrong generation size", len(optimized), len(optimized[0]))
 	}
 }
 
@@ -144,7 +144,7 @@ func TestSchedulerNoConflictWithoutDeferred(t *testing.T) {
 		callAlice2,
 	})
 
-	if optimized := rawSch.Optimize(scheduler); len(optimized) != 1 || len(optimized[0]) != 3 {
+	if optimized := rawSch.Finalize(); len(optimized) != 1 || len(optimized[0]) != 3 {
 		t.Error("Wrong generation size", optimized[0])
 	}
 }
@@ -215,15 +215,24 @@ func TestSchedulerWithConflicInfo(t *testing.T) {
 		transfer,
 	})
 
-	if len(rawSch.Generations) != 2 || len(rawSch.Generations[0]) != 2 || len(rawSch.Generations[1]) != 2 {
-		t.Error("Wrong generation size", len(rawSch.Generations))
+	// rawSch.
+	rawSch.Finalize()
+	if len(rawSch.Generations) != 2 || len(rawSch.Generations[0]) != 4 || len(rawSch.Generations[1]) != 2 {
+		t.Error("Wrong generation size", len(rawSch.Generations), len(rawSch.Generations[0]))
+	}
+}
+
+func BenchmarkSchedulerWithConflictInfo(t *testing.B) {
+	scheduler, _ := NewScheduler("", true) // No conflict db file.
+
+	alice := []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+	aaddr := ethcommon.BytesToAddress(alice)
+
+	callAlice := &eucommon.StandardMessage{
+		ID:     0,
+		Native: &ethcore.Message{To: &aaddr, Data: []byte{1, 1, 1, 1}},
 	}
 
-	if optimized := rawSch.Optimize(scheduler); len(optimized) != 3 || len(optimized[0]) != 2 || len(optimized[1]) != 2 {
-		t.Error("Wrong optimized generation size", len(optimized))
-	}
-
-	// Check that the schedule is correct.
 	msgs := make([]*eucommon.StandardMessage, 10)
 	for i := range msgs {
 		h := sha256.Sum256([]byte(strconv.Itoa(i)))

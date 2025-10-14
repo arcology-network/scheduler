@@ -25,7 +25,7 @@ import (
 type Schedule struct {
 	Transfers    []*eucommon.StandardMessage // Transfers
 	Deployments  []*eucommon.StandardMessage // Contract deployments
-	Unknows      []*eucommon.StandardMessage // Messages with unknown conflicts with others
+	Unknowns     []*eucommon.StandardMessage // Messages with unknown conflicts with others
 	WithConflict []*eucommon.StandardMessage // Messages with some known conflicts
 	Sequentials  []*eucommon.StandardMessage // Callees that are marked as sequential only
 
@@ -37,72 +37,32 @@ type Schedule struct {
 // The first dimension is the generation number. The second dimension is a set of
 // parallel transaction arrays. These arrays are the transactions that can be executed in parallel.
 // The third dimension is the transactions in the sequntial order.
-func (this *Schedule) Optimize(scheduler *Scheduler) [][][]*eucommon.StandardMessage {
-
+func (this *Schedule) Finalize() [][][]*eucommon.StandardMessage {
 	//  Transfers + deployments can be executed in parallel with withConflict + sequentials.
-	sch := [][][]*eucommon.StandardMessage{{
-		append(this.Transfers, this.Deployments...),    // Transfers and deployments will be executed first in parallel
-		append(this.WithConflict, this.Sequentials...), // Sequential only ones, can be empty.
-	}}
+	_1 := slice.ConcateNonEmpty(func(v []*eucommon.StandardMessage) bool { return len(v) > 0 }, this.Transfers, this.Deployments, this.Unknowns)
+	_2 := slice.ConcateNonEmpty(func(v []*eucommon.StandardMessage) bool { return len(v) > 0 }, this.WithConflict, this.Sequentials)
 
-	sch = append(sch, this.Generations...)
-
-	// Txs with unknown conflicts will be next. Unknow may also need to schedule deferred calls.
-	if len(this.Unknows) > 0 {
-		_, msgSets := slice.GroupBy(this.Unknows, func(_ int, msg *eucommon.StandardMessage) *string {
-			v := string(Compact(msg.Native.To[:], msg.Native.Data[:]))
-			return &v
-		})
-
-		deferred := []*eucommon.StandardMessage{}
-		for i, msgs := range msgSets {
-			if len(msgs) >= 1 {
-				// Check if a deferred call is needed.
-				key := GenerateKey(msgs[0])                           // Key
-				if idx, ok := scheduler.calleeDict[string(key)]; ok { // If a known callee is found.
-					if !scheduler.callees[idx].Deferrable { // Check if the callee is specifically marked as deferrable.
-						continue // No, skip this one.
-					}
-					// Schedule the deferred call
-				} else {
-					if !scheduler.deferByDefault { // The callee is not found, use the default value in this case.
-						continue
-					}
-					// Schedule the deferred call
-				}
-
-				if len(msgs) == 1 {
-					msgs[0].IsDeferred = true // Single deferred message.
-					continue                  // Skip empty sets.
-				}
-
-				msg := slice.PopBack(&msgs) // Use the last message as the deferred call
-				(*msg).IsDeferred = true    // Mark the message as deferred
-				deferred = append(deferred, *msg)
-				msgSets[i] = msgs
-			}
-		}
-
-		// Add the preceeding messages to the schedule
-		unknowsSeq := slice.Transform(slice.Flatten(msgSets), func(_ int, msg *eucommon.StandardMessage) []*eucommon.StandardMessage {
-			return []*eucommon.StandardMessage{msg}
-		})
-		sch = append(sch, unknowsSeq)
-
-		// Add deferred calls to the schedule
-		deferredSeq := slice.Transform(deferred, func(_ int, msg *eucommon.StandardMessage) []*eucommon.StandardMessage {
-			return []*eucommon.StandardMessage{msg}
-		})
-		sch = append(sch, deferredSeq)
-	}
-
-	// Remove empty generations if any.
-	slice.RemoveIf(&sch, func(i int, gen [][]*eucommon.StandardMessage) bool {
-		slice.RemoveIf(&gen, func(_ int, msgs []*eucommon.StandardMessage) bool {
-			return len(msgs) == 0
-		})
-		return len(gen) == 0
+	// Reshape to 2D array.
+	_1Gen := slice.Transform(_1, func(i int, msg *eucommon.StandardMessage) []*eucommon.StandardMessage {
+		return []*eucommon.StandardMessage{msg}
 	})
 
-	return sch
+	_2Gen := slice.Transform(_2, func(i int, msg *eucommon.StandardMessage) []*eucommon.StandardMessage {
+		return []*eucommon.StandardMessage{msg}
+	})
+
+	// sch := [][][]*eucommon.StandardMessage{}
+	if len(_1Gen) > 0 {
+		if len(this.Generations) == 0 {
+			this.Generations = append(this.Generations, _1Gen)
+		} else {
+			// Merge with the first generation, since they are all parallel.
+			this.Generations[0] = append(this.Generations[0], _1Gen...)
+		}
+	}
+
+	if len(_2Gen) > 0 {
+		this.Generations[0] = append(this.Generations[0], _2Gen...)
+	}
+	return this.Generations
 }
