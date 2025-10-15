@@ -19,7 +19,6 @@ package arbitrator
 
 import (
 	"errors"
-	"sort"
 
 	"github.com/arcology-network/common-lib/exp/slice"
 	intf "github.com/arcology-network/storage-committer/common"
@@ -53,57 +52,31 @@ func (this *Accumulator) CheckMinMax(transitions []*univalue.Univalue) *Conflict
 		return nil
 	}
 
-	sort.SliceStable(transitions, func(i, j int) bool {
-		lhv := transitions[i].Value().(intf.Type)
-		rhv := transitions[i].Value().(intf.Type)
-		_, lhvSign := lhv.Delta()
-		_, rhvSign := rhv.Delta()
-
-		return lhvSign != rhvSign && !lhvSign
-	})
-
-	negatives, positives := this.Categorize(transitions)
-
-	// check underflow first
-	underflowed := this.isOutOfLimits(*(transitions)[0].GetPath(), negatives)
-	if underflowed != nil {
-		underflowed.Err = errors.New(stgcommon.WARN_OUT_OF_LOWER_LIMIT)
-		return underflowed
-	}
-
-	// check overflow
-	overflowed := this.isOutOfLimits(*(transitions)[0].GetPath(), positives)
-	if overflowed != nil {
-		overflowed.Err = errors.New(stgcommon.WARN_OUT_OF_UPPER_LIMIT)
-		return overflowed
-	}
-
-	// if overflowed == nil && underflowed == nil {
-	// 	return nil
-	// }
-
-	// conflicts := []*Conflict{}
-	// if underflowed != nil {
-	// 	conflicts = append(conflicts, underflowed)
-	// }
-
-	// if overflowed != nil {
-	// 	conflicts = append(conflicts, overflowed)
-	// }
-	return nil
-}
-
-// categorize transitions into two groups, one is negative, one positive.
-func (*Accumulator) Categorize(transitions []*univalue.Univalue) ([]*univalue.Univalue, []*univalue.Univalue) {
-	offset, _ := slice.FindFirstIf(transitions, func(_ int, v *univalue.Univalue) bool {
-		_, sign := v.Value().(intf.Type)
+	// Separate the negative and positive deltas.
+	negatives := slice.MoveIf(&transitions, func(i int, v *univalue.Univalue) bool {
+		_, sign := v.Value().(intf.Type).Delta()
 		return sign
 	})
+	positives := transitions
 
-	if offset < 0 {
-		offset = len(transitions)
+	// check for underflow.
+	if len(negatives) > 0 {
+		underflowed := this.isOutOfLimits(*(transitions)[0].GetPath(), negatives)
+		if underflowed != nil {
+			underflowed.Err = errors.New(stgcommon.WARN_OUT_OF_LOWER_LIMIT)
+			return underflowed
+		}
 	}
-	return transitions[:offset], transitions[offset:]
+
+	// check for overflow.
+	if len(positives) > 0 {
+		overflowed := this.isOutOfLimits(*(transitions)[0].GetPath(), positives)
+		if overflowed != nil {
+			overflowed.Err = errors.New(stgcommon.WARN_OUT_OF_UPPER_LIMIT)
+			return overflowed
+		}
+	}
+	return nil
 }
 
 // check if the value is out of limits defined by the user. It can be different from the type bounds.
