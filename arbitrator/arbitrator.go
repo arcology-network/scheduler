@@ -84,35 +84,35 @@ func (this *Arbitrator) LookupForConflict(trans []*univalue.Univalue) *Conflict 
 
 	// Asume all the transitions are in conflict at the beginning.1
 	// Unless proven otherwise, we will return all the transitions as conflicts.
-	conflictTrans := otherTrans
+	conflictWith := otherTrans
 	var err error
 	if first.IsReadOnly() { // Read only
 		slice.Foreach(otherTrans, func(i int, v **univalue.Univalue) { (*v).IsInConflict = !(*v).IsReadOnly() })
-		conflictTrans = slice.MoveIf(&otherTrans, func(i int, v *univalue.Univalue) bool { return v.IsInConflict })
+		conflictWith = slice.MoveIf(&otherTrans, func(i int, v *univalue.Univalue) bool { return v.IsInConflict })
 		err = errors.New("Read with non read only")
 	} else if first.IsCumulativeWriteOnly(first) { // Initialization of commutative values only
 		slice.Foreach(otherTrans, func(i int, v **univalue.Univalue) { (*v).IsInConflict = !(*v).IsCumulativeWriteOnly(first) })
-		conflictTrans = slice.MoveIf(&otherTrans, func(i int, v *univalue.Univalue) bool { return v.IsInConflict })
+		conflictWith = slice.MoveIf(&otherTrans, func(i int, v *univalue.Univalue) bool { return v.IsInConflict })
 		err = errors.New("Commutative Initialization with non commutative initialization")
 
 	} else if first.IsDeltaWriteOnly() { // Delta write only
 		slice.Foreach(otherTrans, func(i int, v **univalue.Univalue) { (*v).IsInConflict = !(*v).IsDeltaWriteOnly() })
-		conflictTrans = slice.MoveIf(&otherTrans, func(i int, v *univalue.Univalue) bool { return v.IsInConflict })
+		conflictWith = slice.MoveIf(&otherTrans, func(i int, v *univalue.Univalue) bool { return v.IsInConflict })
 		err = errors.New("Delta write with non delta write only")
 
 	} else if first.IsDeleteOnly() { // Delta write only
 		slice.Foreach(otherTrans, func(i int, v **univalue.Univalue) { (*v).IsInConflict = !(*v).IsDeleteOnly() })
-		conflictTrans = slice.MoveIf(&otherTrans, func(i int, v *univalue.Univalue) bool { return v.IsInConflict })
+		conflictWith = slice.MoveIf(&otherTrans, func(i int, v *univalue.Univalue) bool { return v.IsInConflict })
 		err = errors.New("Delete with non delete only")
 
 	} else if first.IsNilInitOnly() { // Initialization with nil only.
 		slice.Foreach(otherTrans, func(i int, v **univalue.Univalue) { (*v).IsInConflict = !(*v).IsNilInitOnly() })
-		conflictTrans = slice.MoveIf(&otherTrans, func(i int, v *univalue.Univalue) bool { return v.IsInConflict })
+		conflictWith = slice.MoveIf(&otherTrans, func(i int, v *univalue.Univalue) bool { return v.IsInConflict })
 		err = errors.New("Nil initialization with non nil initialization")
 	}
 
 	// No access conflict found, move on to check the under/over limit conflicts.
-	if len(conflictTrans) == 0 {
+	if len(conflictWith) == 0 {
 		return (&Accumulator{}).CheckMinMax(trans)
 	}
 
@@ -123,13 +123,13 @@ func (this *Arbitrator) LookupForConflict(trans []*univalue.Univalue) *Conflict 
 
 	// offset++ // The offet is actually the index of the origina index minus 1, because the first was used as the reference. Here we add it back.
 	return &Conflict{
-		key:           *trans[0].GetPath(),
-		self:          trans[0].GetTx(),
-		selfTran:      trans[0],
-		sequenceID:    slice.Transform(conflictTrans, func(_ int, v *univalue.Univalue) uint64 { return v.GetSequence() }),
-		conflictTrans: conflictTrans,
-		txIDs:         slice.Transform(conflictTrans, func(_ int, v *univalue.Univalue) uint64 { return (*v).GetTx() }),
-		Err:           err,
+		key:          *trans[0].GetPath(),
+		self:         trans[0].GetTx(),
+		tran:         trans[0],
+		sequenceID:   slice.Transform(conflictWith, func(_ int, v *univalue.Univalue) uint64 { return v.GetSequence() }),
+		conflictWith: conflictWith,
+		txIDs:        slice.Transform(conflictWith, func(_ int, v *univalue.Univalue) uint64 { return (*v).GetTx() }),
+		Reason:       err,
 	}
 }
 

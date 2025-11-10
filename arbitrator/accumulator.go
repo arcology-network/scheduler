@@ -19,6 +19,7 @@ package arbitrator
 
 import (
 	"errors"
+	"sort"
 
 	"github.com/arcology-network/common-lib/exp/slice"
 	intf "github.com/arcology-network/storage-committer/common"
@@ -34,6 +35,28 @@ import (
 // The underflow is always checked first before the overflow.
 
 type Accumulator struct{}
+
+// Categorize the transitions into negative and positive deltas.
+func (*Accumulator) PartitionByDeltaSign(transitions []*univalue.Univalue) ([]*univalue.Univalue, []*univalue.Univalue) {
+	sort.SliceStable(transitions, func(i, j int) bool {
+		lhv := transitions[i].Value().(intf.Type)
+		rhv := transitions[i].Value().(intf.Type)
+		_, lhvSign := lhv.Delta()
+		_, rhvSign := rhv.Delta()
+
+		return lhvSign != rhvSign && !lhvSign
+	})
+
+	offset, _ := slice.FindFirstIf(transitions, func(_ int, v *univalue.Univalue) bool {
+		_, sign := v.Value().(intf.Type)
+		return sign
+	})
+
+	if offset < 0 {
+		offset = len(transitions)
+	}
+	return transitions[:offset], transitions[offset:]
+}
 
 // check if the value is either underflowed or overflowed. It returns the conflict if it is out of bounds.
 func (this *Accumulator) CheckMinMax(transitions []*univalue.Univalue) *Conflict {
@@ -52,18 +75,20 @@ func (this *Accumulator) CheckMinMax(transitions []*univalue.Univalue) *Conflict
 		return nil
 	}
 
+	negatives, positives := this.PartitionByDeltaSign(transitions)
+
 	// Separate the negative and positive deltas.
-	negatives := slice.MoveIf(&transitions, func(i int, v *univalue.Univalue) bool {
-		_, sign := v.Value().(intf.Type).Delta()
-		return sign
-	})
-	positives := transitions
+	// negatives := slice.MoveIf(&transitions, func(i int, v *univalue.Univalue) bool {
+	// 	_, sign := v.Value().(intf.Type).Delta()
+	// 	return sign
+	// })
+	// positives := transitions
 
 	// check for underflow.
-	if len(negatives) > 0 {
+	if len(negatives) > 0 { // all negative deltas
 		underflowed := this.isOutOfLimits(*(transitions)[0].GetPath(), negatives)
 		if underflowed != nil {
-			underflowed.Err = errors.New(stgcommon.WARN_OUT_OF_LOWER_LIMIT)
+			underflowed.Reason = errors.New(stgcommon.WARN_OUT_OF_LOWER_LIMIT)
 			return underflowed
 		}
 	}
@@ -72,7 +97,7 @@ func (this *Accumulator) CheckMinMax(transitions []*univalue.Univalue) *Conflict
 	if len(positives) > 0 {
 		overflowed := this.isOutOfLimits(*(transitions)[0].GetPath(), positives)
 		if overflowed != nil {
-			overflowed.Err = errors.New(stgcommon.WARN_OUT_OF_UPPER_LIMIT)
+			overflowed.Reason = errors.New(stgcommon.WARN_OUT_OF_UPPER_LIMIT)
 			return overflowed
 		}
 	}
@@ -101,11 +126,11 @@ func (this *Accumulator) isOutOfLimits(k string, newTrans []*univalue.Univalue) 
 	// slice.Foreach(newTrans[offset+1:], func(_ int, v **univalue.Univalue) { txIDs = append(txIDs, (*v).GetTx()) })
 
 	return &Conflict{
-		key:           k,
-		self:          newTrans[0].GetTx(),
-		selfTran:      newTrans[0],
-		sequenceID:    slice.Transform(newTrans[offset+1:], func(_ int, v *univalue.Univalue) uint64 { return v.GetSequence() }),
-		conflictTrans: newTrans[offset:],
-		txIDs:         slice.Transform(newTrans[offset+1:], func(_ int, v *univalue.Univalue) uint64 { return (*v).GetTx() }),
+		key:          k,
+		self:         newTrans[0].GetTx(),
+		tran:         newTrans[0],
+		sequenceID:   slice.Transform(newTrans[offset+1:], func(_ int, v *univalue.Univalue) uint64 { return v.GetSequence() }),
+		conflictWith: newTrans[offset:],
+		txIDs:        slice.Transform(newTrans[offset+1:], func(_ int, v *univalue.Univalue) uint64 { return (*v).GetTx() }),
 	}
 }
