@@ -20,6 +20,7 @@ package scheduler
 import (
 	"os"
 
+	mapi "github.com/arcology-network/common-lib/exp/map"
 	profile "github.com/arcology-network/scheduler/profiles"
 )
 
@@ -40,7 +41,9 @@ func LoadFromFile(filepath string) (*Scheduler, error) {
 }
 
 func SaveToFile(this *Scheduler, filepath string) error {
-	vals := this.profileDict.Values()
+	vals := mapi.Values(this.ProfileDict)
 	buffer := profile.CalleeProfiles(vals).Encode()
 	return os.WriteFile(filepath, buffer, 0644)
 }
+
+

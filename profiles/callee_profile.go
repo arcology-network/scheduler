@@ -36,27 +36,25 @@ import (
 // combination of the contract's address and the function signature.
 type CalleeProfile struct {
 	UID          uint64   `json:"uid,omitempty"` // Unique ID for the callee 4 bytes from the contract address + func signature [4]byte
-	Idx          uint32   `json:"id"`            // Index in the CalleeProfile list, used by the contract profile to reference the entry.
-	ContractID   uint32   `json:"contractId"`    // Idx of the contract this function belongs to
+	Contract     uint64   `json:"contractId"`    // First 8 bytes of the real contract address
 	Sequential   bool     `json:"sequential"`    // A sequential / parallel only calls
 	TotalCalls   uint32   `json:"totalCalls"`    // Total number of calls
 	MaxGas       uint64   `json:"maxGas"`        // Max gas used
 	Deferrable   bool     `json:"deferrable"`    // If one of the calls to this function should be deferred to the second generation.
 	Prepayment   uint64   `json:"prepayment"`    // Required prepayment amount for the deferrable functions
-	ConflictWith []uint32 `json:"conflictWith"`  // ConflictWith of the conflicting callee indices.
+	ConflictWith []uint64 `json:"conflictWith"`  // ConflictWith of the conflicting callee indices.
 }
 
 func (this *CalleeProfile) SortConflicts() { slices.Sort(this.ConflictWith) } // Sort the callees by the indices in ascending order.
 
 // If the conflict entry is recorded already, return true.
-func (this *CalleeProfile) IsInConflictList(idx uint32) bool {
-	return slices.IndexFunc(this.ConflictWith, func(i uint32) bool { return i == idx }) != -1
+func (this *CalleeProfile) IsInConflictList(idx uint64) bool {
+	return slices.IndexFunc(this.ConflictWith, func(i uint64) bool { return i == uint64(idx) }) != -1
 }
 
-func NewCalleeProfile(addr []byte, selector []byte, idx uint32) *CalleeProfile {
+func NewCalleeProfile(addr []byte, selector []byte) *CalleeProfile {
 	return &CalleeProfile{
 		UID: DeriveUID(addr, selector),
-		Idx: idx,
 	}
 }
 
@@ -121,8 +119,7 @@ func (this *CalleeProfile) Init(trans ...*univalue.Univalue) {
 // Equal checks if two CalleeProfile are equal
 func (this *CalleeProfile) Equal(other *CalleeProfile) bool {
 	return this.UID == other.UID &&
-		this.Idx == other.Idx &&
-		this.ContractID == other.ContractID &&
+		this.Contract == other.Contract &&
 		this.Sequential == other.Sequential &&
 		this.TotalCalls == other.TotalCalls &&
 		this.MaxGas == other.MaxGas &&
@@ -137,14 +134,13 @@ func (this *CalleeProfile) Equal(other *CalleeProfile) bool {
 func (this *CalleeProfile) Encode() ([]byte, error) {
 	return codec.Byteset([][]byte{
 		codec.Uint64(this.UID).Encode(),
-		codec.Uint32(this.Idx).Encode(),
-		codec.Uint32(this.ContractID).Encode(),
+		codec.Uint64(this.Contract).Encode(),
 		codec.Bool(this.Sequential).Encode(),
 		codec.Uint32(this.TotalCalls).Encode(),
 		codec.Uint64(this.MaxGas).Encode(),
 		codec.Bool(this.Deferrable).Encode(),
 		codec.Uint64(this.Prepayment).Encode(),
-		codec.Uint32s(this.ConflictWith).Encode(),
+		codec.Uint64s(this.ConflictWith).Encode(),
 	}).Encode(), nil
 }
 
@@ -152,14 +148,13 @@ func (this *CalleeProfile) Decode(data []byte) *CalleeProfile {
 	fields, _ := codec.Byteset{}.Decode(data).(codec.Byteset)
 
 	this.UID = uint64(codec.Uint64(0).FromBytes(slice.Clone(fields[0])[:]))
-	this.Idx = uint32(codec.Uint32(0).Decode(fields[1]).(codec.Uint32))
-	this.ContractID = uint32(codec.Uint32(0).Decode(fields[2]).(codec.Uint32))
-	this.Sequential = bool(new(codec.Bool).Decode(fields[3]).(codec.Bool))
-	this.TotalCalls = uint32(codec.Uint32(0).Decode(fields[4]).(codec.Uint32))
-	this.MaxGas = uint64(codec.Uint64(0).Decode(fields[5]).(codec.Uint64))
-	this.Deferrable = bool(new(codec.Bool).Decode(fields[6]).(codec.Bool))
-	this.Prepayment = uint64(codec.Uint64(0).Decode(fields[7]).(codec.Uint64))
-	this.ConflictWith = new(codec.Uint32s).Decode(fields[8]).(codec.Uint32s)
+	this.Contract = uint64(codec.Uint64(0).Decode(fields[1]).(codec.Uint64))
+	this.Sequential = bool(new(codec.Bool).Decode(fields[2]).(codec.Bool))
+	this.TotalCalls = uint32(codec.Uint32(0).Decode(fields[3]).(codec.Uint32))
+	this.MaxGas = uint64(codec.Uint64(0).Decode(fields[4]).(codec.Uint64))
+	this.Deferrable = bool(new(codec.Bool).Decode(fields[5]).(codec.Bool))
+	this.Prepayment = uint64(codec.Uint64(0).Decode(fields[6]).(codec.Uint64))
+	this.ConflictWith = new(codec.Uint64s).Decode(fields[7]).(codec.Uint64s)
 	return this
 }
 

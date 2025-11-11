@@ -27,7 +27,7 @@ func TestCalleeProfileInfo(t *testing.T) {
 	callees := make([]*CalleeProfile, numCalls)
 	for i := 0; i < numCalls; i++ {
 		callee := &CalleeProfile{}
-		callee.ConflictWith = []uint32{1, 2, 3, 4, 5, 6, 7, 8, 1, 2}
+		callee.ConflictWith = []uint64{1, 2, 3, 4, 5, 6, 7, 8, 1, 2}
 		callee.Sequential = true
 		callees[i] = callee
 	}
@@ -55,13 +55,12 @@ func TestCalleeProfile(t *testing.T) {
 	for i := 0; i < numCalls; i++ {
 		callees[i] = &CalleeProfile{
 			UID:          uint64(i),
-			ContractID:   uint32(i),
 			Sequential:   false,
 			TotalCalls:   uint32(i),
 			MaxGas:       uint64(i * 100),
 			Deferrable:   true,
 			Prepayment:   uint64(i * 11),
-			ConflictWith: []uint32{1, 2, 3, 4},
+			ConflictWith: []uint64{1, 2, 3, 4},
 		}
 	}
 

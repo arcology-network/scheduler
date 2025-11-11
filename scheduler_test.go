@@ -56,7 +56,7 @@ func TestSchedulerAddAndLoadConflicts(t *testing.T) {
 	sch.RegisterConflict([20]byte(alice), [4]byte{1, 1, 1, 1}, [20]byte(bob), [4]byte{2, 2, 2, 2})
 	sch.RegisterConflict([20]byte(carol), [4]byte{3, 3, 3, 3}, [20]byte(david), [4]byte{4, 4, 4, 4})
 
-	if sch.Length() != 4 {
+	if len(sch.ProfileDict) != 4 {
 		t.Error("Failed to add contracts")
 	}
 
@@ -69,7 +69,7 @@ func TestSchedulerAddAndLoadConflicts(t *testing.T) {
 		t.Error(err)
 	}
 
-	if sch.profileDict.Length() != 4 {
+	if len(sch.ProfileDict) != 4 {
 		t.Error("Failed to add contracts")
 	}
 
