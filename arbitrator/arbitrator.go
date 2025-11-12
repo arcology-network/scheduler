@@ -114,7 +114,7 @@ func (this *Arbitrator) LookupForConflict(trans []*statecell.StateCell) *Conflic
 		// The first transition doesn't belong to any `special` category that can avoid at least some conflicts.
 		// Thus, we mark all the subsequent transitions as conflicts.
 		conflictWith = otherTrans
-		otherTrans = otherTrans[:0]
+		otherTrans = []*statecell.StateCell{}
 	}
 
 	// No access conflict found, move on to check the under/over limit conflicts.

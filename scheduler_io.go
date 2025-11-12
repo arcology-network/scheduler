@@ -46,9 +46,9 @@ func SaveToFile(this *Scheduler, filepath string) error {
 	return os.WriteFile(filepath, buffer, 0644)
 }
 
-func (this *Scheduler) LoadFromStorage() error {
+// func (this *Scheduler) LoadFromStorage() error {
 
-}
+// }
 
 // 							(path)
 // [address]/funprofs/[selector/callee]/sequential (boolean)
