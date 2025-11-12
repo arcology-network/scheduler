@@ -22,28 +22,28 @@ import (
 
 	mapi "github.com/arcology-network/common-lib/exp/map"
 	"github.com/arcology-network/common-lib/exp/slice"
-	univalue "github.com/arcology-network/storage-committer/type/univalue"
+	statecell "github.com/arcology-network/storage-committer/type/statecell"
 	"golang.org/x/exp/maps"
 )
 
 type Arbitrator struct {
-	dict      map[string]*[]*univalue.Univalue // Using any instead of []*univalue.Univalue is because most of time the there is only one element.
-	wildcards *Wildcard                        // Wildcard elements, which are used to replace the original elements.
+	dict      map[string]*[]*statecell.StateCell // Using any instead of []*statecell.StateCell is because most of time the there is only one element.
+	wildcards *Wildcard                          // Wildcard elements, which are used to replace the original elements.
 
 }
 
 func NewArbitrator() *Arbitrator {
 	return &Arbitrator{
-		dict:      make(map[string]*[]*univalue.Univalue),
+		dict:      make(map[string]*[]*statecell.StateCell),
 		wildcards: NewWildcard(),
 	}
 }
 
-func (this *Arbitrator) Insert(trans []*univalue.Univalue) int {
+func (this *Arbitrator) Insert(trans []*statecell.StateCell) int {
 	trans = this.wildcards.Filter(trans) // Filter the wildcards out.
 	for i, tran := range trans {
 		if vArr, ok := this.dict[*trans[i].GetPath()]; !ok {
-			this.dict[*trans[i].GetPath()] = &([]*univalue.Univalue{trans[i]}) // First time insert, using the element itself to save memory.
+			this.dict[*trans[i].GetPath()] = &([]*statecell.StateCell{trans[i]}) // First time insert, using the element itself to save memory.
 		} else {
 			*vArr = append(*vArr, tran)
 		}
@@ -70,45 +70,51 @@ func (this *Arbitrator) Detect() []*Conflict {
 	return slice.Remove(&conflists, nil)
 }
 
-func (this *Arbitrator) Move(trans []*univalue.Univalue) []*univalue.Univalue {
-	slice.Foreach(trans, func(i int, v **univalue.Univalue) { (*v).IsInConflict = !(*v).IsReadOnly() })
-	return slice.MoveIf(&trans, func(i int, v *univalue.Univalue) bool { return v.IsInConflict })
+func (this *Arbitrator) Move(trans []*statecell.StateCell) []*statecell.StateCell {
+	slice.Foreach(trans, func(i int, v **statecell.StateCell) { (*v).IsInConflict = !(*v).IsReadOnly() })
+	return slice.MoveIf(&trans, func(i int, v *statecell.StateCell) bool { return v.IsInConflict })
 }
 
 // Looks for conflicts in the array with the same path key.
-func (this *Arbitrator) LookupForConflict(trans []*univalue.Univalue) *Conflict {
-	univalue.Univalues(trans).SortByTx()
+func (this *Arbitrator) LookupForConflict(trans []*statecell.StateCell) *Conflict {
+	statecell.StateCells(trans).SortByTx()
 
 	first := trans[0]
 	otherTrans := trans[1:]
 
-	// Asume all the transitions are in conflict at the beginning.1
-	// Unless proven otherwise, we will return all the transitions as conflicts.
-	conflictWith := otherTrans
+	// Assume all the transitions are in conflict at the beginning.
+	// Unless proven otherwise, we will return all the subsequent
+	// transitions as conflicts.
+	var conflictWith []*statecell.StateCell
 	var err error
 	if first.IsReadOnly() { // Read only
-		slice.Foreach(otherTrans, func(i int, v **univalue.Univalue) { (*v).IsInConflict = !(*v).IsReadOnly() })
-		conflictWith = slice.MoveIf(&otherTrans, func(i int, v *univalue.Univalue) bool { return v.IsInConflict })
+		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).IsInConflict = !(*v).IsReadOnly() })
+		conflictWith = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.IsInConflict })
 		err = errors.New("Read with non read only")
 	} else if first.IsCumulativeWriteOnly(first) { // Initialization of commutative values only
-		slice.Foreach(otherTrans, func(i int, v **univalue.Univalue) { (*v).IsInConflict = !(*v).IsCumulativeWriteOnly(first) })
-		conflictWith = slice.MoveIf(&otherTrans, func(i int, v *univalue.Univalue) bool { return v.IsInConflict })
+		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).IsInConflict = !(*v).IsCumulativeWriteOnly(first) })
+		conflictWith = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.IsInConflict })
 		err = errors.New("Commutative Initialization with non commutative initialization")
 
 	} else if first.IsDeltaWriteOnly() { // Delta write only
-		slice.Foreach(otherTrans, func(i int, v **univalue.Univalue) { (*v).IsInConflict = !(*v).IsDeltaWriteOnly() })
-		conflictWith = slice.MoveIf(&otherTrans, func(i int, v *univalue.Univalue) bool { return v.IsInConflict })
+		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).IsInConflict = !(*v).IsDeltaWriteOnly() })
+		conflictWith = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.IsInConflict })
 		err = errors.New("Delta write with non delta write only")
 
 	} else if first.IsDeleteOnly() { // Delta write only
-		slice.Foreach(otherTrans, func(i int, v **univalue.Univalue) { (*v).IsInConflict = !(*v).IsDeleteOnly() })
-		conflictWith = slice.MoveIf(&otherTrans, func(i int, v *univalue.Univalue) bool { return v.IsInConflict })
+		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).IsInConflict = !(*v).IsDeleteOnly() })
+		conflictWith = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.IsInConflict })
 		err = errors.New("Delete with non delete only")
 
 	} else if first.IsNilInitOnly() { // Initialization with nil only.
-		slice.Foreach(otherTrans, func(i int, v **univalue.Univalue) { (*v).IsInConflict = !(*v).IsNilInitOnly() })
-		conflictWith = slice.MoveIf(&otherTrans, func(i int, v *univalue.Univalue) bool { return v.IsInConflict })
+		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).IsInConflict = !(*v).IsNilInitOnly() })
+		conflictWith = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.IsInConflict })
 		err = errors.New("Nil initialization with non nil initialization")
+	} else {
+		// The first transition doesn't belong to any `special` category that can avoid at least some conflicts.
+		// Thus, we mark all the subsequent transitions as conflicts.
+		conflictWith = otherTrans
+		otherTrans = otherTrans[:0]
 	}
 
 	// No access conflict found, move on to check the under/over limit conflicts.
@@ -126,9 +132,9 @@ func (this *Arbitrator) LookupForConflict(trans []*univalue.Univalue) *Conflict 
 		key:          *trans[0].GetPath(),
 		self:         trans[0].GetTx(),
 		tran:         trans[0],
-		sequenceID:   slice.Transform(conflictWith, func(_ int, v *univalue.Univalue) uint64 { return v.GetSequence() }),
+		sequenceID:   slice.Transform(conflictWith, func(_ int, v *statecell.StateCell) uint64 { return v.GetSequence() }),
 		conflictWith: conflictWith,
-		txIDs:        slice.Transform(conflictWith, func(_ int, v *univalue.Univalue) uint64 { return (*v).GetTx() }),
+		txIDs:        slice.Transform(conflictWith, func(_ int, v *statecell.StateCell) uint64 { return (*v).GetTx() }),
 		Reason:       err,
 	}
 }
@@ -138,7 +144,7 @@ func (this *Arbitrator) Clear() {
 }
 
 // Test function
-func (this *Arbitrator) InsertAndDetect(sequenceIDs []uint64, trans []*univalue.Univalue) []*Conflict {
+func (this *Arbitrator) InsertAndDetect(sequenceIDs []uint64, trans []*statecell.StateCell) []*Conflict {
 	for i := range trans {
 		trans[i].SetSequence(sequenceIDs[i])
 	}

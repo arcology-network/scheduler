@@ -27,7 +27,7 @@ import (
 	slice "github.com/arcology-network/common-lib/exp/slice"
 	commontype "github.com/arcology-network/common-lib/types"
 	stgcommon "github.com/arcology-network/storage-committer/common"
-	"github.com/arcology-network/storage-committer/type/univalue"
+	"github.com/arcology-network/storage-committer/type/statecell"
 	evmcore "github.com/ethereum/go-ethereum/core"
 	ethcoretypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/holiman/uint256"
@@ -39,8 +39,8 @@ type Result struct {
 	TxIndex          uint64
 	TxHash           [32]byte
 	From             [20]byte
-	RawStateAccesses []*univalue.Univalue
-	Immuned          []*univalue.Univalue //These transitions will take effect anyway even if the execution fails.
+	RawStateAccesses []*statecell.StateCell
+	Immuned          []*statecell.StateCell //These transitions will take effect anyway even if the execution fails.
 	Receipt          *ethcoretypes.Receipt
 	EvmResult        *evmcore.ExecutionResult
 	StdMsg           *commontype.StandardMessage
@@ -49,7 +49,7 @@ type Result struct {
 
 // The tx sender has to pay the tx fees regardless the execution status. This function deducts the gas fee from the sender's balance
 // change and generates a new transition for that.
-func (this *Result) GenGasTransition(balanceTransition *univalue.Univalue, gasDelta *uint256.Int, isCredit bool) *univalue.Univalue {
+func (this *Result) GenGasTransition(balanceTransition *statecell.StateCell, gasDelta *uint256.Int, isCredit bool) *statecell.StateCell {
 	v, _ := balanceTransition.Value().(stgcommon.Type).Delta()
 	totalDelta := v.(uint256.Int)
 
@@ -59,7 +59,7 @@ func (this *Result) GenGasTransition(balanceTransition *univalue.Univalue, gasDe
 	}
 
 	// Separate the gas fee from the balance change and generate a new transition for that.
-	gasTransition := balanceTransition.Clone().(*univalue.Univalue)
+	gasTransition := balanceTransition.Clone().(*statecell.StateCell)
 	gasTransition.Value().(stgcommon.Type).SetDelta(*gasDelta, isCredit) // Set the gas fee.
 	// gasTransition.Value().(stgcommon.Type).SetDeltaSign(isCredit) // Negative for the sender, positive for the coinbase.
 	gasTransition.Property.SkipConflictCheck(true)
@@ -73,11 +73,11 @@ func (this *Result) Postprocess(coinbase [20]byte) *Result {
 
 	// The sender isn't the coinbase.
 	if this.From != coinbase {
-		_, senderBalance := slice.FindFirstIf(this.RawStateAccesses, func(_ int, v *univalue.Univalue) bool { //It includes the gas fee and possible transfers.
+		_, senderBalance := slice.FindFirstIf(this.RawStateAccesses, func(_ int, v *statecell.StateCell) bool { //It includes the gas fee and possible transfers.
 			return v != nil && strings.HasSuffix(*v.GetPath(), "/balance") && strings.Contains(*v.GetPath(), hex.EncodeToString(this.From[:]))
 		})
 
-		_, coinbaseBalance := slice.FindFirstIf(this.RawStateAccesses, func(_ int, v *univalue.Univalue) bool {
+		_, coinbaseBalance := slice.FindFirstIf(this.RawStateAccesses, func(_ int, v *statecell.StateCell) bool {
 			return v != nil && strings.HasSuffix(*v.GetPath(), "/balance") && strings.Contains(*v.GetPath(), hex.EncodeToString(coinbase[:]))
 		})
 
@@ -96,7 +96,7 @@ func (this *Result) Postprocess(coinbase [20]byte) *Result {
 		}
 	}
 
-	_, senderNonce := slice.FindFirstIf(this.RawStateAccesses, func(_ int, v *univalue.Univalue) bool {
+	_, senderNonce := slice.FindFirstIf(this.RawStateAccesses, func(_ int, v *statecell.StateCell) bool {
 		return strings.HasSuffix(*v.GetPath(), "/nonce") && strings.Contains(*v.GetPath(), hex.EncodeToString(this.From[:]))
 	})
 
@@ -117,7 +117,7 @@ func (this *Result) Postprocess(coinbase [20]byte) *Result {
 }
 
 // If the execution is unsuccessful, only keep the transitions that are immune to failures.
-func (this *Result) Transitions() []*univalue.Univalue {
+func (this *Result) Transitions() []*statecell.StateCell {
 	if this.Err != nil {
 		return this.Immuned // Immune transitions include the gas fee and the nonce, which are independent of the execution status.
 	}
@@ -129,7 +129,7 @@ func (this *Result) Print() {
 	fmt.Println("TxIndex: ", this.TxIndex)
 	fmt.Println("TxHash: ", this.TxHash)
 	fmt.Println()
-	univalue.Univalues(this.RawStateAccesses).Print()
+	statecell.StateCells(this.RawStateAccesses).Print()
 	fmt.Println("Error: ", this.Err)
 }
 

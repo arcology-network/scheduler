@@ -26,7 +26,7 @@ import (
 	stgcommon "github.com/arcology-network/storage-committer/common"
 	commutative "github.com/arcology-network/storage-committer/type/commutative"
 	noncommutative "github.com/arcology-network/storage-committer/type/noncommutative"
-	univalue "github.com/arcology-network/storage-committer/type/univalue"
+	statecell "github.com/arcology-network/storage-committer/type/statecell"
 	ethcore "github.com/ethereum/go-ethereum/core"
 	ethcoretypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/holiman/uint256"
@@ -39,16 +39,16 @@ func TestResultPostprocessor(t *testing.T) {
 	results := Result{
 		From: sender,
 		// Coinbase: coinbase,
-		Immuned: []*univalue.Univalue{},
-		RawStateAccesses: []*univalue.Univalue{
+		Immuned: []*statecell.StateCell{},
+		RawStateAccesses: []*statecell.StateCell{
 			// sender transfer -> coinbase 50
 			// sender gas fee -> Coinbase 100
 			// Other transfer -> Coinbase 50
-			univalue.NewUnivalue(0, "blcc:/"+hex.EncodeToString(sender[:])+"/nonce", 0, 0, 0, commutative.NewUnboundedUint64(), nil),
-			univalue.NewUnivalue(0, "blcc:/"+hex.EncodeToString(sender[:])+"/balance", 0, 0, 0, commutative.NewU256Delta(uint256.NewInt(150), false), nil),
-			univalue.NewUnivalue(0, "blcc:/"+hex.EncodeToString(coinbase[:])+"/balance", 0, 0, 0, commutative.NewU256Delta(uint256.NewInt(200), true), nil),
-			univalue.NewUnivalue(0, "blcc:/"+hex.EncodeToString(other[:])+"/random", 0, 0, 0, noncommutative.NewString("Random"), nil),
-			univalue.NewUnivalue(0, "blcc:/"+hex.EncodeToString(other[:])+"/balance", 0, 0, 0, commutative.NewU256Delta(uint256.NewInt(50), false), nil),
+			statecell.NewStateCell(0, "blcc:/"+hex.EncodeToString(sender[:])+"/nonce", 0, 0, 0, commutative.NewUnboundedUint64(), nil),
+			statecell.NewStateCell(0, "blcc:/"+hex.EncodeToString(sender[:])+"/balance", 0, 0, 0, commutative.NewU256Delta(uint256.NewInt(150), false), nil),
+			statecell.NewStateCell(0, "blcc:/"+hex.EncodeToString(coinbase[:])+"/balance", 0, 0, 0, commutative.NewU256Delta(uint256.NewInt(200), true), nil),
+			statecell.NewStateCell(0, "blcc:/"+hex.EncodeToString(other[:])+"/random", 0, 0, 0, noncommutative.NewString("Random"), nil),
+			statecell.NewStateCell(0, "blcc:/"+hex.EncodeToString(other[:])+"/balance", 0, 0, 0, commutative.NewU256Delta(uint256.NewInt(50), false), nil),
 		},
 		StdMsg: &commontype.StandardMessage{
 			Native: &ethcore.Message{

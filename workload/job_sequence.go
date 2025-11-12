@@ -23,7 +23,7 @@ import (
 	commontype "github.com/arcology-network/common-lib/types"
 	stgcommon "github.com/arcology-network/storage-committer/common"
 	"github.com/arcology-network/storage-committer/type/commutative"
-	univalue "github.com/arcology-network/storage-committer/type/univalue"
+	statecell "github.com/arcology-network/storage-committer/type/statecell"
 	evmcore "github.com/ethereum/go-ethereum/core"
 	"github.com/holiman/uint256"
 )
@@ -87,20 +87,20 @@ func (this *JobSequence) GetID() uint64 { return this.ID }
 func (this *JobSequence) Length() int { return len(this.Jobs) }
 
 // GetClearedTransition returns the cleared transitions of the JobSequence.
-func (this *JobSequence) GetClearedTransition() []*univalue.Univalue {
+func (this *JobSequence) GetClearedTransition() []*statecell.StateCell {
 	trans := slice.Concate(this.Jobs,
-		func(job *Job) []*univalue.Univalue {
+		func(job *Job) []*statecell.StateCell {
 			return job.Result.Transitions()
 		},
 	)
 
-	uniqueDict := make(map[string]*univalue.Univalue)
+	uniqueDict := make(map[string]*statecell.StateCell)
 	for _, v := range trans {
 		uniqueDict[*v.GetPath()] = v
 	}
 
 	uniqueTrans := mapi.Values(uniqueDict)
-	return univalue.Univalues(uniqueTrans).SortByKey()
+	return statecell.StateCells(uniqueTrans).SortByKey()
 }
 
 // FlagConflict flags the transitions after the first conflicting transaction.
@@ -134,7 +134,7 @@ func (this *JobSequence) CalcualteRefund() uint64 {
 }
 
 // RefundTo refunds the specified amount from the payer to the recipient.
-func (this *JobSequence) RefundTo(payer, recipent *univalue.Univalue, amount uint64) (uint64, error) {
+func (this *JobSequence) RefundTo(payer, recipent *statecell.StateCell, amount uint64) (uint64, error) {
 	credit := commutative.NewU256Delta(uint256.NewInt(amount), true).(*commutative.U256)
 	if _, _, _, _, err := recipent.Value().(stgcommon.Type).Set(credit, nil); err != nil {
 		return 0, err

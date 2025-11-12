@@ -18,7 +18,7 @@
 package scheduler
 
 import (
-	"github.com/arcology-network/storage-committer/type/univalue"
+	"github.com/arcology-network/storage-committer/type/statecell"
 )
 
 type CalleeParser struct {
@@ -33,14 +33,14 @@ type CalleeParser struct {
 	ConflictWith []uint32 `json:"conflictWith"`  // ConflictWith of the conflicting callee indices.
 }
 
-func (this *CalleeParser) FromPath(tran *univalue.Univalue) {
+func (this *CalleeParser) FromPath(tran *statecell.StateCell) {
 	// path := *tran.GetPath()
 
 	// stgcommon.DeriveKey
 
 }
 
-// func (this *CalleeParser) ToUnivalue() *univalue.Univalue {
+// func (this *CalleeParser) ToUnivalue() *statecell.StateCell {
 // 	return codec.Byteset([][]byte{
 // 		codec.Uint64(this.UID).Encode(),
 // 		codec.Uint32(this.Idx).Encode(),

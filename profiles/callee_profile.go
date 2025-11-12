@@ -28,7 +28,7 @@ import (
 	"github.com/arcology-network/common-lib/codec"
 	"github.com/arcology-network/common-lib/exp/slice"
 	stgcommon "github.com/arcology-network/storage-committer/common"
-	univalue "github.com/arcology-network/storage-committer/type/univalue"
+	statecell "github.com/arcology-network/storage-committer/type/statecell"
 )
 
 // The callee struct stores the information of a contract function that is called by the EOA initiated transactions.
@@ -60,17 +60,17 @@ func NewCalleeProfile(addr []byte, selector []byte) *CalleeProfile {
 
 func (*CalleeProfile) IsPropertyPath(path string) bool {
 	return len(path) > stgcommon.ETH10_ACCOUNT_FULL_LENGTH &&
-		strings.Contains(path[stgcommon.ETH10_ACCOUNT_FULL_LENGTH:], stgcommon.FULL_PARA_PROP_PATH)
+		strings.Contains(path[stgcommon.ETH10_ACCOUNT_FULL_LENGTH:], stgcommon.FUNC_PROFILE_PATH)
 }
 
 // Extract the callee signature from the path string
 func (this *CalleeProfile) ParseKeyFromPath(path string) (string, []byte, []byte) {
-	idx := strings.Index(path, stgcommon.FULL_PARA_PROP_PATH)
+	idx := strings.Index(path, stgcommon.FUNC_PROFILE_PATH)
 	if idx < 0 {
 		return "", []byte{}, []byte{}
 	}
 
-	fullPath := path[idx+len(stgcommon.FULL_PARA_PROP_PATH):]
+	fullPath := path[idx+len(stgcommon.FUNC_PROFILE_PATH):]
 	selector, _ := hex.DecodeString(fullPath)
 
 	if len(selector) == 0 {
@@ -86,7 +86,7 @@ func (this *CalleeProfile) ParseKeyFromPath(path string) (string, []byte, []byte
 }
 
 // Initialize from univalues
-func (this *CalleeProfile) Init(trans ...*univalue.Univalue) {
+func (this *CalleeProfile) Init(trans ...*statecell.StateCell) {
 	for _, v := range trans {
 		if this == nil {
 			return

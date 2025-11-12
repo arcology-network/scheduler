@@ -24,7 +24,7 @@ import (
 	"github.com/arcology-network/common-lib/exp/slice"
 	intf "github.com/arcology-network/storage-committer/common"
 	stgcommon "github.com/arcology-network/storage-committer/common"
-	univalue "github.com/arcology-network/storage-committer/type/univalue"
+	statecell "github.com/arcology-network/storage-committer/type/statecell"
 )
 
 // Accumualator is dedicatd to cumulative numeric variables. It check if the value is out of limits defined by
@@ -37,7 +37,7 @@ import (
 type Accumulator struct{}
 
 // Categorize the transitions into negative and positive deltas.
-func (*Accumulator) PartitionByDeltaSign(transitions []*univalue.Univalue) ([]*univalue.Univalue, []*univalue.Univalue) {
+func (*Accumulator) PartitionByDeltaSign(transitions []*statecell.StateCell) ([]*statecell.StateCell, []*statecell.StateCell) {
 	sort.SliceStable(transitions, func(i, j int) bool {
 		lhv := transitions[i].Value().(intf.Type)
 		rhv := transitions[i].Value().(intf.Type)
@@ -47,7 +47,7 @@ func (*Accumulator) PartitionByDeltaSign(transitions []*univalue.Univalue) ([]*u
 		return lhvSign != rhvSign && !lhvSign
 	})
 
-	offset, _ := slice.FindFirstIf(transitions, func(_ int, v *univalue.Univalue) bool {
+	offset, _ := slice.FindFirstIf(transitions, func(_ int, v *statecell.StateCell) bool {
 		_, sign := v.Value().(intf.Type)
 		return sign
 	})
@@ -59,7 +59,7 @@ func (*Accumulator) PartitionByDeltaSign(transitions []*univalue.Univalue) ([]*u
 }
 
 // check if the value is either underflowed or overflowed. It returns the conflict if it is out of bounds.
-func (this *Accumulator) CheckMinMax(transitions []*univalue.Univalue) *Conflict {
+func (this *Accumulator) CheckMinMax(transitions []*statecell.StateCell) *Conflict {
 	if len(transitions) <= 1 ||
 		(transitions)[0].Value() == nil ||
 		!(transitions)[0].Value().(intf.Type).IsCommutative() ||
@@ -67,7 +67,7 @@ func (this *Accumulator) CheckMinMax(transitions []*univalue.Univalue) *Conflict
 		return nil
 	}
 
-	slice.RemoveIf(&transitions, func(_ int, v *univalue.Univalue) bool {
+	slice.RemoveIf(&transitions, func(_ int, v *statecell.StateCell) bool {
 		return v.IsReadOnly()
 	})
 
@@ -78,7 +78,7 @@ func (this *Accumulator) CheckMinMax(transitions []*univalue.Univalue) *Conflict
 	negatives, positives := this.PartitionByDeltaSign(transitions)
 
 	// Separate the negative and positive deltas.
-	// negatives := slice.MoveIf(&transitions, func(i int, v *univalue.Univalue) bool {
+	// negatives := slice.MoveIf(&transitions, func(i int, v *statecell.StateCell) bool {
 	// 	_, sign := v.Value().(intf.Type).Delta()
 	// 	return sign
 	// })
@@ -106,14 +106,14 @@ func (this *Accumulator) CheckMinMax(transitions []*univalue.Univalue) *Conflict
 
 // check if the value is out of limits defined by the user. It can be different from the type bounds.
 // It returns the conflict if it is out of bounds.
-func (this *Accumulator) isOutOfLimits(k string, newTrans []*univalue.Univalue) *Conflict {
+func (this *Accumulator) isOutOfLimits(k string, newTrans []*statecell.StateCell) *Conflict {
 	if len(newTrans) <= 1 {
 		return nil
 	}
 
 	initialv := newTrans[0].Value().(intf.Type).Clone().(intf.Type)
 
-	typedVals := slice.Transform(newTrans, func(_ int, v *univalue.Univalue) intf.Type {
+	typedVals := slice.Transform(newTrans, func(_ int, v *statecell.StateCell) intf.Type {
 		return v.Value().(intf.Type)
 	})
 
@@ -123,14 +123,14 @@ func (this *Accumulator) isOutOfLimits(k string, newTrans []*univalue.Univalue) 
 	}
 
 	// txIDs := []uint64{}
-	// slice.Foreach(newTrans[offset+1:], func(_ int, v **univalue.Univalue) { txIDs = append(txIDs, (*v).GetTx()) })
+	// slice.Foreach(newTrans[offset+1:], func(_ int, v **statecell.StateCell) { txIDs = append(txIDs, (*v).GetTx()) })
 
 	return &Conflict{
 		key:          k,
 		self:         newTrans[0].GetTx(),
 		tran:         newTrans[0],
-		sequenceID:   slice.Transform(newTrans[offset+1:], func(_ int, v *univalue.Univalue) uint64 { return v.GetSequence() }),
+		sequenceID:   slice.Transform(newTrans[offset+1:], func(_ int, v *statecell.StateCell) uint64 { return v.GetSequence() }),
 		conflictWith: newTrans[offset:],
-		txIDs:        slice.Transform(newTrans[offset+1:], func(_ int, v *univalue.Univalue) uint64 { return (*v).GetTx() }),
+		txIDs:        slice.Transform(newTrans[offset+1:], func(_ int, v *statecell.StateCell) uint64 { return (*v).GetTx() }),
 	}
 }

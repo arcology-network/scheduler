@@ -22,7 +22,7 @@ import (
 
 	"github.com/arcology-network/storage-committer/type/commutative"
 	noncommutative "github.com/arcology-network/storage-committer/type/noncommutative"
-	univalue "github.com/arcology-network/storage-committer/type/univalue"
+	statecell "github.com/arcology-network/storage-committer/type/statecell"
 	"github.com/holiman/uint256"
 )
 
@@ -33,10 +33,10 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 		v1 := commutative.NewBoundedU256FromU64(1, 100)
 		v1.SetValue(*uint256.NewInt(20))
 
-		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v0, nil)
-		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v1, nil)
+		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v0, nil)
+		_1 := statecell.NewStateCell(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v1, nil)
 
-		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 0 {
@@ -50,28 +50,11 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 		v1 := commutative.NewBoundedU256FromU64(1, 100)
 		v1.SetValue(*uint256.NewInt(20))
 
-		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v0, nil)
-		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v1, nil)
+		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v0, nil)
+		_1 := statecell.NewStateCell(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v1, nil)
 
 		// arib := new(Arbitrator)
-		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
-
-		conflictdict, _, _ := Conflicts(conflicts).ToDict()
-		if len(conflictdict) != 0 {
-			t.Error("Error: There should be NO conflict")
-		}
-	})
-
-	t.Run("init + write / init + write", func(t *testing.T) {
-		v0 := commutative.NewBoundedU256FromU64(1, 100)
-		v0.SetValue(*uint256.NewInt(10))
-		v1 := commutative.NewBoundedU256FromU64(1, 100)
-		v1.SetValue(*uint256.NewInt(20))
-
-		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 1, 1, v0, nil)
-		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v1, nil)
-
-		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 0 {
@@ -83,10 +66,10 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 		v0 := commutative.NewPath()
 		v1 := commutative.NewPath()
 
-		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v0, nil)
-		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v1, nil)
+		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v0, nil)
+		_1 := statecell.NewStateCell(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v1, nil)
 
-		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 0 {
@@ -95,10 +78,10 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 	})
 
 	t.Run("Nil init / Nil init", func(t *testing.T) {
-		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
-		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
+		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
+		_1 := statecell.NewStateCell(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
 
-		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
 		// Nil init never exists, so it should be treated as a conflict
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
@@ -111,10 +94,10 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 		v0 := commutative.NewBoundedU256FromU64(1, 100)
 		v0.SetValue(*uint256.NewInt(10))
 
-		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v0, nil)
-		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
+		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v0, nil)
+		_1 := statecell.NewStateCell(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
 
-		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 1 {
@@ -128,10 +111,10 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 		v1 := commutative.NewBoundedU256FromU64(1, 100)
 		v1.SetValue(*uint256.NewInt(20))
 
-		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 1, 1, v0, nil)
-		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 1, v1, nil)
+		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/0x0000000", 0, 1, 1, v0, nil)
+		_1 := statecell.NewStateCell(1, "blcc://eth1.0/account/0x0000000", 0, 1, 1, v1, nil)
 
-		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 0 {
@@ -140,13 +123,13 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 	})
 
 	t.Run("deletion / deletion", func(t *testing.T) {
-		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
-		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
+		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
+		_1 := statecell.NewStateCell(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
 
 		_0.SetIsDeleted(true)
 		_1.SetIsDeleted(true)
 
-		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 0 {
@@ -160,10 +143,10 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 		v1 := commutative.NewBoundedU256FromU64(1, 100)
 		v1.SetValue(*uint256.NewInt(20))
 
-		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v0, nil)
-		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v1, nil)
+		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v0, nil)
+		_1 := statecell.NewStateCell(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v1, nil)
 
-		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 0 {
@@ -177,14 +160,31 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 		v1 := commutative.NewBoundedU256FromU64(1, 100)
 		v1.SetValue(*uint256.NewInt(20))
 
-		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 1, 1, 1, v0, nil)
-		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v1, nil)
+		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/0x0000000", 1, 1, 1, v0, nil)
+		_1 := statecell.NewStateCell(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v1, nil)
 
-		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 1 {
 			t.Error("Error: There should be ONE conflict", len(conflictdict))
+		}
+	})
+
+	t.Run("init + write / init + write", func(t *testing.T) {
+		v0 := commutative.NewBoundedU256FromU64(1, 100)
+		v0.SetValue(*uint256.NewInt(10))
+		v1 := commutative.NewBoundedU256FromU64(1, 100)
+		v1.SetValue(*uint256.NewInt(20))
+
+		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/0x0000000", 0, 1, 1, v0, nil)
+		_1 := statecell.NewStateCell(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v1, nil)
+
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
+
+		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		if len(conflictdict) != 0 {
+			t.Error("Error: There should be NO conflict")
 		}
 	})
 
@@ -194,10 +194,10 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 		v1 := commutative.NewBoundedU256FromU64(1, 100)
 		v1.SetValue(*uint256.NewInt(20))
 
-		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 1, 1, 1, v0, nil)
-		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
+		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/0x0000000", 1, 1, 1, v0, nil)
+		_1 := statecell.NewStateCell(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
 
-		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 1 {
@@ -211,10 +211,10 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 		v1 := commutative.NewBoundedU256FromU64(1, 100)
 		v1.SetValue(*uint256.NewInt(20))
 
-		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 1, 0, 0, v0, nil)
-		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 0, 1, v1, nil)
+		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/0x0000000", 1, 0, 0, v0, nil)
+		_1 := statecell.NewStateCell(1, "blcc://eth1.0/account/0x0000000", 0, 0, 1, v1, nil)
 
-		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 1 {
@@ -225,9 +225,9 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 
 func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 	t.Run("one entry", func(t *testing.T) { // Reads only, should be no conflict
-		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 1, 0, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
+		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/0x0000000", 1, 0, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
 
-		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0})
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 0 {
@@ -235,10 +235,10 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 		}
 	})
 	t.Run("noncommutative read & read", func(t *testing.T) { // Reads only, should be no conflict
-		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 1, 0, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
-		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 1, 0, 0, noncommutative.NewBytes([]byte{2, 3}), nil)
+		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/0x0000000", 1, 0, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
+		_1 := statecell.NewStateCell(1, "blcc://eth1.0/account/0x0000000", 1, 0, 0, noncommutative.NewBytes([]byte{2, 3}), nil)
 
-		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 0 {
@@ -247,10 +247,10 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 	})
 
 	t.Run("delta write & delta write", func(t *testing.T) { // Delta writes only, should be no conflict
-		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 0, 1, noncommutative.NewBytes([]byte{1, 2}), nil)
-		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 0, 2, noncommutative.NewBytes([]byte{2, 3}), nil)
+		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/0x0000000", 0, 0, 1, noncommutative.NewBytes([]byte{1, 2}), nil)
+		_1 := statecell.NewStateCell(1, "blcc://eth1.0/account/0x0000000", 0, 0, 2, noncommutative.NewBytes([]byte{2, 3}), nil)
 
-		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 0 {
@@ -260,26 +260,10 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 
 	t.Run("write & write", func(t *testing.T) { // Read delta write, should be 1 conflict
 		// Write only, should be 1 conflict
-		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 2, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
-		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 0, 2, 0, noncommutative.NewBytes([]byte{2, 3}), nil)
+		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/0x0000000", 0, 2, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
+		_1 := statecell.NewStateCell(1, "blcc://eth1.0/account/0x0000000", 0, 2, 0, noncommutative.NewBytes([]byte{2, 3}), nil)
 
-		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
-
-		conflictdict, _, _ := Conflicts(conflicts).ToDict()
-		if len(conflictdict) != 1 {
-			t.Error("Error: There should be ONE conflict")
-		}
-	})
-
-	t.Run("Read & Delta-write", func(t *testing.T) { // Read delta write, should be 1 conflict
-		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 2, 0, 2, noncommutative.NewBytes([]byte{1, 2}), nil)
-		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 2, 0, 0, noncommutative.NewBytes([]byte{2, 3}), nil)
-		_0.SetSequence(0)
-		_1.SetSequence(1)
-
-		// sorted := univalue.Univalues([]*univalue.Univalue{_0, _1}).Sort()
-
-		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 1 {
@@ -288,12 +272,14 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 	})
 
 	t.Run("Read & Delta-write", func(t *testing.T) { // Read delta write, should be 1 conflict
-		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 2, 0, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
-		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 2, 0, 2, noncommutative.NewBytes([]byte{2, 3}), nil)
+		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/0x0000000", 2, 0, 2, noncommutative.NewBytes([]byte{1, 2}), nil)
+		_1 := statecell.NewStateCell(1, "blcc://eth1.0/account/0x0000000", 2, 0, 0, noncommutative.NewBytes([]byte{2, 3}), nil)
 		_0.SetSequence(0)
 		_1.SetSequence(1)
 
-		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+		// sorted := statecell.Univalues([]*statecell.StateCell{_0, _1}).Sort()
+
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 1 {
@@ -302,12 +288,26 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 	})
 
 	t.Run("Read & Delta-write", func(t *testing.T) { // Read delta write, should be 1 conflict
-		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 0, 0, 2, noncommutative.NewBytes([]byte{1, 2}), nil)
-		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 2, 0, 2, noncommutative.NewBytes([]byte{2, 3}), nil)
+		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/0x0000000", 2, 0, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
+		_1 := statecell.NewStateCell(1, "blcc://eth1.0/account/0x0000000", 2, 0, 2, noncommutative.NewBytes([]byte{2, 3}), nil)
 		_0.SetSequence(0)
 		_1.SetSequence(1)
 
-		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
+
+		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		if len(conflictdict) != 1 {
+			t.Error("Error: There should be ONE conflict")
+		}
+	})
+
+	t.Run("Read & Delta-write", func(t *testing.T) { // Read delta write, should be 1 conflict
+		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/0x0000000", 0, 0, 2, noncommutative.NewBytes([]byte{1, 2}), nil)
+		_1 := statecell.NewStateCell(1, "blcc://eth1.0/account/0x0000000", 2, 0, 2, noncommutative.NewBytes([]byte{2, 3}), nil)
+		_0.SetSequence(0)
+		_1.SetSequence(1)
+
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 1 {
@@ -317,23 +317,10 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 
 	t.Run("read-Write & read-write write", func(t *testing.T) { // Read delta write, should be 1 conflict
 		// Read write, should be 1 conflict
-		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
-		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{2, 3}), nil)
+		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
+		_1 := statecell.NewStateCell(1, "blcc://eth1.0/account/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{2, 3}), nil)
 
-		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
-
-		conflictdict, _, _ := Conflicts(conflicts).ToDict()
-		if len(conflictdict) != 1 {
-			t.Error("Error: There should be ONE conflict")
-		}
-	})
-
-	t.Run("read-Write & read-write write", func(t *testing.T) { // Read delta write, should be 1 conflict
-		// Read write, should be 1 conflict
-		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 2, 0, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
-		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{2, 3}), nil)
-
-		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 1 {
@@ -343,10 +330,23 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 
 	t.Run("read-Write & read-write write", func(t *testing.T) { // Read delta write, should be 1 conflict
 		// Read write, should be 1 conflict
-		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
-		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 2, 0, 0, noncommutative.NewBytes([]byte{2, 3}), nil)
+		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/0x0000000", 2, 0, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
+		_1 := statecell.NewStateCell(1, "blcc://eth1.0/account/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{2, 3}), nil)
 
-		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
+
+		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		if len(conflictdict) != 1 {
+			t.Error("Error: There should be ONE conflict")
+		}
+	})
+
+	t.Run("read-Write & read-write write", func(t *testing.T) { // Read delta write, should be 1 conflict
+		// Read write, should be 1 conflict
+		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
+		_1 := statecell.NewStateCell(1, "blcc://eth1.0/account/0x0000000", 2, 0, 0, noncommutative.NewBytes([]byte{2, 3}), nil)
+
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 1 {
@@ -355,10 +355,10 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 	})
 
 	t.Run("read-Write & read-write write", func(t *testing.T) { // write / delta wirte, should be 1 conflict
-		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 2, 2, 1, noncommutative.NewBytes([]byte{1, 2}), nil)
-		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{2, 3}), nil)
+		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/0x0000000", 2, 2, 1, noncommutative.NewBytes([]byte{1, 2}), nil)
+		_1 := statecell.NewStateCell(1, "blcc://eth1.0/account/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{2, 3}), nil)
 
-		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 1 {
@@ -367,10 +367,10 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 	})
 
 	t.Run("read-Write & read-write write", func(t *testing.T) { // write / delta wirte, should be 1 conflict
-		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
-		_1 := univalue.NewUnivalue(1, "blcc://eth1.0/account/0x0000000", 2, 2, 1, noncommutative.NewBytes([]byte{2, 3}), nil)
+		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
+		_1 := statecell.NewStateCell(1, "blcc://eth1.0/account/0x0000000", 2, 2, 1, noncommutative.NewBytes([]byte{2, 3}), nil)
 
-		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*univalue.Univalue{_0, _1})
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 1 {
@@ -380,14 +380,14 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 
 	t.Run("Clear Committed / New Byte write", func(t *testing.T) {
 		// Read an element
-		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/ctrn/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
+		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/ctrn/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
 		_0.Property.SetPreexist(false)
 
 		// Clear all committed entries under the path
-		_2 := univalue.NewUnivalue(2, "blcc://eth1.0/account/ctrn/[:]", 0, 2, 1, commutative.NewPath(), nil)
+		_2 := statecell.NewStateCell(2, "blcc://eth1.0/account/ctrn/[:]", 0, 2, 1, commutative.NewPath(), nil)
 		_2.Value().(*commutative.Path).DeltaSet.Removed().CommittedDeleted = (true)
 
-		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 2}, []*univalue.Univalue{_0, _2})
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 2}, []*statecell.StateCell{_0, _2})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 0 {
@@ -397,15 +397,15 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 
 	t.Run("Clear All / Byte write", func(t *testing.T) {
 		// Read + write an existing element
-		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/ctrn/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
+		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/ctrn/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
 		_0.Property.SetPreexist(true)
 
 		// Clear all  entries (committed + Added) under the path
-		_2 := univalue.NewUnivalue(2, "blcc://eth1.0/account/ctrn/*", 0, 2, 1, commutative.NewPath(), nil)
+		_2 := statecell.NewStateCell(2, "blcc://eth1.0/account/ctrn/*", 0, 2, 1, commutative.NewPath(), nil)
 		_2.Value().(*commutative.Path).DeltaSet.Removed().CommittedDeleted = (true)
 		_2.Value().(*commutative.Path).DeltaSet.Removed().StagedAddedDeleted = (true)
 
-		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 2}, []*univalue.Univalue{_0, _2})
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 2}, []*statecell.StateCell{_0, _2})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 1 {
@@ -415,15 +415,15 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 
 	t.Run("Clear All / existing Byte write", func(t *testing.T) {
 		// Read an element
-		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/ctrn/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
+		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/ctrn/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
 		_0.Property.SetPreexist(false)
 
 		// Clear all committed entries under the path
-		_2 := univalue.NewUnivalue(2, "blcc://eth1.0/account/ctrn/*", 0, 2, 1, commutative.NewPath(), nil)
+		_2 := statecell.NewStateCell(2, "blcc://eth1.0/account/ctrn/*", 0, 2, 1, commutative.NewPath(), nil)
 		_2.Value().(*commutative.Path).DeltaSet.Removed().CommittedDeleted = (true)
 		_2.Value().(*commutative.Path).DeltaSet.Removed().StagedAddedDeleted = (true)
 
-		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 2}, []*univalue.Univalue{_0, _2})
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 2}, []*statecell.StateCell{_0, _2})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 1 {
@@ -433,15 +433,15 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 
 	t.Run("Clear Committed / New Byte write", func(t *testing.T) {
 		// Read an element
-		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/ctrn/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
+		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/ctrn/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
 		_0.Property.SetPreexist(false)
 		// This one isn't pre-exists
 
 		// Clear all committed entries under the path
-		_2 := univalue.NewUnivalue(2, "blcc://eth1.0/account/ctrn/[:]", 0, 2, 1, commutative.NewPath(), nil)
+		_2 := statecell.NewStateCell(2, "blcc://eth1.0/account/ctrn/[:]", 0, 2, 1, commutative.NewPath(), nil)
 		_2.Value().(*commutative.Path).DeltaSet.Removed().CommittedDeleted = (true)
 
-		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 2}, []*univalue.Univalue{_0, _2})
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 2}, []*statecell.StateCell{_0, _2})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 0 {
@@ -451,15 +451,15 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 
 	t.Run("Preexist Byte write /  Clear Committed", func(t *testing.T) {
 		// Read an element
-		_0 := univalue.NewUnivalue(0, "blcc://eth1.0/account/ctrn/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
+		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/ctrn/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
 		_0.Property.SetPreexist(true)
 		// This one is pre-exists
 
 		// Clear all committed entries under the path
-		_2 := univalue.NewUnivalue(2, "blcc://eth1.0/account/ctrn/[:]", 0, 2, 1, commutative.NewPath(), nil)
+		_2 := statecell.NewStateCell(2, "blcc://eth1.0/account/ctrn/[:]", 0, 2, 1, commutative.NewPath(), nil)
 		_2.Value().(*commutative.Path).DeltaSet.Removed().CommittedDeleted = (true)
 
-		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 2}, []*univalue.Univalue{_0, _2})
+		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 2}, []*statecell.StateCell{_0, _2})
 
 		conflictdict, _, _ := Conflicts(conflicts).ToDict()
 		if len(conflictdict) != 1 {

@@ -27,7 +27,7 @@ import (
 
 	slices "github.com/arcology-network/common-lib/exp/slice"
 	eucommon "github.com/arcology-network/common-lib/types"
-	"github.com/arcology-network/storage-committer/type/univalue"
+	"github.com/arcology-network/storage-committer/type/statecell"
 
 	profile "github.com/arcology-network/scheduler/profiles"
 	workload "github.com/arcology-network/scheduler/workload"
@@ -60,7 +60,7 @@ func (this *Scheduler) LoadIn(callees []*profile.CalleeProfile) {
 // 2. Deferred function info.
 // 3. Sequential only function info.
 // 4. Max gas limit info.
-func (this *Scheduler) Import(profileTrans []*univalue.Univalue) {
+func (this *Scheduler) Import(profileTrans []*statecell.StateCell) {
 	for _, v := range profileTrans {
 		if v.GetPath() == nil {
 			continue
@@ -71,8 +71,8 @@ func (this *Scheduler) Import(profileTrans []*univalue.Univalue) {
 		if len(addr) == 0 || len(selector) == 0 {
 			continue
 		}
-		profr := this.GetOrCreateProfile(codec.Bytes20{}.FromBytes(addr[:]), codec.Bytes4{}.FromBytes(selector[:]))
-		profr.Init(v)
+		profile := this.GetOrCreateProfile(codec.Bytes20{}.FromBytes(addr[:]), codec.Bytes4{}.FromBytes(selector[:]))
+		profile.Init(v)
 	}
 }
 
