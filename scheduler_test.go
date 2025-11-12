@@ -32,7 +32,7 @@ import (
 )
 
 func TestSchedulerAddAndLoadConflicts(t *testing.T) {
-	file := "./tmp/history"
+	file := ".history"
 	os.Remove(file) // Clean up the file if it exists
 
 	// Create a new scheduler with default deferred flag being true
