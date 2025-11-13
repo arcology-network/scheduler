@@ -15,7 +15,7 @@
  *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package scheduler
+package profile
 
 import (
 	"bytes"
@@ -34,7 +34,7 @@ import (
 // The callee struct stores the information of a contract function that is called by the EOA initiated transactions.
 // It is mainly used to optimize the execution of the transactions. A callee is uniquely identified by a
 // combination of the contract's address and the function signature.
-type CalleeProfile struct {
+type Callee struct {
 	UID          uint64   `json:"uid,omitempty"` // Unique ID for the callee 4 bytes from the contract address + func signature [4]byte
 	Contract     uint64   `json:"contractId"`    // First 8 bytes of the real contract address
 	Sequential   bool     `json:"sequential"`    // A sequential / parallel only calls
@@ -45,26 +45,26 @@ type CalleeProfile struct {
 	ConflictWith []uint64 `json:"conflictWith"`  // ConflictWith of the conflicting callee indices.
 }
 
-func (this *CalleeProfile) SortConflicts() { slices.Sort(this.ConflictWith) } // Sort the callees by the indices in ascending order.
+func (this *Callee) SortConflicts() { slices.Sort(this.ConflictWith) } // Sort the callees by the indices in ascending order.
 
 // If the conflict entry is recorded already, return true.
-func (this *CalleeProfile) IsInConflictList(idx uint64) bool {
+func (this *Callee) IsInConflictList(idx uint64) bool {
 	return slices.IndexFunc(this.ConflictWith, func(i uint64) bool { return i == uint64(idx) }) != -1
 }
 
-func NewCalleeProfile(addr []byte, selector []byte) *CalleeProfile {
-	return &CalleeProfile{
+func NewCalleeProfile(addr []byte, selector []byte) *Callee {
+	return &Callee{
 		UID: DeriveUID(addr, selector),
 	}
 }
 
-func (*CalleeProfile) IsPropertyPath(path string) bool {
+func (*Callee) IsPropertyPath(path string) bool {
 	return len(path) > stgcommon.ETH10_ACCOUNT_FULL_LENGTH &&
 		strings.Contains(path[stgcommon.ETH10_ACCOUNT_FULL_LENGTH:], stgcommon.FUNC_PROFILE_PATH)
 }
 
 // Extract the callee signature from the path string
-func (this *CalleeProfile) ParseKeyFromPath(path string) (string, []byte, []byte) {
+func (this *Callee) ParseKeyFromPath(path string) (string, []byte, []byte) {
 	idx := strings.Index(path, stgcommon.FUNC_PROFILE_PATH)
 	if idx < 0 {
 		return "", []byte{}, []byte{}
@@ -86,7 +86,7 @@ func (this *CalleeProfile) ParseKeyFromPath(path string) (string, []byte, []byte
 }
 
 // Initialize from univalues
-func (this *CalleeProfile) Init(trans ...*statecell.StateCell) {
+func (this *Callee) Init(trans ...*statecell.StateCell) {
 	for _, v := range trans {
 		if this == nil {
 			return
@@ -116,8 +116,8 @@ func (this *CalleeProfile) Init(trans ...*statecell.StateCell) {
 	}
 }
 
-// Equal checks if two CalleeProfile are equal
-func (this *CalleeProfile) Equal(other *CalleeProfile) bool {
+// Equal checks if two Callee are equal
+func (this *Callee) Equal(other *Callee) bool {
 	return this.UID == other.UID &&
 		this.Contract == other.Contract &&
 		this.Sequential == other.Sequential &&
@@ -128,10 +128,10 @@ func (this *CalleeProfile) Equal(other *CalleeProfile) bool {
 		slice.EqualSet(this.ConflictWith, other.ConflictWith)
 }
 
-//---- Encode serializes CalleeProfile to a byte array -------------------------------------
+//---- Encode serializes Callee to a byte array -------------------------------------
 
 // 10x faster and 2x smaller than json marshal/unmarshal
-func (this *CalleeProfile) Encode() ([]byte, error) {
+func (this *Callee) Encode() ([]byte, error) {
 	return codec.Byteset([][]byte{
 		codec.Uint64(this.UID).Encode(),
 		codec.Uint64(this.Contract).Encode(),
@@ -144,7 +144,7 @@ func (this *CalleeProfile) Encode() ([]byte, error) {
 	}).Encode(), nil
 }
 
-func (this *CalleeProfile) Decode(data []byte) *CalleeProfile {
+func (this *Callee) Decode(data []byte) *Callee {
 	fields, _ := codec.Byteset{}.Decode(data).(codec.Byteset)
 
 	this.UID = uint64(codec.Uint64(0).FromBytes(slice.Clone(fields[0])[:]))
@@ -158,14 +158,14 @@ func (this *CalleeProfile) Decode(data []byte) *CalleeProfile {
 	return this
 }
 
-// Marshal serializes CalleeProfile                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          to human-readable JSON.
+// Marshal serializes Callee                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          to human-readable JSON.
 // This is mainly for debugging and testing purposes.
-func (this *CalleeProfile) Marshal() ([]byte, error) {
+func (this *Callee) Marshal() ([]byte, error) {
 	return json.MarshalIndent(this, "", "  ")
 }
 
-// Unmarshal parses JSON back into a CalleeProfile                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          struct.
-func (this *CalleeProfile) Unmarshal(data []byte) error {
+// Unmarshal parses JSON back into a Callee                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          struct.
+func (this *Callee) Unmarshal(data []byte) error {
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.DisallowUnknownFields()
 	return dec.Decode(this)

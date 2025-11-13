@@ -21,7 +21,7 @@ import (
 	common "github.com/arcology-network/common-lib/common"
 	slice "github.com/arcology-network/common-lib/exp/slice"
 
-	profile "github.com/arcology-network/scheduler/profiles"
+	profile "github.com/arcology-network/scheduler/profile"
 )
 
 // ┌───────────────────────────────────────────────┐   ┌───────────────────────────────────────────────┐

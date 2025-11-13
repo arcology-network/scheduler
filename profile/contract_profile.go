@@ -15,7 +15,7 @@
  *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package scheduler
+package profile
 
 import (
 	"bytes"
@@ -63,13 +63,13 @@ func (this *ContractInfo) Equal(other *ContractInfo) bool {
 		slice.EqualSet(this.FuncIdx, other.FuncIdx)
 }
 
-// Marshal serializes CalleeProfile                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          to human-readable JSON.
+// Marshal serializes Callee                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          to human-readable JSON.
 // This is mainly for debugging and testing purposes.
 func (this *ContractInfo) Marshal() ([]byte, error) {
 	return json.MarshalIndent(this, "", "  ")
 }
 
-// Unmarshal parses JSON back into a CalleeProfile                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          struct.
+// Unmarshal parses JSON back into a Callee                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          struct.
 func (this *ContractInfo) Unmarshal(data []byte) error {
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.DisallowUnknownFields()

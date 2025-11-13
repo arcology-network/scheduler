@@ -21,7 +21,7 @@ import (
 	"os"
 
 	mapi "github.com/arcology-network/common-lib/exp/map"
-	profile "github.com/arcology-network/scheduler/profiles"
+	profile "github.com/arcology-network/scheduler/profile"
 )
 
 func LoadFromFile(filepath string) (*Scheduler, error) {
@@ -46,9 +46,14 @@ func SaveToFile(this *Scheduler, filepath string) error {
 	return os.WriteFile(filepath, buffer, 0644)
 }
 
-// func (this *Scheduler) LoadFromStorage() error {
+func (this *Scheduler) LoadFromStorage(contractAddr [20]byte, selector [4]byte) *profile.Callee {
+	uid := profile.DeriveUID(contractAddr[:], selector[:])
 
-// }
+	stgcommon.PathBuilder{contractAddr, selector, stgcommon.ETH_PATH}.UnderCalleeProfile
+		path.BuildProfilePath(contractAddr, selector)
+	this.store.Retrive()
+
+}
 
 // 							(path)
 // [address]/funprofs/[selector/callee]/sequential (boolean)

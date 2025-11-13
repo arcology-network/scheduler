@@ -14,7 +14,7 @@
 *   You should have received a copy of the GNU General Public License
 *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package scheduler
+package profile
 
 import (
 	"testing"
@@ -24,9 +24,9 @@ import (
 func TestCalleeProfileInfo(t *testing.T) {
 	numCalls := 10
 
-	callees := make([]*CalleeProfile, numCalls)
+	callees := make([]*Callee, numCalls)
 	for i := 0; i < numCalls; i++ {
-		callee := &CalleeProfile{}
+		callee := &Callee{}
 		callee.ConflictWith = []uint64{1, 2, 3, 4, 5, 6, 7, 8, 1, 2}
 		callee.Sequential = true
 		callees[i] = callee
@@ -38,7 +38,7 @@ func TestCalleeProfileInfo(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
-		callee2 := &CalleeProfile{}
+		callee2 := &Callee{}
 		callee2.Decode(encoded)
 
 		if !callees[i].Equal(callee2) {
@@ -51,9 +51,9 @@ func TestCalleeProfileInfo(t *testing.T) {
 func TestCalleeProfile(t *testing.T) {
 	numCalls := 1000000
 
-	callees := make([]*CalleeProfile, numCalls)
+	callees := make([]*Callee, numCalls)
 	for i := 0; i < numCalls; i++ {
-		callees[i] = &CalleeProfile{
+		callees[i] = &Callee{
 			UID:          uint64(i),
 			Sequential:   false,
 			TotalCalls:   uint32(i),
@@ -69,7 +69,7 @@ func TestCalleeProfile(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
-		callee2 := &CalleeProfile{}
+		callee2 := &Callee{}
 		callee2.Decode(encoded)
 
 		if !callees[i].Equal(callee2) {
@@ -81,9 +81,9 @@ func TestCalleeProfile(t *testing.T) {
 // func BenchmarkTestCalleeProfile(t *testing.B) {
 // 	numCalls := 1000000
 
-// 	callees := make([]*CalleeProfile, numCalls)
+// 	callees := make([]*Callee, numCalls)
 // 	for i := 0; i < numCalls; i++ {
-// 		callees[i] = &CalleeProfile{
+// 		callees[i] = &Callee{
 // 			Index:        uint32(i),
 // 			AddrAndSign:  new(codec.Bytes12).FromBytes([]byte{1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4}),
 // 			ConflictWith: []uint32{1, 2, 3, 4},
@@ -98,7 +98,7 @@ func TestCalleeProfile(t *testing.T) {
 // 		if err != nil {
 // 			t.Error(err)
 // 		}
-// 		callee2 := &CalleeProfile{}
+// 		callee2 := &Callee{}
 // 		callee2.Decode(encoded)
 // 	}
 // 	t.Log("Time Spend to encode / Decode :", numCalls, time.Since(t0))

@@ -27,15 +27,17 @@ import (
 
 	slices "github.com/arcology-network/common-lib/exp/slice"
 	eucommon "github.com/arcology-network/common-lib/types"
+	"github.com/arcology-network/storage-committer/storage/cache"
 	"github.com/arcology-network/storage-committer/type/statecell"
 
-	profile "github.com/arcology-network/scheduler/profiles"
+	profile "github.com/arcology-network/scheduler/profile"
 	workload "github.com/arcology-network/scheduler/workload"
 )
 
 type Scheduler struct {
 	fileName    string
-	ProfileDict map[uint64]*profile.CalleeProfile
+	ProfileDict map[uint64]*profile.Callee
+	scache      *cache.StateCache
 }
 
 // Initialize a new scheduler, the fileName is the file path to the scheduler's conflict database and the deferByDefault
@@ -43,12 +45,12 @@ type Scheduler struct {
 func NewScheduler(fileName string) (*Scheduler, error) {
 	return &Scheduler{
 		fileName:    fileName,
-		ProfileDict: map[uint64]*profile.CalleeProfile{},
+		ProfileDict: map[uint64]*profile.Callee{},
 	}, nil
 }
 
 // LoadIn the given callees into the scheduler.
-func (this *Scheduler) LoadIn(callees []*profile.CalleeProfile) {
+func (this *Scheduler) LoadIn(callees []*profile.Callee) {
 	for i, callee := range callees {
 		this.ProfileDict[callee.UID] = callees[i]
 	}
@@ -67,7 +69,7 @@ func (this *Scheduler) Import(profileTrans []*statecell.StateCell) {
 		}
 
 		// package and variable name mixed use
-		_, addr, selector := new(profile.CalleeProfile).ParseKeyFromPath(*v.GetPath())
+		_, addr, selector := new(profile.Callee).ParseKeyFromPath(*v.GetPath())
 		if len(addr) == 0 || len(selector) == 0 {
 			continue
 		}
@@ -76,7 +78,7 @@ func (this *Scheduler) Import(profileTrans []*statecell.StateCell) {
 	}
 }
 
-func (this *Scheduler) GetOrCreateProfile(addr [20]byte, selector [4]byte) *profile.CalleeProfile {
+func (this *Scheduler) GetOrCreateProfile(addr [20]byte, selector [4]byte) *profile.Callee {
 	key := profile.DeriveUID(addr[:], selector[:])
 	callee, exists := this.ProfileDict[key] // Ensure the profile is created.
 	if exists {
@@ -84,7 +86,7 @@ func (this *Scheduler) GetOrCreateProfile(addr [20]byte, selector [4]byte) *prof
 	}
 
 	// Create a new profile entry and return its index.
-	callee = &profile.CalleeProfile{
+	callee = &profile.Callee{
 		UID:      key,
 		Contract: uint64(codec.Uint64(0).FromBytes(addr[:])),
 	}

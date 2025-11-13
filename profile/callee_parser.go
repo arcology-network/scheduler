@@ -15,7 +15,7 @@
  *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package scheduler
+package profile
 
 import (
 	"github.com/arcology-network/storage-committer/type/statecell"
@@ -23,7 +23,7 @@ import (
 
 type CalleeParser struct {
 	UID          uint64   `json:"uid,omitempty"` // Unique ID for the callee 4 bytes from the contract address + func signature [4]byte
-	Idx          uint32   `json:"id"`            // Index in the CalleeProfile list, used by the contract profile to reference the entry.
+	Idx          uint32   `json:"id"`            // Index in the Callee list, used by the contract profile to reference the entry.
 	ContractID   uint32   `json:"contractId"`    // Idx of the contract this function belongs to
 	Sequential   bool     `json:"sequential"`    // A sequential / parallel only calls
 	TotalCalls   uint32   `json:"totalCalls"`    // Total number of calls

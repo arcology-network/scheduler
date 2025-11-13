@@ -17,7 +17,7 @@
 
 // scheduletype is a package that contains the constants and functions for the scheduler
 // that shareed by other packages.
-package scheduler
+package profile
 
 import (
 	"github.com/arcology-network/common-lib/codec"
