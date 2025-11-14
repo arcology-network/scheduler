@@ -15,9 +15,11 @@
  *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package scheduler
+package workload
 
 import (
+	"runtime"
+
 	"github.com/arcology-network/common-lib/exp/slice"
 	eucommon "github.com/arcology-network/common-lib/types"
 )
@@ -29,15 +31,25 @@ type Schedule struct {
 	WithConflict []*eucommon.StandardMessage // Messages with some known conflicts
 	Sequentials  []*eucommon.StandardMessage // Callees that are marked as sequential only
 
-	Generations [][][]*eucommon.StandardMessage
-	CallCounts  []map[string]int
+	Generations []*Generation
+	MsgSet      [][][]*eucommon.StandardMessage
+	// CallCounts  []map[string]int
 }
 
-// The function outputs the optimized schedule. The shedule is a 3 dimensional array.
-// The first dimension is the generation number. The second dimension is a set of
-// parallel transaction arrays. These arrays are the transactions that can be executed in parallel.
-// The third dimension is the transactions in the sequntial order.
-func (this *Schedule) Finalize() [][][]*eucommon.StandardMessage {
+// The function returns an optimized execution schedule represented as a 3-dimensional slice.
+//
+// schedule[g][p][i]
+//
+// g = generation index://
+//	Generations run sequentially. Generation g+1 begins only after generation g completes.
+//
+// p = parallel group index within a generation://
+//	Each parallel group can be executed concurrently with the other groups in the same generation.
+//
+// i = transaction index within a parallel group://
+//	Transactions inside a group must execute in strict sequential order.
+
+func (this *Schedule) Finalize() []*Generation {
 	//  Transfers + deployments can be executed in parallel with withConflict + sequentials.
 	_1 := slice.ConcateNonEmpty(func(v []*eucommon.StandardMessage) bool { return len(v) > 0 }, this.Transfers, this.Deployments, this.Unknowns)
 	_2 := slice.ConcateNonEmpty(func(v []*eucommon.StandardMessage) bool { return len(v) > 0 }, this.WithConflict, this.Sequentials)
@@ -51,18 +63,32 @@ func (this *Schedule) Finalize() [][][]*eucommon.StandardMessage {
 		return []*eucommon.StandardMessage{msg}
 	})
 
-	// sch := [][][]*eucommon.StandardMessage{}
 	if len(_1Gen) > 0 {
-		if len(this.Generations) == 0 {
-			this.Generations = append(this.Generations, _1Gen)
+		if len(this.MsgSet) == 0 {
+			this.MsgSet = append(this.MsgSet, _1Gen)
 		} else {
 			// Merge with the first generation, since they are all parallel.
-			this.Generations[0] = append(this.Generations[0], _1Gen...)
+			this.MsgSet[0] = append(this.MsgSet[0], _1Gen...)
 		}
 	}
 
 	if len(_2Gen) > 0 {
-		this.Generations[0] = append(this.Generations[0], _2Gen...)
+		this.MsgSet[0] = append(this.MsgSet[0], _2Gen...)
+	}
+
+	slice.RemoveIf(&this.MsgSet, func(i int, seq [][]*eucommon.StandardMessage) bool {
+		return len(seq) == 0
+	})
+
+	// Convert to Generation structs.
+	numCores := uint32(runtime.NumCPU())
+	this.Generations = make([]*Generation, 0, len(this.MsgSet))
+	for i, msgs := range this.MsgSet {
+		seqs := make([]*JobSequence, len(msgs))
+		for j, msg := range msgs {
+			seqs[j] = new(JobSequence).FromStandardMessages(uint64(j), msg)
+		}
+		this.Generations = append(this.Generations, NewGeneration(uint64(i), numCores, seqs))
 	}
 	return this.Generations
 }

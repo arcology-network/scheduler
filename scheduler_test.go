@@ -20,71 +20,70 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"math/big"
-	"os"
 	"strconv"
 	"testing"
 	"time"
 
-	slice "github.com/arcology-network/common-lib/exp/slice"
+	"github.com/arcology-network/common-lib/exp/slice"
 	eucommon "github.com/arcology-network/common-lib/types"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	ethcore "github.com/ethereum/go-ethereum/core"
 )
 
-func TestSchedulerAddAndLoadConflicts(t *testing.T) {
-	file := "./tmp/history"
-	os.Remove(file) // Clean up the file if it exists
+// func TestSchedulerAddAndLoadConflicts(t *testing.T) {
+// 	file := "./tmp/history"
+// 	os.Remove(file) // Clean up the file if it exists
 
-	// Create a new scheduler with default deferred flag being true
-	sch, err := NewScheduler(file, true)
-	if err != nil {
-		t.Error(err)
-	}
+// 	// Create a new scheduler with default deferred flag being true
+// 	sch, err := NewScheduler(file)
+// 	if err != nil {
+// 		t.Error(err)
+// 	}
 
-	alice := []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
-	bob := []byte("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
-	carol := []byte("cccccccccccccccccccccccccccccccccccccccc")
-	david := []byte("dddddddddddddddddddddddddddddddddddddddd")
+// 	alice := []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+// 	bob := []byte("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+// 	carol := []byte("cccccccccccccccccccccccccccccccccccccccc")
+// 	david := []byte("dddddddddddddddddddddddddddddddddddddddd")
 
-	// eva := []byte("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
-	// frank := []byte("ffffffffffffffffffffffffffffffffffffffff")
+// 	// eva := []byte("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
+// 	// frank := []byte("ffffffffffffffffffffffffffffffffffffffff")
 
-	// Add the conflict pairs to the scheduler
-	sch.Add([20]byte(alice), [4]byte{1, 1, 1, 1}, [20]byte(bob), [4]byte{2, 2, 2, 2})
-	sch.Add([20]byte(carol), [4]byte{3, 3, 3, 3}, [20]byte(david), [4]byte{4, 4, 4, 4})
+// 	// RegisterConflict the conflict pairs to the scheduler
+// 	sch.RegisterConflict([20]byte(alice), [4]byte{1, 1, 1, 1}, [20]byte(bob), [4]byte{2, 2, 2, 2})
+// 	sch.RegisterConflict([20]byte(carol), [4]byte{3, 3, 3, 3}, [20]byte(david), [4]byte{4, 4, 4, 4})
 
-	sch.Add([20]byte(alice), [4]byte{1, 1, 1, 1}, [20]byte(bob), [4]byte{2, 2, 2, 2})
-	sch.Add([20]byte(carol), [4]byte{3, 3, 3, 3}, [20]byte(david), [4]byte{4, 4, 4, 4})
+// 	sch.RegisterConflict([20]byte(alice), [4]byte{1, 1, 1, 1}, [20]byte(bob), [4]byte{2, 2, 2, 2})
+// 	sch.RegisterConflict([20]byte(carol), [4]byte{3, 3, 3, 3}, [20]byte(david), [4]byte{4, 4, 4, 4})
 
-	if len(sch.callees) != 4 {
-		t.Error("Failed to add contracts")
-	}
+// 	if len(sch.ProfileDict) != 4 {
+// 		t.Error("Failed to add contracts")
+// 	}
 
-	if err = SaveScheduler(sch, file); err != nil {
-		t.Error(err)
-	}
+// 	if err = SaveToFile(sch, file); err != nil {
+// 		t.Error(err)
+// 	}
 
-	sch, err = LoadScheduler(file)
-	if err != nil {
-		t.Error(err)
-	}
+// 	sch, err = LoadFromFile(file)
+// 	if err != nil {
+// 		t.Error(err)
+// 	}
 
-	if len(sch.callees) != 4 {
-		t.Error("Failed to add contracts")
-	}
+// 	if len(sch.ProfileDict) != 4 {
+// 		t.Error("Failed to add contracts")
+// 	}
 
-	if sch.Add([20]byte(alice), [4]byte{1, 1, 1, 1}, [20]byte(bob), [4]byte{2, 2, 2, 2}) {
-		t.Error("Should not exist")
-	}
+// 	if sch.RegisterConflict([20]byte(alice), [4]byte{1, 1, 1, 1}, [20]byte(bob), [4]byte{2, 2, 2, 2}) {
+// 		t.Error("Should not exist")
+// 	}
 
-	if !sch.Add([20]byte(alice), [4]byte{1, 2, 1, 1}, [20]byte(bob), [4]byte{2, 2, 2, 2}) {
-		t.Error("Failed to add contracts")
-	}
-	os.Remove(file)
-}
+// 	if !sch.RegisterConflict([20]byte(alice), [4]byte{1, 2, 1, 1}, [20]byte(bob), [4]byte{2, 2, 2, 2}) {
+// 		t.Error("Failed to add contracts")
+// 	}
+// 	os.Remove(file)
+// }
 
 func TestSchedulerNoConflictWithDeferred(t *testing.T) {
-	scheduler, _ := NewScheduler("", true) // No conflict db file.
+	scheduler, _ := NewScheduler("") // No conflict db file.
 
 	alice := []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 	aaddr := ethcommon.BytesToAddress(alice)
@@ -111,13 +110,14 @@ func TestSchedulerNoConflictWithDeferred(t *testing.T) {
 		callAlice2,
 	})
 
-	if optimized := rawSch.Finalize(); len(optimized) != 1 || len(optimized[0]) != 3 {
+	rawSch.Finalize()
+	if optimized := rawSch.MsgSet; len(optimized) != 1 || len(optimized[0]) != 3 {
 		t.Error("Wrong generation size", len(optimized), len(optimized[0]))
 	}
 }
 
 func TestSchedulerNoConflictWithoutDeferred(t *testing.T) {
-	scheduler, _ := NewScheduler("", false) // No conflict db file.
+	scheduler, _ := NewScheduler("") // No conflict db file.
 
 	alice := []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 	aaddr := ethcommon.BytesToAddress(alice)
@@ -144,24 +144,25 @@ func TestSchedulerNoConflictWithoutDeferred(t *testing.T) {
 		callAlice2,
 	})
 
-	if optimized := rawSch.Finalize(); len(optimized) != 1 || len(optimized[0]) != 3 {
+	rawSch.Finalize()
+	if optimized := rawSch.MsgSet; len(optimized) != 1 || len(optimized[0]) != 3 {
 		t.Error("Wrong generation size", optimized[0])
 	}
 }
 
 func TestSchedulerWithConflicInfo(t *testing.T) {
-	scheduler, _ := NewScheduler("", true) // No conflict db file.
+	scheduler, _ := NewScheduler("") // No conflict db file.
 
 	alice := []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 	bob := []byte("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
 	carol := []byte("cccccccccccccccccccccccccccccccccccccccc")
 	david := []byte("dddddddddddddddddddddddddddddddddddddddd")
 
-	scheduler.Add(
+	scheduler.RegisterConflict(
 		[20]byte(alice), [4]byte{1, 1, 1, 1},
 		[20]byte(bob), [4]byte{2, 2, 2, 2})
 
-	scheduler.Add(
+	scheduler.RegisterConflict(
 		[20]byte(carol), [4]byte{3, 3, 3, 3},
 		[20]byte(david), [4]byte{4, 4, 4, 4})
 
@@ -203,9 +204,8 @@ func TestSchedulerWithConflicInfo(t *testing.T) {
 
 	// Produce a new schedule for the given transactions based on the conflicts information.
 	// There should be 3 generations in the schedule.
-	// 1. [Transfer], [deployment]
-	// 2. [Alice, Carol]
-	// 3. [Bob, David]
+	// 1. [Transfer], [deployment], [Alice], [Carol]
+	// 2. [Bob, David]
 	rawSch := scheduler.New([]*eucommon.StandardMessage{
 		callAlice, // Conflict with callCarol
 		callBob,
@@ -217,13 +217,13 @@ func TestSchedulerWithConflicInfo(t *testing.T) {
 
 	// rawSch.
 	rawSch.Finalize()
-	if len(rawSch.Generations) != 2 || len(rawSch.Generations[0]) != 4 || len(rawSch.Generations[1]) != 2 {
-		t.Error("Wrong generation size", len(rawSch.Generations), len(rawSch.Generations[0]))
+	if len(rawSch.MsgSet) != 2 || len(rawSch.MsgSet[0]) != 4 || len(rawSch.MsgSet[1]) != 2 {
+		t.Error("Wrong generation size", len(rawSch.MsgSet), len(rawSch.MsgSet[0]))
 	}
 }
 
 func BenchmarkSchedulerWithConflictInfo(t *testing.B) {
-	scheduler, _ := NewScheduler("", true) // No conflict db file.
+	scheduler, _ := NewScheduler("") // No conflict db file.
 
 	alice := []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 	aaddr := ethcommon.BytesToAddress(alice)

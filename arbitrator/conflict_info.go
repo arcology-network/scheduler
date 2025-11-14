@@ -21,17 +21,17 @@ import (
 	"fmt"
 
 	mapi "github.com/arcology-network/common-lib/exp/map"
-	univalue "github.com/arcology-network/storage-committer/type/univalue"
+	statecell "github.com/arcology-network/storage-committer/type/statecell"
 )
 
 type Conflict struct {
-	key           string
-	self          uint64
-	sequenceID    []uint64 // Multiple transactions may have the same ID for them to be in the same job sequence.
-	txIDs         []uint64
-	selfTran      *univalue.Univalue
-	conflictTrans []*univalue.Univalue
-	Err           error
+	key          string
+	self         uint64
+	sequenceID   []uint64 // Multiple transactions may have the same ID for them to be in the same job sequence.
+	txIDs        []uint64
+	tran         *statecell.StateCell
+	conflictWith []*statecell.StateCell
+	Reason       error // Why the conflict happens.
 }
 
 func (this Conflict) ToPairs() [][2]uint64 {
@@ -43,10 +43,10 @@ func (this Conflict) ToPairs() [][2]uint64 {
 }
 
 func (this *Conflict) Print() {
-	this.selfTran.Print()
+	this.tran.Print()
 	fmt.Println(" ----- conflict with ----- ")
-	univalue.Univalues(this.conflictTrans).Print()
-	fmt.Println("Reason: ", this.Err)
+	statecell.StateCells(this.conflictWith).Print()
+	fmt.Println("Reason: ", this.Reason)
 }
 
 type Conflicts []*Conflict
