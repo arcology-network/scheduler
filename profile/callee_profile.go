@@ -18,155 +18,91 @@
 package profile
 
 import (
-	"bytes"
-	"encoding/hex"
-	"encoding/json"
+	"errors"
 	"slices"
-	"strings"
 
 	//  "github.com/arcology-network/scheduler"
+
 	"github.com/arcology-network/common-lib/codec"
-	"github.com/arcology-network/common-lib/exp/slice"
 	stgcommon "github.com/arcology-network/storage-committer/common"
-	statecell "github.com/arcology-network/storage-committer/type/statecell"
+	"github.com/arcology-network/storage-committer/type/noncommutative"
 )
 
 // The callee struct stores the information of a contract function that is called by the EOA initiated transactions.
 // It is mainly used to optimize the execution of the transactions. A callee is uniquely identified by a
 // combination of the contract's address and the function signature.
 type Callee struct {
-	UID          uint64   `json:"uid,omitempty"` // Unique ID for the callee 4 bytes from the contract address + func signature [4]byte
-	Contract     uint64   `json:"contractId"`    // First 8 bytes of the real contract address
-	Sequential   bool     `json:"sequential"`    // A sequential / parallel only calls
-	TotalCalls   uint32   `json:"totalCalls"`    // Total number of calls
-	MaxGas       uint64   `json:"maxGas"`        // Max gas used
-	Deferrable   bool     `json:"deferrable"`    // If one of the calls to this function should be deferred to the second generation.
-	Prepayment   uint64   `json:"prepayment"`    // Required prepayment amount for the deferrable functions
-	ConflictWith []uint64 `json:"conflictWith"`  // ConflictWith of the conflicting callee indices.
+	LastVisit uint64 `json:"lastVisit"` // Last visit block height
+
+	UID      uint64   `json:"uid"`      // Unique identifier of the callee (derived from address + selector)
+	Contract [20]byte `json:"contract"` // Contract address
+	Selector [4]byte  `json:"selector"` // Function selector
+
+	// Only need to load these three fields from the storage
+	ParallelismDegree uint32   `json:"parallelismDegree"` // Execution parallelism, 1 for sequential, otherwise parallel.
+	IsDeferrable      bool     `json:"deferredPayment"`   // Required prepayment amount for the deferrable functions
+	ConflictWith      []uint64 `json:"conflictWith"`      // ConflictWith of the conflicting callee indices.
+	Dirty             bool     `json:"Dirty"`             // Whether the conflicts in callee profile has been modified.
 }
 
 func (this *Callee) SortConflicts() { slices.Sort(this.ConflictWith) } // Sort the callees by the indices in ascending order.
 
-// If the conflict entry is recorded already, return true.
-func (this *Callee) IsInConflictList(idx uint64) bool {
-	return slices.IndexFunc(this.ConflictWith, func(i uint64) bool { return i == uint64(idx) }) != -1
+// Determine whether this callee is in conflict with another callee.
+func (this *Callee) IsInConflict(other *Callee) bool {
+	return slices.IndexFunc(this.ConflictWith, func(i uint64) bool { return i == uint64(other.UID) }) != -1
 }
 
-func NewCalleeProfile(addr []byte, selector []byte) *Callee {
-	return &Callee{
-		UID: DeriveUID(addr, selector),
-	}
-}
+// Initialize the callee profile from the storage if exists.
+func NewCalleeFromStorage(pathBuiler *stgcommon.PathBuilder, schStorage *SchedulerStorage) *Callee {
+	this := &Callee{}
 
-func (*Callee) IsPropertyPath(path string) bool {
-	return len(path) > stgcommon.ETH10_ACCOUNT_FULL_LENGTH &&
-		strings.Contains(path[stgcommon.ETH10_ACCOUNT_FULL_LENGTH:], stgcommon.FUNC_PROFILE_PATH)
-}
+	// UID for quick matching
+	this.Contract = pathBuiler.Address
+	this.Selector = pathBuiler.Selector
+	this.UID = DeriveUID(pathBuiler.Address[:], pathBuiler.Selector[:])
 
-// Extract the callee signature from the path string
-func (this *Callee) ParseKeyFromPath(path string) (string, []byte, []byte) {
-	idx := strings.Index(path, stgcommon.FUNC_PROFILE_PATH)
-	if idx < 0 {
-		return "", []byte{}, []byte{}
+	// Get the parallelism degree
+	path := pathBuiler.UnderCalleeProfile(stgcommon.PARALLELISM_DEGREE)
+	if v, err := schStorage.Retrive(path, uint64(0)); err == nil {
+		this.ParallelismDegree = v.(uint32)
 	}
 
-	fullPath := path[idx+len(stgcommon.FUNC_PROFILE_PATH):]
-	selector, _ := hex.DecodeString(fullPath)
-
-	if len(selector) == 0 {
-		return "", []byte{}, []byte{}
+	// Get the minimum prepayment amount for deferred execution
+	// If the amount is zero, it means the function is not deferrable.
+	path = pathBuiler.UnderCalleeProfile(stgcommon.DEFERRED_PAYMENT)
+	if prepayment, err := schStorage.Retrive(path, uint64(0)); err == nil {
+		this.IsDeferrable = prepayment.(uint64) > 0
 	}
-	addrStr := path[stgcommon.ETH10_ACCOUNT_PREFIX_LENGTH:]
-	idx = strings.Index(addrStr, "/")
-	addrStr = strings.TrimPrefix(addrStr[:idx], "0x")
 
-	addr, _ := hex.DecodeString(addrStr)
-	return string(append(addr[:stgcommon.SHORT_CONTRACT_ADDRESS_LENGTH], selector...)),
-		addr, selector
-}
-
-// Initialize from univalues
-func (this *Callee) Init(trans ...*statecell.StateCell) {
-	for _, v := range trans {
-		if this == nil {
-			return
-		}
-
-		// Set execution method
-		if strings.HasSuffix(*v.GetPath(), stgcommon.PARALLELISM_LEVEL) && v.Value() != nil {
-			flag, _, _ := v.Value().(stgcommon.Type).Get()
-			this.Sequential = flag.([]byte)[0] == stgcommon.SEQUENTIAL_EXECUTION
-		}
-
-		// Set the excepted transitions
-		// if strings.HasSuffix(*v.GetPath(), stgcommon.PARALLELISM_LEVEL) {
-		// 	subPaths, _, _ := v.Value().(*commutative.Path).Get()
-		// 	subPathSet := subPaths.(*deltaset.DeltaSet[string]) // Get all the conflicting ones.
-		// 	for _, subPath := range subPathSet.Elements() {
-		// 		k := codec.Bytes12{}.FromBytes([]byte(subPath))
-		// 		this.Except = append(this.Except, k)
-		// 	}
-		// }
-
-		// Set the Deferrable value
-		if strings.HasSuffix(*v.GetPath(), stgcommon.REQUIRED_PREPAYMENT_AMOUNT) && v.Value() != nil {
-			flag, _, _ := v.Value().(stgcommon.Type).Get()
-			this.Deferrable = flag.(uint64) > 0
-		}
+	// Get the parallelism degree
+	path = pathBuiler.UnderCalleeProfile(stgcommon.PARALLELISM_DEGREE)
+	if Indices, err := schStorage.Retrive(path, []byte{}); err == nil {
+		buffer := Indices.([]byte)
+		this.ConflictWith = codec.Uint64s{}.Decode(buffer).(codec.Uint64s)
 	}
-}
-
-// Equal checks if two Callee are equal
-func (this *Callee) Equal(other *Callee) bool {
-	return this.UID == other.UID &&
-		this.Contract == other.Contract &&
-		this.Sequential == other.Sequential &&
-		this.TotalCalls == other.TotalCalls &&
-		this.MaxGas == other.MaxGas &&
-		this.Deferrable == other.Deferrable &&
-		this.Prepayment == other.Prepayment &&
-		slice.EqualSet(this.ConflictWith, other.ConflictWith)
-}
-
-//---- Encode serializes Callee to a byte array -------------------------------------
-
-// 10x faster and 2x smaller than json marshal/unmarshal
-func (this *Callee) Encode() ([]byte, error) {
-	return codec.Byteset([][]byte{
-		codec.Uint64(this.UID).Encode(),
-		codec.Uint64(this.Contract).Encode(),
-		codec.Bool(this.Sequential).Encode(),
-		codec.Uint32(this.TotalCalls).Encode(),
-		codec.Uint64(this.MaxGas).Encode(),
-		codec.Bool(this.Deferrable).Encode(),
-		codec.Uint64(this.Prepayment).Encode(),
-		codec.Uint64s(this.ConflictWith).Encode(),
-	}).Encode(), nil
-}
-
-func (this *Callee) Decode(data []byte) *Callee {
-	fields, _ := codec.Byteset{}.Decode(data).(codec.Byteset)
-
-	this.UID = uint64(codec.Uint64(0).FromBytes(slice.Clone(fields[0])[:]))
-	this.Contract = uint64(codec.Uint64(0).Decode(fields[1]).(codec.Uint64))
-	this.Sequential = bool(new(codec.Bool).Decode(fields[2]).(codec.Bool))
-	this.TotalCalls = uint32(codec.Uint32(0).Decode(fields[3]).(codec.Uint32))
-	this.MaxGas = uint64(codec.Uint64(0).Decode(fields[4]).(codec.Uint64))
-	this.Deferrable = bool(new(codec.Bool).Decode(fields[5]).(codec.Bool))
-	this.Prepayment = uint64(codec.Uint64(0).Decode(fields[6]).(codec.Uint64))
-	this.ConflictWith = new(codec.Uint64s).Decode(fields[7]).(codec.Uint64s)
 	return this
 }
 
-// Marshal serializes Callee                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          to human-readable JSON.
-// This is mainly for debugging and testing purposes.
-func (this *Callee) Marshal() ([]byte, error) {
-	return json.MarshalIndent(this, "", "  ")
-}
+func (this *Callee) Save(schStorage *SchedulerStorage) error {
+	if !this.Dirty {
+		return nil
+	}
+	var err error
+	pathBuiler := stgcommon.PathBuilder{Address: this.Contract, Selector: this.Selector, Platform: stgcommon.ETH_PATH}
 
-// Unmarshal parses JSON back into a Callee                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          struct.
-func (this *Callee) Unmarshal(data []byte) error {
-	dec := json.NewDecoder(bytes.NewReader(data))
-	dec.DisallowUnknownFields()
-	return dec.Decode(this)
+	// Mark as sequential if too many conflicts.
+	if len(this.ConflictWith) > stgcommon.MAX_NUM_CONFLICTS {
+		this.ParallelismDegree = 1
+		this.ConflictWith = []uint64{} // Clear the conflict list since it is no longer needed.
+
+		path := pathBuiler.UnderCalleeProfile(stgcommon.PARALLELISM_DEGREE)
+		v := noncommutative.NewUint64(uint64(this.ParallelismDegree))
+		saveErr := schStorage.Write(path, v) // Save the parallelism degree
+		return errors.Join(err, saveErr)
+	}
+
+	// Still within the conflict limit, save the conflict list.
+	path := pathBuiler.UnderCalleeProfile(stgcommon.CONFLICT_INFO_PATH)
+	v := codec.Uint64s(this.ConflictWith).Encode()
+	return schStorage.Write(path, noncommutative.NewBytes(v)) // Save the conflict list
 }

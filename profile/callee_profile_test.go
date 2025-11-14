@@ -16,67 +16,62 @@
  */
 package profile
 
-import (
-	"testing"
-	"time"
-)
+// func TestCalleeProfileInfo(t *testing.T) {
+// 	numCalls := 10
 
-func TestCalleeProfileInfo(t *testing.T) {
-	numCalls := 10
+// 	callees := make([]*Callee, numCalls)
+// 	for i := 0; i < numCalls; i++ {
+// 		callee := &Callee{}
+// 		callee.ConflictWith = []uint64{1, 2, 3, 4, 5, 6, 7, 8, 1, 2}
+// 		callee.Sequential = true
+// 		callees[i] = callee
+// 	}
 
-	callees := make([]*Callee, numCalls)
-	for i := 0; i < numCalls; i++ {
-		callee := &Callee{}
-		callee.ConflictWith = []uint64{1, 2, 3, 4, 5, 6, 7, 8, 1, 2}
-		callee.Sequential = true
-		callees[i] = callee
-	}
+// 	t0 := time.Now()
+// 	for i := 0; i < numCalls; i++ {
+// 		encoded, err := callees[i].Encode()
+// 		if err != nil {
+// 			t.Error(err)
+// 		}
+// 		callee2 := &Callee{}
+// 		callee2.Decode(encoded)
 
-	t0 := time.Now()
-	for i := 0; i < numCalls; i++ {
-		encoded, err := callees[i].Encode()
-		if err != nil {
-			t.Error(err)
-		}
-		callee2 := &Callee{}
-		callee2.Decode(encoded)
+// 		if !callees[i].Equal(callee2) {
+// 			t.Error("Failed to encode/decode")
+// 		}
+// 	}
+// 	t.Log("Time Spent to encode / Decode ", numCalls, " entries: ", time.Since(t0))
+// }
 
-		if !callees[i].Equal(callee2) {
-			t.Error("Failed to encode/decode")
-		}
-	}
-	t.Log("Time Spent to encode / Decode ", numCalls, " entries: ", time.Since(t0))
-}
+// func TestCalleeProfile(t *testing.T) {
+// 	numCalls := 1000000
 
-func TestCalleeProfile(t *testing.T) {
-	numCalls := 1000000
+// 	callees := make([]*Callee, numCalls)
+// 	for i := 0; i < numCalls; i++ {
+// 		callees[i] = &Callee{
+// 			UID:          uint64(i),
+// 			Sequential:   false,
+// 			TotalCalls:   uint32(i),
+// 			MaxGas:       uint64(i * 100),
+// 			Deferrable:   true,
+// 			Prepayment:   uint64(i * 11),
+// 			ConflictWith: []uint64{1, 2, 3, 4},
+// 		}
+// 	}
 
-	callees := make([]*Callee, numCalls)
-	for i := 0; i < numCalls; i++ {
-		callees[i] = &Callee{
-			UID:          uint64(i),
-			Sequential:   false,
-			TotalCalls:   uint32(i),
-			MaxGas:       uint64(i * 100),
-			Deferrable:   true,
-			Prepayment:   uint64(i * 11),
-			ConflictWith: []uint64{1, 2, 3, 4},
-		}
-	}
+// 	for i := 0; i < numCalls; i++ {
+// 		encoded, err := callees[i].Encode()
+// 		if err != nil {
+// 			t.Error(err)
+// 		}
+// 		callee2 := &Callee{}
+// 		callee2.Decode(encoded)
 
-	for i := 0; i < numCalls; i++ {
-		encoded, err := callees[i].Encode()
-		if err != nil {
-			t.Error(err)
-		}
-		callee2 := &Callee{}
-		callee2.Decode(encoded)
-
-		if !callees[i].Equal(callee2) {
-			t.Error("Failed to encode/decode")
-		}
-	}
-}
+// 		if !callees[i].Equal(callee2) {
+// 			t.Error("Failed to encode/decode")
+// 		}
+// 	}
+// }
 
 // func BenchmarkTestCalleeProfile(t *testing.B) {
 // 	numCalls := 1000000

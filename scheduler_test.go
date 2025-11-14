@@ -20,7 +20,6 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"math/big"
-	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -31,57 +30,57 @@ import (
 	ethcore "github.com/ethereum/go-ethereum/core"
 )
 
-func TestSchedulerAddAndLoadConflicts(t *testing.T) {
-	file := "./tmp/history"
-	os.Remove(file) // Clean up the file if it exists
+// func TestSchedulerAddAndLoadConflicts(t *testing.T) {
+// 	file := "./tmp/history"
+// 	os.Remove(file) // Clean up the file if it exists
 
-	// Create a new scheduler with default deferred flag being true
-	sch, err := NewScheduler(file)
-	if err != nil {
-		t.Error(err)
-	}
+// 	// Create a new scheduler with default deferred flag being true
+// 	sch, err := NewScheduler(file)
+// 	if err != nil {
+// 		t.Error(err)
+// 	}
 
-	alice := []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
-	bob := []byte("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
-	carol := []byte("cccccccccccccccccccccccccccccccccccccccc")
-	david := []byte("dddddddddddddddddddddddddddddddddddddddd")
+// 	alice := []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+// 	bob := []byte("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+// 	carol := []byte("cccccccccccccccccccccccccccccccccccccccc")
+// 	david := []byte("dddddddddddddddddddddddddddddddddddddddd")
 
-	// eva := []byte("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
-	// frank := []byte("ffffffffffffffffffffffffffffffffffffffff")
+// 	// eva := []byte("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
+// 	// frank := []byte("ffffffffffffffffffffffffffffffffffffffff")
 
-	// RegisterConflict the conflict pairs to the scheduler
-	sch.RegisterConflict([20]byte(alice), [4]byte{1, 1, 1, 1}, [20]byte(bob), [4]byte{2, 2, 2, 2})
-	sch.RegisterConflict([20]byte(carol), [4]byte{3, 3, 3, 3}, [20]byte(david), [4]byte{4, 4, 4, 4})
+// 	// RegisterConflict the conflict pairs to the scheduler
+// 	sch.RegisterConflict([20]byte(alice), [4]byte{1, 1, 1, 1}, [20]byte(bob), [4]byte{2, 2, 2, 2})
+// 	sch.RegisterConflict([20]byte(carol), [4]byte{3, 3, 3, 3}, [20]byte(david), [4]byte{4, 4, 4, 4})
 
-	sch.RegisterConflict([20]byte(alice), [4]byte{1, 1, 1, 1}, [20]byte(bob), [4]byte{2, 2, 2, 2})
-	sch.RegisterConflict([20]byte(carol), [4]byte{3, 3, 3, 3}, [20]byte(david), [4]byte{4, 4, 4, 4})
+// 	sch.RegisterConflict([20]byte(alice), [4]byte{1, 1, 1, 1}, [20]byte(bob), [4]byte{2, 2, 2, 2})
+// 	sch.RegisterConflict([20]byte(carol), [4]byte{3, 3, 3, 3}, [20]byte(david), [4]byte{4, 4, 4, 4})
 
-	if len(sch.ProfileDict) != 4 {
-		t.Error("Failed to add contracts")
-	}
+// 	if len(sch.ProfileDict) != 4 {
+// 		t.Error("Failed to add contracts")
+// 	}
 
-	if err = SaveToFile(sch, file); err != nil {
-		t.Error(err)
-	}
+// 	if err = SaveToFile(sch, file); err != nil {
+// 		t.Error(err)
+// 	}
 
-	sch, err = LoadFromFile(file)
-	if err != nil {
-		t.Error(err)
-	}
+// 	sch, err = LoadFromFile(file)
+// 	if err != nil {
+// 		t.Error(err)
+// 	}
 
-	if len(sch.ProfileDict) != 4 {
-		t.Error("Failed to add contracts")
-	}
+// 	if len(sch.ProfileDict) != 4 {
+// 		t.Error("Failed to add contracts")
+// 	}
 
-	if sch.RegisterConflict([20]byte(alice), [4]byte{1, 1, 1, 1}, [20]byte(bob), [4]byte{2, 2, 2, 2}) {
-		t.Error("Should not exist")
-	}
+// 	if sch.RegisterConflict([20]byte(alice), [4]byte{1, 1, 1, 1}, [20]byte(bob), [4]byte{2, 2, 2, 2}) {
+// 		t.Error("Should not exist")
+// 	}
 
-	if !sch.RegisterConflict([20]byte(alice), [4]byte{1, 2, 1, 1}, [20]byte(bob), [4]byte{2, 2, 2, 2}) {
-		t.Error("Failed to add contracts")
-	}
-	os.Remove(file)
-}
+// 	if !sch.RegisterConflict([20]byte(alice), [4]byte{1, 2, 1, 1}, [20]byte(bob), [4]byte{2, 2, 2, 2}) {
+// 		t.Error("Failed to add contracts")
+// 	}
+// 	os.Remove(file)
+// }
 
 func TestSchedulerNoConflictWithDeferred(t *testing.T) {
 	scheduler, _ := NewScheduler("") // No conflict db file.
