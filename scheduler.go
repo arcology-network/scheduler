@@ -45,7 +45,14 @@ func NewScheduler(fileName string) (*Scheduler, error) {
 	return &Scheduler{
 		fileName:    fileName,
 		ProfileDict: map[uint64]*profile.Callee{},
+		schStorage:  nil, // Storage is optional, can be set via SetStorage method
 	}, nil
+}
+
+// SetStorage sets the scheduler storage for loading and saving callee profiles.
+// This is optional and only needed if persistent storage is required.
+func (this *Scheduler) SetStorage(storage *profile.SchedulerStorage) {
+	this.schStorage = storage
 }
 
 // Preload the scheduler with the given message profiles.

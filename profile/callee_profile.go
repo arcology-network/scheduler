@@ -61,6 +61,11 @@ func NewCalleeFromStorage(pathBuiler *stgcommon.PathBuilder, schStorage *Schedul
 	this.Selector = pathBuiler.Selector
 	this.UID = DeriveUID(pathBuiler.Address[:], pathBuiler.Selector[:])
 
+	// If storage is not available, return a basic callee profile
+	if schStorage == nil {
+		return this
+	}
+
 	// Get the parallelism degree
 	path := pathBuiler.UnderCalleeProfile(stgcommon.PARALLELISM_DEGREE)
 	if v, err := schStorage.Retrive(path, uint64(0)); err == nil {

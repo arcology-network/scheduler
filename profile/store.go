@@ -77,6 +77,20 @@ func (this *SchedulerStorage) Read(pathBuiler *stgcommon.PathBuilder) (*Callee, 
 	return callee, nil
 }
 
+// Retrive reads a value from the storage at the given path.
+// If the value is not found or an error occurs, it returns the default value.
+func (this *SchedulerStorage) Retrive(path string, defaultValue any) (any, error) {
+	if this.StateCache == nil {
+		return defaultValue, errors.New("StateCache is nil")
+	}
+	
+	v, err := this.StateCache.Read(0, path, defaultValue)
+	if err != nil {
+		return defaultValue, err
+	}
+	return v, nil
+}
+
 // Write the callee profile to the storage.
 // The results need to be exported and committed to the storage later.
 func (this *SchedulerStorage) Write(path string, v any) error {
