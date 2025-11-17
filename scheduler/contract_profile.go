@@ -15,7 +15,7 @@
  *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package profile
+package scheduler
 
 import (
 	"bytes"
