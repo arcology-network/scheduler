@@ -23,11 +23,11 @@ import (
 	"github.com/arcology-network/common-lib/codec"
 	commontype "github.com/arcology-network/common-lib/types"
 
-	stgcommon "github.com/arcology-network/storage-committer/common"
+	statecommon "github.com/arcology-network/state-engine/common"
 )
 
 // func CallToKey(addr []byte, selector []byte) string {
-// 	return string(addr[:stgcommon.SELECTOR_LENGTH]) + string(selector[:stgcommon.SELECTOR_LENGTH])
+// 	return string(addr[:statecommon.SELECTOR_LENGTH]) + string(selector[:statecommon.SELECTOR_LENGTH])
 // }
 
 // The function creates a unique func Key representation of the callee information
@@ -36,10 +36,10 @@ func DeriveKey(addr []byte, selector []byte) []byte {
 }
 
 func DeriveUID(addr []byte, selector []byte) uint64 {
-	address := make([]byte, stgcommon.SHORT_CONTRACT_ADDRESS_LENGTH)
+	address := make([]byte, statecommon.SHORT_CONTRACT_ADDRESS_LENGTH)
 	copy(address, addr)
 
-	selectorBytes := make([]byte, stgcommon.SELECTOR_LENGTH)
+	selectorBytes := make([]byte, statecommon.SELECTOR_LENGTH)
 	copy(selectorBytes, selector)
 
 	return uint64(codec.Uint64(0).FromBytes(append(address, selectorBytes...)))
@@ -55,12 +55,12 @@ func ToKey(msg *commontype.StandardMessage) uint64 {
 		return 0
 	}
 
-	to := make([]byte, stgcommon.SHORT_CONTRACT_ADDRESS_LENGTH)
+	to := make([]byte, statecommon.SHORT_CONTRACT_ADDRESS_LENGTH)
 	if msg.Native.To != nil {
 		copy(to, (*msg.Native.To)[:])
 	}
 
-	data := make([]byte, stgcommon.SELECTOR_LENGTH)
+	data := make([]byte, statecommon.SELECTOR_LENGTH)
 	if msg.Native.Data != nil {
 		copy(data, msg.Native.Data)
 	}

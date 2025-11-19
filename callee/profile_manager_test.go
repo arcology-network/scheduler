@@ -21,8 +21,8 @@ import (
 	"testing"
 
 	"github.com/arcology-network/common-lib/exp/slice"
-	statestore "github.com/arcology-network/storage-committer"
-	"github.com/arcology-network/storage-committer/storage/proxy"
+	stateengine "github.com/arcology-network/state-engine"
+	"github.com/arcology-network/state-engine/storage/proxy"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
@@ -39,7 +39,7 @@ func BobAccount() string {
 }
 
 func TestCalleeManager(t *testing.T) {
-	sstore := statestore.NewStateStore(proxy.NewMemDBStoreProxy())
+	sstore := stateengine.NewStateStore(proxy.NewMemDBStoreProxy())
 	mgr := NewProfileManager(sstore, 1000000)
 
 	alice := []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
@@ -64,7 +64,7 @@ func TestCalleeManager(t *testing.T) {
 }
 
 func TestCalleeManagerCacheLimit(t *testing.T) {
-	sstore := statestore.NewStateStore(proxy.NewMemDBStoreProxy())
+	sstore := stateengine.NewStateStore(proxy.NewMemDBStoreProxy())
 	mgr := NewProfileManager(sstore, 2)
 
 	alice := []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")

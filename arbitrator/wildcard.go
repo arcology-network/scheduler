@@ -22,8 +22,8 @@ import (
 
 	"github.com/arcology-network/common-lib/common"
 	"github.com/arcology-network/common-lib/exp/slice"
-	"github.com/arcology-network/storage-committer/type/commutative"
-	statecell "github.com/arcology-network/storage-committer/type/statecell"
+	"github.com/arcology-network/state-engine/type/commutative"
+	statecell "github.com/arcology-network/state-engine/type/statecell"
 )
 
 // Wildcard is a struct that holds the wildcards and provides methods to filter and substitute them.

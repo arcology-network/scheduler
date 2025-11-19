@@ -27,8 +27,8 @@ import (
 	"github.com/arcology-network/common-lib/exp/slice"
 	eucommon "github.com/arcology-network/common-lib/types"
 	callee "github.com/arcology-network/scheduler/callee"
-	statestore "github.com/arcology-network/storage-committer"
-	proxy "github.com/arcology-network/storage-committer/storage/proxy"
+	stateengine "github.com/arcology-network/state-engine"
+	proxy "github.com/arcology-network/state-engine/storage/proxy"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 
 	// "github.com/ethereum/go-ethereum/common/hexutil"
@@ -36,7 +36,7 @@ import (
 )
 
 func TestSchedulerNoConflictWithDeferred(t *testing.T) {
-	sstore := statestore.NewStateStore(proxy.NewMemDBStoreProxy())
+	sstore := stateengine.NewStateStore(proxy.NewMemDBStoreProxy())
 	mgr := callee.NewProfileManager(sstore, 1000000)
 	scheduler, _ := NewScheduler(mgr) // No conflict db file.
 
@@ -72,7 +72,7 @@ func TestSchedulerNoConflictWithDeferred(t *testing.T) {
 }
 
 func TestSchedulerNoConflictWithoutDeferred(t *testing.T) {
-	sstore := statestore.NewStateStore(proxy.NewMemDBStoreProxy())
+	sstore := stateengine.NewStateStore(proxy.NewMemDBStoreProxy())
 	mgr := callee.NewProfileManager(sstore, 1000000)
 	scheduler, _ := NewScheduler(mgr) // No conflict db file.
 
@@ -108,7 +108,7 @@ func TestSchedulerNoConflictWithoutDeferred(t *testing.T) {
 }
 
 func TestSchedulerWithConflicInfo(t *testing.T) {
-	sstore := statestore.NewStateStore(proxy.NewMemDBStoreProxy())
+	sstore := stateengine.NewStateStore(proxy.NewMemDBStoreProxy())
 	mgr := callee.NewProfileManager(sstore, 1000000)
 	scheduler, _ := NewScheduler(mgr) // No conflict db file.
 
@@ -182,7 +182,7 @@ func TestSchedulerWithConflicInfo(t *testing.T) {
 }
 
 func BenchmarkSchedulerWithConflictInfo(t *testing.B) {
-	sstore := statestore.NewStateStore(proxy.NewMemDBStoreProxy())
+	sstore := stateengine.NewStateStore(proxy.NewMemDBStoreProxy())
 	mgr := callee.NewProfileManager(sstore, 1000000)
 	scheduler, _ := NewScheduler(mgr) // No conflict db file.
 

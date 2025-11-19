@@ -21,7 +21,7 @@ import (
 	"fmt"
 
 	mapi "github.com/arcology-network/common-lib/exp/map"
-	statecell "github.com/arcology-network/storage-committer/type/statecell"
+	statecell "github.com/arcology-network/state-engine/type/statecell"
 )
 
 type Conflict struct {

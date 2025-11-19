@@ -23,7 +23,7 @@ import (
 	"slices"
 	"strings"
 
-	stgcommon "github.com/arcology-network/storage-committer/common"
+	statecommon "github.com/arcology-network/state-engine/common"
 )
 
 //  "github.com/arcology-network/scheduler"
@@ -49,14 +49,14 @@ func (this *Profile) SortConflicts() { slices.Sort(this.ConflictWith) } // Sort 
 
 func (this *Profile) AddConflict(other *Profile) {
 	this.ConflictWith = append(this.ConflictWith, other.UID)
-	if len(this.ConflictWith) > stgcommon.MAX_NUM_CONFLICTS {
+	if len(this.ConflictWith) > statecommon.MAX_NUM_CONFLICTS {
 		this.ConflictWith = this.ConflictWith[:0]
 		this.ParallelismDegree = 1 // Too many conflicts, mark as sequential
 	}
 	this.Dirty = true
 
 	other.ConflictWith = append(other.ConflictWith, this.UID)
-	if len(other.ConflictWith) > stgcommon.MAX_NUM_CONFLICTS {
+	if len(other.ConflictWith) > statecommon.MAX_NUM_CONFLICTS {
 		other.ConflictWith = this.ConflictWith[:0]
 		other.ParallelismDegree = 1 // Too many conflicts, mark as sequential
 	}

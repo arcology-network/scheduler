@@ -22,9 +22,9 @@ import (
 	"sort"
 
 	"github.com/arcology-network/common-lib/exp/slice"
-	intf "github.com/arcology-network/storage-committer/common"
-	stgcommon "github.com/arcology-network/storage-committer/common"
-	statecell "github.com/arcology-network/storage-committer/type/statecell"
+	intf "github.com/arcology-network/state-engine/common"
+	statecommon "github.com/arcology-network/state-engine/common"
+	statecell "github.com/arcology-network/state-engine/type/statecell"
 )
 
 // Accumualator is dedicatd to cumulative numeric variables. It check if the value is out of limits defined by
@@ -88,7 +88,7 @@ func (this *Accumulator) CheckMinMax(transitions []*statecell.StateCell) *Confli
 	if len(negatives) > 0 { // all negative deltas
 		underflowed := this.isOutOfLimits(*(transitions)[0].GetPath(), negatives)
 		if underflowed != nil {
-			underflowed.Reason = errors.New(stgcommon.WARN_OUT_OF_LOWER_LIMIT)
+			underflowed.Reason = errors.New(statecommon.WARN_OUT_OF_LOWER_LIMIT)
 			return underflowed
 		}
 	}
@@ -97,7 +97,7 @@ func (this *Accumulator) CheckMinMax(transitions []*statecell.StateCell) *Confli
 	if len(positives) > 0 {
 		overflowed := this.isOutOfLimits(*(transitions)[0].GetPath(), positives)
 		if overflowed != nil {
-			overflowed.Reason = errors.New(stgcommon.WARN_OUT_OF_UPPER_LIMIT)
+			overflowed.Reason = errors.New(statecommon.WARN_OUT_OF_UPPER_LIMIT)
 			return overflowed
 		}
 	}

@@ -23,10 +23,10 @@ import (
 	"testing"
 
 	commontype "github.com/arcology-network/common-lib/types"
-	stgcommon "github.com/arcology-network/storage-committer/common"
-	commutative "github.com/arcology-network/storage-committer/type/commutative"
-	noncommutative "github.com/arcology-network/storage-committer/type/noncommutative"
-	statecell "github.com/arcology-network/storage-committer/type/statecell"
+	statecommon "github.com/arcology-network/state-engine/common"
+	commutative "github.com/arcology-network/state-engine/type/commutative"
+	noncommutative "github.com/arcology-network/state-engine/type/noncommutative"
+	statecell "github.com/arcology-network/state-engine/type/statecell"
 	ethcore "github.com/ethereum/go-ethereum/core"
 	ethcoretypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/holiman/uint256"
@@ -83,25 +83,25 @@ func TestResultPostprocessor(t *testing.T) {
 		t.Errorf("Postprocess failed, expecting 7, got %d", len(results.RawStateAccesses)+len(results.Immuned))
 	}
 
-	delta, DeltaSign := results.RawStateAccesses[2].Value().(stgcommon.Type).Delta()
+	delta, DeltaSign := results.RawStateAccesses[2].Value().(statecommon.Type).Delta()
 	if v := delta.(uint256.Int); (&v).Uint64() != 200 && DeltaSign {
 		t.Errorf("Postprocess failed, expecting 100, got %d", v)
 	}
 
 	// Sender pay gas fee -100.
-	delta, DeltaSign = results.Immuned[0].Value().(stgcommon.Type).Delta()
+	delta, DeltaSign = results.Immuned[0].Value().(statecommon.Type).Delta()
 	if v := delta.(uint256.Int); (&v).Uint64() != 100 && !DeltaSign {
 		t.Errorf("Postprocess failed, expecting 50, got %d", v)
 	}
 
 	// Coinbase gas fee + 100.
-	delta, DeltaSign = results.Immuned[1].Value().(stgcommon.Type).Delta()
+	delta, DeltaSign = results.Immuned[1].Value().(statecommon.Type).Delta()
 	if v := delta.(uint256.Int); (&v).Uint64() != 100 && DeltaSign {
 		t.Errorf("Postprocess failed, expecting 50, got %d", v)
 	}
 
 	// Sender transfers -50.
-	delta, _ = results.RawStateAccesses[1].Value().(stgcommon.Type).Delta()
+	delta, _ = results.RawStateAccesses[1].Value().(statecommon.Type).Delta()
 	if v := delta.(uint256.Int); (&v).Uint64() != 50 && !DeltaSign {
 		t.Errorf("Postprocess failed, expecting 50, got %d", v)
 	}

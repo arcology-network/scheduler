@@ -23,18 +23,18 @@ import (
 	"github.com/arcology-network/common-lib/codec"
 	eucommon "github.com/arcology-network/common-lib/types"
 	schcommon "github.com/arcology-network/scheduler/common"
-	statestore "github.com/arcology-network/storage-committer"
-	stgcommon "github.com/arcology-network/storage-committer/common"
-	"github.com/arcology-network/storage-committer/type/noncommutative"
+	stateengine "github.com/arcology-network/state-engine"
+	statecommon "github.com/arcology-network/state-engine/common"
+	"github.com/arcology-network/state-engine/type/noncommutative"
 )
 
 type ProfileManager struct {
 	LocalCache  map[uint64]*Profile
-	schStorage  *statestore.StateStore
+	schStorage  *stateengine.StateStore
 	maxCapacity uint64 // Maximum number of profiles to cache in memory
 }
 
-func NewProfileManager(schStorage *statestore.StateStore, maxCapacity uint64) *ProfileManager {
+func NewProfileManager(schStorage *stateengine.StateStore, maxCapacity uint64) *ProfileManager {
 	return &ProfileManager{
 		LocalCache:  make(map[uint64]*Profile),
 		schStorage:  schStorage,
@@ -55,7 +55,7 @@ func (this *ProfileManager) Preload(stdMsgs []*eucommon.StandardMessage) {
 
 // Initialize the callee profile from the storage if exists.
 func (this *ProfileManager) LoadProfile(addr [20]byte, selector [4]byte) *Profile {
-	pathBuiler := &stgcommon.PathBuilder{Address: addr, Selector: selector, Platform: stgcommon.ETH_PATH}
+	pathBuiler := &statecommon.PathBuilder{Address: addr, Selector: selector, Platform: statecommon.ETH_PATH}
 
 	UID := schcommon.DeriveUID(pathBuiler.Address[:], pathBuiler.Selector[:]) // Get the unique ID for the callee.
 	if profile := this.LocalCache[UID]; profile != nil {
@@ -72,21 +72,22 @@ func (this *ProfileManager) LoadProfile(addr [20]byte, selector [4]byte) *Profil
 	}
 
 	// Get the parallelism degree
-	path := pathBuiler.ProfileField(stgcommon.PARALLELISM_DEGREE)
-	if paraDegree, err := this.schStorage.ReadOnlyStore().Retrive(path, uint64(0)); paraDegree != nil && err == nil {
+	path := pathBuiler.ProfileField(statecommon.PARALLELISM_DEGREE)
+	this.schStorage.ReadOnlyStore().IfExists(path)
+	if paraDegree, err := this.schStorage.ReadOnlyStore().Retrieve(path, uint64(0)); paraDegree != nil && err == nil {
 		profile.ParallelismDegree = paraDegree.(uint32)
 	}
 
 	// Get the minimum prepayment amount for deferred execution
 	// If the amount is zero, it means the function is not deferrable.
-	path = pathBuiler.ProfileField(stgcommon.DEFERRED_PAYMENT)
-	if prepayment, err := this.schStorage.ReadOnlyStore().Retrive(path, uint64(0)); prepayment != nil && err == nil {
+	path = pathBuiler.ProfileField(statecommon.DEFERRED_PAYMENT)
+	if prepayment, err := this.schStorage.ReadOnlyStore().Retrieve(path, uint64(0)); prepayment != nil && err == nil {
 		profile.IsDeferrable = prepayment.(uint64) > 0
 	}
 
 	// Get the parallelism degree
-	path = pathBuiler.ProfileField(stgcommon.PARALLELISM_DEGREE)
-	if Indices, err := this.schStorage.ReadOnlyStore().Retrive(path, []byte{}); Indices != nil && err == nil {
+	path = pathBuiler.ProfileField(statecommon.PARALLELISM_DEGREE)
+	if Indices, err := this.schStorage.ReadOnlyStore().Retrieve(path, []byte{}); Indices != nil && err == nil {
 		buffer := Indices.([]byte)
 		profile.ConflictWith = codec.Uint64s{}.Decode(buffer).(codec.Uint64s)
 	}
@@ -111,20 +112,20 @@ func (this *ProfileManager) Save() error {
 		// Sequential function shouldn't exist in conflict list. The only reason for them to be
 		// in the list is that they were previously marked as parallel but later changed to sequential because
 		// of too many conflicts. So this must be dirty now.
-		pathBuiler := &stgcommon.PathBuilder{Address: profile.Contract, Selector: profile.Selector, Platform: stgcommon.ETH_PATH}
+		pathBuiler := &statecommon.PathBuilder{Address: profile.Contract, Selector: profile.Selector, Platform: statecommon.ETH_PATH}
 
 		if profile.ParallelismDegree == 1 {
-			path := pathBuiler.ProfileField(stgcommon.PARALLELISM_DEGREE) // Get the path to write.
+			path := pathBuiler.ProfileField(statecommon.PARALLELISM_DEGREE) // Get the path to write.
 			v := noncommutative.NewUint32(profile.ParallelismDegree)
-			_, wError := this.schStorage.Write(stgcommon.SYSTEM, path, v)
+			_, wError := this.schStorage.Write(statecommon.SYSTEM, path, v)
 			err = errors.Join(err, wError)
 		}
 
 		// Write conflict list to storage.
-		path := pathBuiler.ProfileField(stgcommon.CONFLICT_INFO_PATH) // Get the path to write.
+		path := pathBuiler.ProfileField(statecommon.CONFLICT_INFO_PATH) // Get the path to write.
 		buffer := codec.Uint64s(profile.ConflictWith).Encode()
 		v := noncommutative.NewBytes(buffer)
-		_, wError := this.schStorage.Write(stgcommon.SYSTEM, path, v)
+		_, wError := this.schStorage.Write(statecommon.SYSTEM, path, v)
 		err = errors.Join(err, wError)
 	}
 	return err

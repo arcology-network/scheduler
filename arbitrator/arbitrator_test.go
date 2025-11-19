@@ -20,9 +20,9 @@ package arbitrator
 import (
 	"testing"
 
-	"github.com/arcology-network/storage-committer/type/commutative"
-	noncommutative "github.com/arcology-network/storage-committer/type/noncommutative"
-	statecell "github.com/arcology-network/storage-committer/type/statecell"
+	"github.com/arcology-network/state-engine/type/commutative"
+	noncommutative "github.com/arcology-network/state-engine/type/noncommutative"
+	statecell "github.com/arcology-network/state-engine/type/statecell"
 	"github.com/holiman/uint256"
 )
 

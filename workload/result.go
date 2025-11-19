@@ -23,7 +23,7 @@ import (
 	"fmt"
 
 	commontype "github.com/arcology-network/common-lib/types"
-	"github.com/arcology-network/storage-committer/type/statecell"
+	"github.com/arcology-network/state-engine/type/statecell"
 	evmcore "github.com/ethereum/go-ethereum/core"
 	ethcoretypes "github.com/ethereum/go-ethereum/core/types"
 )
