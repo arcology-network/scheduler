@@ -32,12 +32,24 @@ import (
 	"github.com/holiman/uint256"
 )
 
+// From in the result + in the native message
+// one of them must go.
+
 func TestResultPostprocessor(t *testing.T) {
 	sender := [20]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
 	other := [20]byte{10, 9, 8, 7, 6, 5, 4, 3, 2, 1}
 	coinbase := [20]byte{11, 12, 13, 14, 15, 16, 17, 18, 19, 20}
+
+	StdMsg :=
+		&commontype.StandardMessage{
+			Native: &ethcore.Message{
+				GasPrice: big.NewInt(1),
+				From:     sender,
+			},
+		}
+
 	results := Result{
-		From: sender,
+		// From: sender,
 		// Coinbase: coinbase,
 		Immuned: []*statecell.StateCell{},
 		RawStateAccesses: []*statecell.StateCell{
@@ -50,20 +62,22 @@ func TestResultPostprocessor(t *testing.T) {
 			statecell.NewStateCell(0, "blcc:/"+hex.EncodeToString(other[:])+"/random", 0, 0, 0, noncommutative.NewString("Random"), nil),
 			statecell.NewStateCell(0, "blcc:/"+hex.EncodeToString(other[:])+"/balance", 0, 0, 0, commutative.NewU256Delta(uint256.NewInt(50), false), nil),
 		},
-		StdMsg: &commontype.StandardMessage{
-			Native: &ethcore.Message{
-				GasPrice: big.NewInt(1),
-			},
-		},
 
+		StdMsg:  StdMsg,
 		Receipt: &ethcoretypes.Receipt{GasUsed: uint64(100)},
 		// Err:     errors.New("Error msg"),
 	}
 
+	normalizer := statecell.NewTransactionNormalizer(results.Receipt.GasUsed, coinbase, results.StdMsg)
+	results.Immuned = normalizer.Normalize(results.RawStateAccesses)
+	// execPipline := (&eu.ExecutionPipeline{Config: testEu.config})
+
+	// eu.ExecutionPipeline(&results)
+
 	if len(results.RawStateAccesses) != 5 {
 		t.Errorf("Postprocess failed, expecting 5, got %d", len(results.RawStateAccesses))
 	}
-	// results.Postprocess()
+	// // results.Postprocess()
 
 	if len(results.RawStateAccesses)+len(results.Immuned) != 8 {
 		t.Errorf("Postprocess failed, expecting 7, got %d", len(results.RawStateAccesses)+len(results.Immuned))

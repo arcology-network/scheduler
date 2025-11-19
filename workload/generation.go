@@ -20,8 +20,7 @@ package workload
 import (
 	common "github.com/arcology-network/common-lib/common"
 	slice "github.com/arcology-network/common-lib/exp/slice"
-
-	schcommon "github.com/arcology-network/scheduler/common"
+	scheduler "github.com/arcology-network/scheduler/common"
 )
 
 // ┌───────────────────────────────────────────────┐   ┌───────────────────────────────────────────────┐
@@ -61,7 +60,7 @@ func (*Generation) OccurrenceDict(jobSeqs []*JobSequence) *map[uint64]int {
 	occurrences := map[uint64]int{}
 	for _, seq := range jobSeqs {
 		for _, job := range seq.Jobs {
-			occurrences[schcommon.ToKey(job.StdMsg)]++ // Only count the first one if found
+			occurrences[scheduler.ToKey(job.StdMsg)]++ // Only count the first one if found
 			break
 		}
 	}

@@ -20,17 +20,12 @@ package workload
 import (
 	// "github.com/arcology-network/common-lib/codec"
 
-	"encoding/hex"
 	"fmt"
-	"strings"
 
-	slice "github.com/arcology-network/common-lib/exp/slice"
 	commontype "github.com/arcology-network/common-lib/types"
-	stgcommon "github.com/arcology-network/storage-committer/common"
 	"github.com/arcology-network/storage-committer/type/statecell"
 	evmcore "github.com/ethereum/go-ethereum/core"
 	ethcoretypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/holiman/uint256"
 )
 
 // The result of an execution. It includes the group ID, the transaction index, the transaction hash, the sender, the coinbase, the raw state accesses, the immune transitions, the receipt, the EVM result, the standard message, and the error.
@@ -38,7 +33,6 @@ type Result struct {
 	GroupID          uint32 // == Group ID
 	TxIndex          uint64
 	TxHash           [32]byte
-	From             [20]byte
 	RawStateAccesses []*statecell.StateCell
 	Immuned          []*statecell.StateCell //These transitions will take effect anyway even if the execution fails.
 	Receipt          *ethcoretypes.Receipt
@@ -47,79 +41,12 @@ type Result struct {
 	Err              error
 }
 
-// The tx sender has to pay the tx fees regardless the execution status. This function deducts the gas fee from the sender's balance
-// change and generates a new transition for that.
-func (this *Result) GenGasTransition(balanceTransition *statecell.StateCell, gasDelta *uint256.Int, isCredit bool) *statecell.StateCell {
-	v, _ := balanceTransition.Value().(stgcommon.Type).Delta()
-	totalDelta := v.(uint256.Int)
-
-	if totalDelta.Cmp(gasDelta) == 0 { // Balance change == gas fee paid.
-		balanceTransition.Property.SkipConflictCheck(true) // Won't be affect by conflicts
-		return balanceTransition
-	}
-
-	// Separate the gas fee from the balance change and generate a new transition for that.
-	gasTransition := balanceTransition.Clone().(*statecell.StateCell)
-	gasTransition.Value().(stgcommon.Type).SetDelta(*gasDelta, isCredit) // Set the gas fee.
-	// gasTransition.Value().(stgcommon.Type).SetDeltaSign(isCredit) // Negative for the sender, positive for the coinbase.
-	gasTransition.Property.SkipConflictCheck(true)
-	return gasTransition
-}
-
-func (this *Result) Postprocess(coinbase [20]byte) *Result {
-	if len(this.RawStateAccesses) == 0 {
-		return this
-	}
-
-	// The sender isn't the coinbase.
-	if this.From != coinbase {
-		_, senderBalance := slice.FindFirstIf(this.RawStateAccesses, func(_ int, v *statecell.StateCell) bool { //It includes the gas fee and possible transfers.
-			return v != nil && strings.HasSuffix(*v.GetPath(), "/balance") && strings.Contains(*v.GetPath(), hex.EncodeToString(this.From[:]))
-		})
-
-		_, coinbaseBalance := slice.FindFirstIf(this.RawStateAccesses, func(_ int, v *statecell.StateCell) bool {
-			return v != nil && strings.HasSuffix(*v.GetPath(), "/balance") && strings.Contains(*v.GetPath(), hex.EncodeToString(coinbase[:]))
-		})
-
-		// Usually, neither the sender balance nor the coinbase balance can't be nil unless the transaction
-		// is a L1->L2 transaction derived from a transaction receipt and the network is in a L2 setup.
-		if senderBalance != nil && coinbaseBalance != nil {
-			// Separate the gas fee from the balance change and generate a new transition for that. It will be immune to the execution status.
-			gasUsedInWei := new(uint256.Int).Mul(uint256.NewInt(this.Receipt.GasUsed), uint256.NewInt(this.StdMsg.Native.GasPrice.Uint64()))
-			if senderGasDebit := this.GenGasTransition(*senderBalance, gasUsedInWei, false); senderGasDebit != nil {
-				this.Immuned = append(this.Immuned, senderGasDebit)
-			}
-
-			if coinbaseGasCredit := this.GenGasTransition(*coinbaseBalance, gasUsedInWei, true); coinbaseGasCredit != nil {
-				this.Immuned = append(this.Immuned, coinbaseGasCredit)
-			}
-		}
-	}
-
-	_, senderNonce := slice.FindFirstIf(this.RawStateAccesses, func(_ int, v *statecell.StateCell) bool {
-		return strings.HasSuffix(*v.GetPath(), "/nonce") && strings.Contains(*v.GetPath(), hex.EncodeToString(this.From[:]))
-	})
-
-	if senderNonce != nil {
-		(*senderNonce).Property.SkipConflictCheck(true)   // Won't be affect by conflicts either
-		this.Immuned = append(this.Immuned, *senderNonce) // Add the nonce transition to the immune list even if the execution is unsuccessful.
-	}
-
-	for i := range this.RawStateAccesses {
-		if strings.Contains(*this.RawStateAccesses[i].GetPath(), "/prepayers/") {
-			this.RawStateAccesses[i].Property.SkipConflictCheck(true)
-			this.Immuned = append(this.Immuned, this.RawStateAccesses[i])
-		}
-	}
-
-	this.RawStateAccesses = this.Transitions() // Return all the successful transitions
-	return this
-}
-
 // If the execution is unsuccessful, only keep the transitions that are immune to failures.
 func (this *Result) Transitions() []*statecell.StateCell {
+	// When there is an execution error, only return the immune transitions.
+	// Immune transitions include the gas fee and the nonce, which are independent of the execution status.
 	if this.Err != nil {
-		return this.Immuned // Immune transitions include the gas fee and the nonce, which are independent of the execution status.
+		return this.Immuned
 	}
 	return this.RawStateAccesses
 }
