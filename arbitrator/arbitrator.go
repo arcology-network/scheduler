@@ -20,9 +20,9 @@ package arbitrator
 import (
 	"errors"
 
+	statecell "github.com/arcology-network/common-lib/crdt/statecell"
 	mapi "github.com/arcology-network/common-lib/exp/map"
 	"github.com/arcology-network/common-lib/exp/slice"
-	statecell "github.com/arcology-network/state-engine/type/statecell"
 	"golang.org/x/exp/maps"
 )
 

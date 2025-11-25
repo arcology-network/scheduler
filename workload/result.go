@@ -22,8 +22,8 @@ import (
 
 	"fmt"
 
+	"github.com/arcology-network/common-lib/crdt/statecell"
 	commontype "github.com/arcology-network/common-lib/types"
-	"github.com/arcology-network/state-engine/type/statecell"
 	evmcore "github.com/ethereum/go-ethereum/core"
 	ethcoretypes "github.com/ethereum/go-ethereum/core/types"
 )

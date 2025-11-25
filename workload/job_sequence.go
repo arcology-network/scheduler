@@ -18,12 +18,12 @@
 package workload
 
 import (
+	crdtcommon "github.com/arcology-network/common-lib/crdt/common"
+	"github.com/arcology-network/common-lib/crdt/commutative"
+	statecell "github.com/arcology-network/common-lib/crdt/statecell"
 	mapi "github.com/arcology-network/common-lib/exp/map"
 	slice "github.com/arcology-network/common-lib/exp/slice"
 	commontype "github.com/arcology-network/common-lib/types"
-	statecommon "github.com/arcology-network/state-engine/common"
-	"github.com/arcology-network/state-engine/type/commutative"
-	statecell "github.com/arcology-network/state-engine/type/statecell"
 	evmcore "github.com/ethereum/go-ethereum/core"
 	"github.com/holiman/uint256"
 )
@@ -123,7 +123,7 @@ func (this *JobSequence) FlagConflict(dict map[uint64]uint64, err error) {
 func (this *JobSequence) CalcualteRefund() uint64 {
 	amount := uint64(0)
 	// for _, v := range *seqAPI.WriteCache().(*cache.WriteCache).Cache() {
-	// 	typed := v.Value().(statecommon.Type)
+	// 	typed := v.Value().(crdtcommon.Type)
 	// 	amount += common.IfThen(
 	// 		!v.Preexist(),
 	// 		(uint64(typed.Size())/32)*uint64(v.Writes())*ethparams.SstoreSetGas,
@@ -136,13 +136,13 @@ func (this *JobSequence) CalcualteRefund() uint64 {
 // RefundTo refunds the specified amount from the payer to the recipient.
 func (this *JobSequence) RefundTo(payer, recipent *statecell.StateCell, amount uint64) (uint64, error) {
 	credit := commutative.NewU256Delta(uint256.NewInt(amount), true).(*commutative.U256)
-	if _, _, _, _, err := recipent.Value().(statecommon.Type).Set(credit, nil); err != nil {
+	if _, _, _, _, err := recipent.Value().(crdtcommon.Type).Set(credit, nil); err != nil {
 		return 0, err
 	}
 	recipent.IncrementDeltaWrites(1)
 
 	debit := commutative.NewU256Delta(uint256.NewInt(amount), false).(*commutative.U256)
-	if _, _, _, _, err := payer.Value().(statecommon.Type).Set(debit, nil); err != nil {
+	if _, _, _, _, err := payer.Value().(crdtcommon.Type).Set(debit, nil); err != nil {
 		return 0, err
 	}
 	payer.IncrementDeltaWrites(1)

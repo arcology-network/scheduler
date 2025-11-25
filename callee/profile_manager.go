@@ -21,11 +21,11 @@ import (
 	"errors"
 
 	"github.com/arcology-network/common-lib/codec"
+	"github.com/arcology-network/common-lib/crdt/noncommutative"
 	eucommon "github.com/arcology-network/common-lib/types"
 	schcommon "github.com/arcology-network/scheduler/common"
 	stateengine "github.com/arcology-network/state-engine"
 	statecommon "github.com/arcology-network/state-engine/common"
-	"github.com/arcology-network/state-engine/type/noncommutative"
 )
 
 type ProfileManager struct {

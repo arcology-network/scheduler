@@ -20,8 +20,8 @@ package arbitrator
 import (
 	"fmt"
 
+	statecell "github.com/arcology-network/common-lib/crdt/statecell"
 	mapi "github.com/arcology-network/common-lib/exp/map"
-	statecell "github.com/arcology-network/state-engine/type/statecell"
 )
 
 type Conflict struct {

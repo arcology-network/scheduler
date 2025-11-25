@@ -21,10 +21,10 @@ import (
 	"errors"
 	"sort"
 
+	intf "github.com/arcology-network/common-lib/crdt/common"
+	statecell "github.com/arcology-network/common-lib/crdt/statecell"
 	"github.com/arcology-network/common-lib/exp/slice"
-	intf "github.com/arcology-network/state-engine/common"
 	statecommon "github.com/arcology-network/state-engine/common"
-	statecell "github.com/arcology-network/state-engine/type/statecell"
 )
 
 // Accumualator is dedicatd to cumulative numeric variables. It check if the value is out of limits defined by

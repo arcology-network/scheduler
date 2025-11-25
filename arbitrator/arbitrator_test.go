@@ -20,9 +20,9 @@ package arbitrator
 import (
 	"testing"
 
-	"github.com/arcology-network/state-engine/type/commutative"
-	noncommutative "github.com/arcology-network/state-engine/type/noncommutative"
-	statecell "github.com/arcology-network/state-engine/type/statecell"
+	"github.com/arcology-network/common-lib/crdt/commutative"
+	noncommutative "github.com/arcology-network/common-lib/crdt/noncommutative"
+	statecell "github.com/arcology-network/common-lib/crdt/statecell"
 	"github.com/holiman/uint256"
 )
 
