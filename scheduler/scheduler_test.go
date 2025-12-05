@@ -66,7 +66,7 @@ func TestSchedulerNoConflictWithDeferred(t *testing.T) {
 	})
 
 	rawSch.Finalize()
-	if optimized := rawSch.MsgSet; len(optimized) != 1 || len(optimized[0]) != 3 {
+	if optimized := rawSch.RawMsgSet; len(optimized) != 1 || len(optimized[0]) != 3 {
 		t.Error("Wrong generation size", len(optimized), len(optimized[0]))
 	}
 }
@@ -102,7 +102,7 @@ func TestSchedulerNoConflictWithoutDeferred(t *testing.T) {
 	})
 
 	rawSch.Finalize()
-	if optimized := rawSch.MsgSet; len(optimized) != 1 || len(optimized[0]) != 3 {
+	if optimized := rawSch.RawMsgSet; len(optimized) != 1 || len(optimized[0]) != 3 {
 		t.Error("Wrong generation size", optimized[0])
 	}
 }
@@ -117,11 +117,11 @@ func TestSchedulerWithConflicInfo(t *testing.T) {
 	carol := []byte("cccccccccccccccccccccccccccccccccccccccc")
 	david := []byte("dddddddddddddddddddddddddddddddddddddddd")
 
-	scheduler.profileManager.RegisterNewConflict(
+	scheduler.ProfileManager.RegisterNewConflict(
 		[20]byte(alice), [4]byte{1, 1, 1, 1},
 		[20]byte(bob), [4]byte{2, 2, 2, 2})
 
-	scheduler.profileManager.RegisterNewConflict(
+	scheduler.ProfileManager.RegisterNewConflict(
 		[20]byte(carol), [4]byte{3, 3, 3, 3},
 		[20]byte(david), [4]byte{4, 4, 4, 4})
 
@@ -176,8 +176,8 @@ func TestSchedulerWithConflicInfo(t *testing.T) {
 
 	// rawSch.
 	rawSch.Finalize()
-	if len(rawSch.MsgSet) != 2 || len(rawSch.MsgSet[0]) != 4 || len(rawSch.MsgSet[1]) != 2 {
-		t.Error("Wrong generation size", len(rawSch.MsgSet), len(rawSch.MsgSet[0]))
+	if len(rawSch.RawMsgSet) != 2 || len(rawSch.RawMsgSet[0]) != 4 || len(rawSch.RawMsgSet[1]) != 2 {
+		t.Error("Wrong generation size", len(rawSch.RawMsgSet), len(rawSch.RawMsgSet[0]))
 	}
 }
 

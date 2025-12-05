@@ -49,14 +49,14 @@ func (*JobSequence) FromEthMessages(ID uint64, jobIDs []uint64, evmMsgs []*evmco
 	return newJobSeq
 }
 
-func (*JobSequence) FromStandardMessage(ID uint64, stdMsg *commontype.StandardMessage) *JobSequence {
-	newJobSeq := &JobSequence{
-		ID: ID, // Sequence ID
-	}
+// func (*JobSequence) FromStandardMessage(ID uint64, stdMsg *commontype.StandardMessage) *JobSequence {
+// 	newJobSeq := &JobSequence{
+// 		ID: ID, // Sequence ID
+// 	}
 
-	newJobSeq.addJob(stdMsg)
-	return newJobSeq
-}
+// 	newJobSeq.addJob(stdMsg)
+// 	return newJobSeq
+// }
 
 func (*JobSequence) FromStandardMessages(ID uint64, stdMsgs []*commontype.StandardMessage) *JobSequence {
 	newJobSeq := &JobSequence{
@@ -123,7 +123,7 @@ func (this *JobSequence) FlagConflict(dict map[uint64]uint64, err error) {
 func (this *JobSequence) CalcualteRefund() uint64 {
 	amount := uint64(0)
 	// for _, v := range *seqAPI.WriteCache().(*cache.WriteCache).Cache() {
-	// 	typed := v.Value().(crdtcommon.Type)
+	// 	typed := v.Value().(crdtcommon.CRDT)
 	// 	amount += common.IfThen(
 	// 		!v.Preexist(),
 	// 		(uint64(typed.Size())/32)*uint64(v.Writes())*ethparams.SstoreSetGas,
@@ -136,13 +136,13 @@ func (this *JobSequence) CalcualteRefund() uint64 {
 // RefundTo refunds the specified amount from the payer to the recipient.
 func (this *JobSequence) RefundTo(payer, recipent *statecell.StateCell, amount uint64) (uint64, error) {
 	credit := commutative.NewU256Delta(uint256.NewInt(amount), true).(*commutative.U256)
-	if _, _, _, _, err := recipent.Value().(crdtcommon.Type).Set(credit, nil); err != nil {
+	if _, _, _, _, err := recipent.Value().(crdtcommon.CRDT).Set(credit, nil); err != nil {
 		return 0, err
 	}
 	recipent.IncrementDeltaWrites(1)
 
 	debit := commutative.NewU256Delta(uint256.NewInt(amount), false).(*commutative.U256)
-	if _, _, _, _, err := payer.Value().(crdtcommon.Type).Set(debit, nil); err != nil {
+	if _, _, _, _, err := payer.Value().(crdtcommon.CRDT).Set(debit, nil); err != nil {
 		return 0, err
 	}
 	payer.IncrementDeltaWrites(1)

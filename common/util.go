@@ -19,51 +19,34 @@
 // that shareed by other packages.
 package scheduler
 
-import (
-	"github.com/arcology-network/common-lib/codec"
-	commontype "github.com/arcology-network/common-lib/types"
-
-	statecommon "github.com/arcology-network/state-engine/common"
-)
-
-// func CallToKey(addr []byte, selector []byte) string {
-// 	return string(addr[:statecommon.SELECTOR_LENGTH]) + string(selector[:statecommon.SELECTOR_LENGTH])
+// The function creates a unique func Key representation of the callee information
+// func DeriveKey(addr []byte, selector []byte) []byte {
+// 	return codec.Uint64(DeriveUID(addr, selector)).Encode()
 // }
 
-// The function creates a unique func Key representation of the callee information
-func DeriveKey(addr []byte, selector []byte) []byte {
-	return codec.Uint64(DeriveUID(addr, selector)).Encode()
-}
+// Derive the callee UID from address and selector bytes by taking the first
+// 8 bytes of their concatenation as a uint64.
+// func DeriveUID(addr []byte, selector []byte) uint64 {
+// 	address := make([]byte, statecommon.SHORT_CONTRACT_ADDRESS_LENGTH)
+// 	copy(address, addr)
 
-func DeriveUID(addr []byte, selector []byte) uint64 {
-	address := make([]byte, statecommon.SHORT_CONTRACT_ADDRESS_LENGTH)
-	copy(address, addr)
+// 	selectorBytes := make([]byte, statecommon.SELECTOR_LENGTH)
+// 	copy(selectorBytes, selector)
 
-	selectorBytes := make([]byte, statecommon.SELECTOR_LENGTH)
-	copy(selectorBytes, selector)
+// 	return uint64(codec.Uint64(0).FromBytes(append(address, selectorBytes...)))
+// }
 
-	return uint64(codec.Uint64(0).FromBytes(append(address, selectorBytes...)))
-}
+// Derive the callee UID from a storage path string.
+// func DeriveUIDFromPath(path string) uint64 {
+// 	addr, selector, err := statecommon.ParseAddressAndSelector(path)
+// 	if err != nil {
+// 		return 0
+// 	}
+// 	return DeriveUID(addr[:], selector[:])
+// }
 
 // Get the callee key from a message
-func ToKey(msg *commontype.StandardMessage) uint64 {
-	if (*msg.Native).To == nil {
-		return 0
-	}
-
-	if len(msg.Native.Data) == 0 {
-		return 0
-	}
-
-	to := make([]byte, statecommon.SHORT_CONTRACT_ADDRESS_LENGTH)
-	if msg.Native.To != nil {
-		copy(to, (*msg.Native.To)[:])
-	}
-
-	data := make([]byte, statecommon.SELECTOR_LENGTH)
-	if msg.Native.Data != nil {
-		copy(data, msg.Native.Data)
-	}
-
-	return DeriveUID(to, data)
-}
+// func ToKey(msg *commontype.StandardMessage) uint64 {
+// 	toAddr, selector := msg.GetAddressAndSelector()
+// 	return DeriveUID(toAddr[:], selector[:])
+// }

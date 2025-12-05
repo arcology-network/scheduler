@@ -19,8 +19,7 @@ package workload
 
 import (
 	common "github.com/arcology-network/common-lib/common"
-	slice "github.com/arcology-network/common-lib/exp/slice"
-	scheduler "github.com/arcology-network/scheduler/common"
+	statecommon "github.com/arcology-network/state-engine/common"
 )
 
 // ┌───────────────────────────────────────────────┐   ┌───────────────────────────────────────────────┐
@@ -48,23 +47,11 @@ import (
 // │   ... more parallel Sequences                 │   │   ... more parallel Sequences                 │
 // └───────────────────────────────────────────────┘   └───────────────────────────────────────────────┘
 
-// APIs under the concurrency namespace
 type Generation struct {
 	ID          uint64
 	numThreads  uint32
-	JobSeqs     []*JobSequence  // para jobSeqs
-	Occurrences *map[uint64]int // occurrence dictionary for all jobs in this generation
-}
-
-func (*Generation) OccurrenceDict(jobSeqs []*JobSequence) *map[uint64]int {
-	occurrences := map[uint64]int{}
-	for _, seq := range jobSeqs {
-		for _, job := range seq.Jobs {
-			occurrences[scheduler.ToKey(job.StdMsg)]++ // Only count the first one if found
-			break
-		}
-	}
-	return &occurrences
+	JobSeqs     []*JobSequence // para jobSeqs
+	Occurrences map[uint64]int // occurrence dictionary for all jobs in this generation
 }
 
 func NewGeneration(id uint64, numThreads uint32, jobSeqs []*JobSequence) *Generation {
@@ -73,8 +60,19 @@ func NewGeneration(id uint64, numThreads uint32, jobSeqs []*JobSequence) *Genera
 		numThreads: numThreads,
 		JobSeqs:    jobSeqs,
 	}
-	gen.Occurrences = gen.OccurrenceDict(jobSeqs)
 	return gen
+}
+
+func (this *Generation) OccurrenceDict(jobSeqs []*JobSequence) {
+	this.Occurrences = make(map[uint64]int)
+	pathBuilder := statecommon.PathBuilder{}
+	for _, seq := range jobSeqs {
+		for _, job := range seq.Jobs {
+			pathBuilder.Address, pathBuilder.Selector = job.StdMsg.GetAddressAndSelector()
+			this.Occurrences[pathBuilder.DeriveUID()]++ // Only count the first one if found
+			break
+		}
+	}
 }
 
 func (this *Generation) Length() uint64 { return uint64(len(this.JobSeqs)) }
@@ -83,14 +81,14 @@ func (this *Generation) At(idx uint64) *JobSequence {
 	return common.IfThenDo1st(idx < uint64(len(this.JobSeqs)), func() *JobSequence { return this.JobSeqs[idx] }, nil)
 }
 
-func (*Generation) New(id uint64, numThreads uint32, jobSeqs []*JobSequence) *Generation {
-	return NewGeneration(id, numThreads, slice.To[*JobSequence, *JobSequence](jobSeqs))
-}
+// func (*Generation) New(id uint64, numThreads uint32, jobSeqs []*JobSequence) *Generation {
+// 	return NewGeneration(id, numThreads, slice.To[*JobSequence, *JobSequence](jobSeqs))
+// }
 
-func (this *Generation) Add(job *JobSequence) bool {
-	this.JobSeqs = append(this.JobSeqs, job)
-	return true
-}
+// func (this *Generation) Add(jobSeq *JobSequence) bool {
+// 	this.JobSeqs = append(this.JobSeqs, jobSeq)
+// 	return true
+// }
 
 func (this *Generation) Clear() uint64 {
 	length := len(this.JobSeqs)

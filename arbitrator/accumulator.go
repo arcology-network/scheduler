@@ -21,7 +21,7 @@ import (
 	"errors"
 	"sort"
 
-	intf "github.com/arcology-network/common-lib/crdt/common"
+	crdtcommon "github.com/arcology-network/common-lib/crdt/common"
 	statecell "github.com/arcology-network/common-lib/crdt/statecell"
 	"github.com/arcology-network/common-lib/exp/slice"
 	statecommon "github.com/arcology-network/state-engine/common"
@@ -39,8 +39,8 @@ type Accumulator struct{}
 // Categorize the transitions into negative and positive deltas.
 func (*Accumulator) PartitionByDeltaSign(transitions []*statecell.StateCell) ([]*statecell.StateCell, []*statecell.StateCell) {
 	sort.SliceStable(transitions, func(i, j int) bool {
-		lhv := transitions[i].Value().(intf.Type)
-		rhv := transitions[i].Value().(intf.Type)
+		lhv := transitions[i].Value().(crdtcommon.CRDT)
+		rhv := transitions[i].Value().(crdtcommon.CRDT)
 		_, lhvSign := lhv.Delta()
 		_, rhvSign := rhv.Delta()
 
@@ -48,7 +48,7 @@ func (*Accumulator) PartitionByDeltaSign(transitions []*statecell.StateCell) ([]
 	})
 
 	offset, _ := slice.FindFirstIf(transitions, func(_ int, v *statecell.StateCell) bool {
-		_, sign := v.Value().(intf.Type)
+		_, sign := v.Value().(crdtcommon.CRDT)
 		return sign
 	})
 
@@ -62,8 +62,8 @@ func (*Accumulator) PartitionByDeltaSign(transitions []*statecell.StateCell) ([]
 func (this *Accumulator) CheckMinMax(transitions []*statecell.StateCell) *Conflict {
 	if len(transitions) <= 1 ||
 		(transitions)[0].Value() == nil ||
-		!(transitions)[0].Value().(intf.Type).IsCommutative() ||
-		!(transitions)[0].Value().(intf.Type).IsNumeric() {
+		!(transitions)[0].Value().(crdtcommon.CRDT).IsCommutative() ||
+		!(transitions)[0].Value().(crdtcommon.CRDT).IsNumeric() {
 		return nil
 	}
 
@@ -79,7 +79,7 @@ func (this *Accumulator) CheckMinMax(transitions []*statecell.StateCell) *Confli
 
 	// Separate the negative and positive deltas.
 	// negatives := slice.MoveIf(&transitions, func(i int, v *statecell.StateCell) bool {
-	// 	_, sign := v.Value().(intf.Type).Delta()
+	// 	_, sign := v.Value().(crdtcommon.CRDT).Delta()
 	// 	return sign
 	// })
 	// positives := transitions
@@ -106,15 +106,15 @@ func (this *Accumulator) CheckMinMax(transitions []*statecell.StateCell) *Confli
 
 // check if the value is out of limits defined by the user. It can be different from the type bounds.
 // It returns the conflict if it is out of bounds.
-func (this *Accumulator) isOutOfLimits(k string, newTrans []*statecell.StateCell) *Conflict {
+func (this *Accumulator) isOutOfLimits(path string, newTrans []*statecell.StateCell) *Conflict {
 	if len(newTrans) <= 1 {
 		return nil
 	}
 
-	initialv := newTrans[0].Value().(intf.Type).Clone().(intf.Type)
+	initialv := newTrans[0].Value().(crdtcommon.CRDT).Clone().(crdtcommon.CRDT)
 
-	typedVals := slice.Transform(newTrans, func(_ int, v *statecell.StateCell) intf.Type {
-		return v.Value().(intf.Type)
+	typedVals := slice.Transform(newTrans, func(_ int, v *statecell.StateCell) crdtcommon.CRDT {
+		return v.Value().(crdtcommon.CRDT)
 	})
 
 	_, offset, err := initialv.ApplyDelta(typedVals[1:])
@@ -126,11 +126,7 @@ func (this *Accumulator) isOutOfLimits(k string, newTrans []*statecell.StateCell
 	// slice.Foreach(newTrans[offset+1:], func(_ int, v **statecell.StateCell) { txIDs = append(txIDs, (*v).GetTx()) })
 
 	return &Conflict{
-		key:          k,
-		self:         newTrans[0].GetTx(),
-		tran:         newTrans[0],
-		sequenceID:   slice.Transform(newTrans[offset+1:], func(_ int, v *statecell.StateCell) uint64 { return v.GetSequence() }),
-		conflictWith: newTrans[offset:],
-		txIDs:        slice.Transform(newTrans[offset+1:], func(_ int, v *statecell.StateCell) uint64 { return (*v).GetTx() }),
+		self:  newTrans[0],
+		peers: newTrans[offset:],
 	}
 }

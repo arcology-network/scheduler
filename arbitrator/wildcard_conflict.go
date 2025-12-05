@@ -26,8 +26,7 @@ import (
 	"github.com/arcology-network/common-lib/exp/slice"
 )
 
-// Wildcard is a struct that holds the wildcards and provides methods to filter and substitute them.
-
+// Wildcard handles the wildcard transition related conflict detection.
 type Wildcard struct {
 	WildcardTrans []*statecell.StateCell
 }

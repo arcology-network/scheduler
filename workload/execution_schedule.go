@@ -32,7 +32,8 @@ type Schedule struct {
 	Sequentials  []*eucommon.StandardMessage // Callees that are marked as sequential only
 
 	Generations []*Generation
-	MsgSet      [][][]*eucommon.StandardMessage
+	RawMsgSet   [][][]*eucommon.StandardMessage
+	MsgLookup   map[uint64]*eucommon.StandardMessage // Message lookup by sequence ID
 	// CallCounts  []map[string]int
 }
 
@@ -64,26 +65,26 @@ func (this *Schedule) Finalize() []*Generation {
 	})
 
 	if len(_1Gen) > 0 {
-		if len(this.MsgSet) == 0 {
-			this.MsgSet = append(this.MsgSet, _1Gen)
+		if len(this.RawMsgSet) == 0 {
+			this.RawMsgSet = append(this.RawMsgSet, _1Gen)
 		} else {
 			// Merge with the first generation, since they are all parallel.
-			this.MsgSet[0] = append(this.MsgSet[0], _1Gen...)
+			this.RawMsgSet[0] = append(this.RawMsgSet[0], _1Gen...)
 		}
 	}
 
 	if len(_2Gen) > 0 {
-		this.MsgSet[0] = append(this.MsgSet[0], _2Gen...)
+		this.RawMsgSet[0] = append(this.RawMsgSet[0], _2Gen...)
 	}
 
-	slice.RemoveIf(&this.MsgSet, func(i int, seq [][]*eucommon.StandardMessage) bool {
+	slice.RemoveIf(&this.RawMsgSet, func(i int, seq [][]*eucommon.StandardMessage) bool {
 		return len(seq) == 0
 	})
 
 	// Convert to Generation structs.
 	numCores := uint32(runtime.NumCPU())
-	this.Generations = make([]*Generation, 0, len(this.MsgSet))
-	for i, msgs := range this.MsgSet {
+	this.Generations = make([]*Generation, 0, len(this.RawMsgSet))
+	for i, msgs := range this.RawMsgSet {
 		seqs := make([]*JobSequence, len(msgs))
 		for j, msg := range msgs {
 			seqs[j] = new(JobSequence).FromStandardMessages(uint64(j), msg)

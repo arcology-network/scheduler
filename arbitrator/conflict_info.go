@@ -21,66 +21,65 @@ import (
 	"fmt"
 
 	statecell "github.com/arcology-network/common-lib/crdt/statecell"
-	mapi "github.com/arcology-network/common-lib/exp/map"
+	"github.com/arcology-network/common-lib/exp/slice"
 )
 
+// Conflict represents a detected write or state conflict between transactions
+// during parallel execution.
 type Conflict struct {
-	key          string
-	self         uint64
-	sequenceID   []uint64 // Multiple transactions may have the same ID for them to be in the same job sequence.
-	txIDs        []uint64
-	tran         *statecell.StateCell
-	conflictWith []*statecell.StateCell
-	Reason       error // Why the conflict happens.
+	self   *statecell.StateCell   // The current transaction.
+	peers  []*statecell.StateCell // The conflicting transactions.
+	Reason error                  // Why the conflict happens.
 }
 
-func (this Conflict) ToPairs() [][2]uint64 {
-	pairs := make([][2]uint64, 0, len(this.txIDs)*(len(this.txIDs)+1)/2-len(this.txIDs))
-	for i := 0; i < len(this.txIDs); i++ {
-		pairs = append(pairs, [2]uint64{this.self, this.txIDs[i]})
-	}
-	return pairs
+// GetRevertTxIDs returns the unique transaction IDs of all conflicting
+// peer transactions that must be reverted to resolve this conflict.
+func (this *Conflict) GetRevertTxIDs() []uint64 {
+	return slice.Transform(this.peers, func(_ int, v *statecell.StateCell) uint64 {
+		return v.GetTx()
+	})
 }
 
+// GetConflictJobSeqences returns the unique job sequence IDs of all conflicting.
+// peer transactions involved in this conflict.
+func (this *Conflict) GetConflictJobSeqences() []uint64 {
+	return slice.Transform(this.peers, func(_ int, v *statecell.StateCell) uint64 {
+		return v.GetSequence()
+	})
+}
+
+// Print outputs the conflicting state cells and the conflict reason
+// to standard output for debugging.
 func (this *Conflict) Print() {
-	this.tran.Print()
+	this.self.Print()
 	fmt.Println(" ----- conflict with ----- ")
-	statecell.StateCells(this.conflictWith).Print()
+
+	trans := slice.Transform(this.peers, func(_ int, v *statecell.StateCell) *statecell.StateCell {
+		return v
+	})
+	statecell.StateCells(trans).Print()
 	fmt.Println("Reason: ", this.Reason)
 }
 
+// Conflicts is a collection of Conflict pointers.
 type Conflicts []*Conflict
 
-func (this Conflicts) ToDict() (map[uint64]uint64, map[uint64]uint64, [][2]uint64) {
-	txDict := make(map[uint64]uint64)
-	sequenceIDdict := make(map[uint64]uint64)
+// ToDict aggregates conflict statistics:
+//
+// 1. txDict: number of conflicts per transaction ID
+// 2. numConflicts: number of conflicts per job sequence ID
+// 3. Unique conflict transaction IDs. These transactions will be reverted.
+func (this Conflicts) CollectConflictMetrics() (map[uint64]uint64, map[uint64]uint64) {
+	byTX := make(map[uint64]uint64)     // The number of conflicts per transaction.
+	byJobSeq := make(map[uint64]uint64) // The number of conflicts per job sequence.
 	for _, v := range this {
-		for i := 0; i < len(v.txIDs); i++ {
-			txDict[v.txIDs[i]] += 1
-			sequenceIDdict[v.sequenceID[i]] += 1
-		}
+		peerTxIDs := v.GetRevertTxIDs()
+		slice.Foreach(peerTxIDs, func(_ int, v *uint64) {
+			byTX[*v]++
+			byJobSeq[*v]++
+		})
 	}
-
-	return txDict, sequenceIDdict, this.ToPairs()
-}
-
-func (this Conflicts) Keys() []string {
-	keys := make([]string, 0, len(this))
-	for _, v := range this {
-		keys = append(keys, v.key)
-	}
-	return keys
-}
-
-func (this Conflicts) ToPairs() [][2]uint64 {
-	dict := make(map[[2]uint64]int)
-	for _, v := range this {
-		pairs := v.ToPairs()
-		for _, pair := range pairs {
-			dict[pair]++
-		}
-	}
-	return mapi.Keys(dict)
+	return byTX, byJobSeq
 }
 
 func (this Conflicts) Print() {

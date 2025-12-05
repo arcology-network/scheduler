@@ -64,7 +64,7 @@ func (this *Arbitrator) Detect() []*Conflict {
 	// Search for conflicts in parallel within each key.
 	slice.ParallelForeach(keys, 8, func(i int, k *string) {
 		if vArr, ok := this.dict[*k]; ok && len(*vArr) > 1 {
-			conflists[i] = this.LookupForConflict(*vArr)
+			conflists[i], _ = this.LookupForConflict(*vArr)
 		}
 	})
 	return slice.Remove(&conflists, nil)
@@ -76,7 +76,7 @@ func (this *Arbitrator) Move(trans []*statecell.StateCell) []*statecell.StateCel
 }
 
 // Looks for conflicts in the array with the same path key.
-func (this *Arbitrator) LookupForConflict(trans []*statecell.StateCell) *Conflict {
+func (this *Arbitrator) LookupForConflict(trans []*statecell.StateCell) (*Conflict, error) {
 	statecell.StateCells(trans).SortByTx()
 
 	first := trans[0]
@@ -85,58 +85,53 @@ func (this *Arbitrator) LookupForConflict(trans []*statecell.StateCell) *Conflic
 	// Assume all the transitions are in conflict at the beginning.
 	// Unless proven otherwise, we will return all the subsequent
 	// transitions as conflicts.
-	var conflictWith []*statecell.StateCell
+	var conflictPeers []*statecell.StateCell
 	var err error
 	if first.IsReadOnly() { // Read only
 		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).IsInConflict = !(*v).IsReadOnly() })
-		conflictWith = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.IsInConflict })
+		conflictPeers = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.IsInConflict })
 		err = errors.New("Read with non read only")
 	} else if first.IsCumulativeWriteOnly(first) { // Initialization of commutative values only
 		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).IsInConflict = !(*v).IsCumulativeWriteOnly(first) })
-		conflictWith = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.IsInConflict })
+		conflictPeers = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.IsInConflict })
 		err = errors.New("Commutative Initialization with non commutative initialization")
 
 	} else if first.IsDeltaWriteOnly() { // Delta write only
 		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).IsInConflict = !(*v).IsDeltaWriteOnly() })
-		conflictWith = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.IsInConflict })
+		conflictPeers = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.IsInConflict })
 		err = errors.New("Delta write with non delta write only")
 
 	} else if first.IsDeleteOnly() { // Delta write only
 		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).IsInConflict = !(*v).IsDeleteOnly() })
-		conflictWith = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.IsInConflict })
+		conflictPeers = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.IsInConflict })
 		err = errors.New("Delete with non delete only")
 
 	} else if first.IsNilInitOnly() { // Initialization with nil only.
 		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).IsInConflict = !(*v).IsNilInitOnly() })
-		conflictWith = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.IsInConflict })
+		conflictPeers = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.IsInConflict })
 		err = errors.New("Nil initialization with non nil initialization")
 	} else {
 		// The first transition doesn't belong to any `special` category that can avoid at least some conflicts.
 		// Thus, we mark all the subsequent transitions as conflicts.
-		conflictWith = otherTrans
+		conflictPeers = otherTrans
 		otherTrans = []*statecell.StateCell{}
 	}
 
 	// No access conflict found, move on to check the under/over limit conflicts.
-	if len(conflictWith) == 0 {
-		return (&Accumulator{}).CheckMinMax(trans)
+	if len(conflictPeers) == 0 {
+		return (&Accumulator{}).CheckMinMax(trans), nil
 	}
 
 	conflictFree := slice.PushFront(first, &otherTrans)
 	if outOfLimit := (&Accumulator{}).CheckMinMax(conflictFree); outOfLimit != nil {
-		return outOfLimit
+		return outOfLimit, nil
 	}
 
 	// offset++ // The offet is actually the index of the origina index minus 1, because the first was used as the reference. Here we add it back.
 	return &Conflict{
-		key:          *trans[0].GetPath(),
-		self:         trans[0].GetTx(),
-		tran:         trans[0],
-		sequenceID:   slice.Transform(conflictWith, func(_ int, v *statecell.StateCell) uint64 { return v.GetSequence() }),
-		conflictWith: conflictWith,
-		txIDs:        slice.Transform(conflictWith, func(_ int, v *statecell.StateCell) uint64 { return (*v).GetTx() }),
-		Reason:       err,
-	}
+		self:  trans[0],
+		peers: conflictPeers,
+	}, err
 }
 
 func (this *Arbitrator) Clear() {

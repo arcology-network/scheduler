@@ -28,19 +28,20 @@ import (
 	eucommon "github.com/arcology-network/common-lib/types"
 
 	callee "github.com/arcology-network/scheduler/callee"
-	schcommon "github.com/arcology-network/scheduler/common"
 	workload "github.com/arcology-network/scheduler/workload"
+	statecommon "github.com/arcology-network/state-engine/common"
 )
 
 type Scheduler struct {
-	profileManager *callee.ProfileManager
+	latest *workload.Schedule
+	*callee.ProfileManager
 }
 
 // Initialize a new scheduler, the fileName is the file path to the scheduler's conflict database and the deferByDefault
 // instructs the scheduler to schedule the deferred transactions if it is true.
-func NewScheduler(profileManager *callee.ProfileManager) (*Scheduler, error) {
+func NewScheduler(manager *callee.ProfileManager) (*Scheduler, error) {
 	return &Scheduler{
-		profileManager: profileManager,
+		ProfileManager: manager,
 	}, nil
 }
 
@@ -56,8 +57,8 @@ func (this *Scheduler) New(stdMsgs []*eucommon.StandardMessage) *workload.Schedu
 
 	// Sort the callees by the number of conflicts and the profile index in ascending order.
 	sort.Slice(profiledMsgs, func(i, j int) bool {
-		lft, _ := this.profileManager.Find(profiledMsgs[i].First)
-		rgt, _ := this.profileManager.Find(profiledMsgs[j].First)
+		lft, _ := this.ProfileManager.Find(profiledMsgs[i].First)
+		rgt, _ := this.ProfileManager.Find(profiledMsgs[j].First)
 
 		if lft.NumConflicts() != rgt.NumConflicts() {
 			return lft.NumConflicts() < rgt.NumConflicts()
@@ -74,7 +75,7 @@ func (this *Scheduler) New(stdMsgs []*eucommon.StandardMessage) *workload.Schedu
 
 		// Load the conflict dictionary with the conflicts of the FIRST profile, from which the search will start.
 		// Add the first profile's conflicts to the conflict dictionary.
-		seedCallee, _ := this.profileManager.Find(seedMsg.First)
+		seedCallee, _ := this.ProfileManager.Find(seedMsg.First)
 		lftConflictList := mapi.FromSlice(seedCallee.ConflictWith, func(k uint64) bool { return true })
 		paraMsgIds := mapi.FromSlice(paraMsgs.Firsts(), func(_ uint64) bool {
 			return true
@@ -85,7 +86,7 @@ func (this *Scheduler) New(stdMsgs []*eucommon.StandardMessage) *workload.Schedu
 			targetMsg := profiledMsgs[i]
 
 			// The current profile isn't conflicting with any transaction in the unique profile set
-			otherCallee, _ := this.profileManager.Find(targetMsg.First)
+			otherCallee, _ := this.ProfileManager.Find(targetMsg.First)
 			if !lftConflictList[targetMsg.First] && !mapi.ContainsAny(paraMsgIds, otherCallee.ConflictWith) {
 				// Add the new profile's conflicts to the conflict dictionary.
 				mapi.Insert(lftConflictList, otherCallee.ConflictWith, func(_ int, k uint64) (uint64, bool) {
@@ -112,8 +113,8 @@ func (this *Scheduler) New(stdMsgs []*eucommon.StandardMessage) *workload.Schedu
 			return []*eucommon.StandardMessage{v}
 		})
 
-		sch.MsgSet = append(sch.MsgSet, paraGen)
-		sch.MsgSet = append(sch.MsgSet, deferredGen) // Insert the parallel transaction first
+		sch.RawMsgSet = append(sch.RawMsgSet, paraGen)
+		sch.RawMsgSet = append(sch.RawMsgSet, deferredGen) // Insert the parallel transaction first
 
 		// new(workload.JobSequence).FromStandardMessages(0, paraGen)
 
@@ -125,7 +126,8 @@ func (this *Scheduler) New(stdMsgs []*eucommon.StandardMessage) *workload.Schedu
 
 	// Whatever left in the profiledMsgs array is the sequential transaction set.
 	sch.WithConflict = append(sch.WithConflict, (*assoc.Pairs[uint64, *eucommon.StandardMessage])(&profiledMsgs).Seconds()...)
-	return sch
+	this.latest = sch // Keep the current schedule for reference.
+	return this.latest
 }
 
 // The scheduler will scan through and look for multipl instances of the same profile and put one of them in the second
@@ -138,11 +140,13 @@ func (this *Scheduler) ScheduleDeferred(paraMsgInfo *assoc.Pairs[uint64, *eucomm
 		return (*paraMsgInfo)[i].Second.ID < (*paraMsgInfo)[j].Second.ID
 	})
 
+	// Group by profile UID.
+	pathBuilder := statecommon.PathBuilder{}
 	array := ([]*assoc.Pair[uint64, *eucommon.StandardMessage])(*paraMsgInfo)
-	_, msgSets := slice.GroupBy(array, func(i int, pair *assoc.Pair[uint64, *eucommon.StandardMessage]) *string {
-		key := schcommon.DeriveKey(pair.Second.Native.To[:], pair.Second.Native.Data[:])
-		v := string(key[:])
-		return &v
+	_, msgSets := slice.GroupBy(array, func(i int, pair *assoc.Pair[uint64, *eucommon.StandardMessage]) *uint64 {
+		// pathBuilder.Address, pathBuilder.Selector = pair.Second.GetAddressAndSelector()
+		UID := pathBuilder.DeriveUID()
+		return &UID
 	})
 
 	// Remove single instances or non-deferable ones.
@@ -177,10 +181,11 @@ func (this *Scheduler) StaticSchedule(stdMsgs []*eucommon.StandardMessage) (*wor
 
 	// Get the IDs for the given addresses and signatures, which will be used to find the profile index.
 	// To save memory, the callees are stored in the dictionary by their IDs, not by their addresses and signatures.
+	pathBuilder := statecommon.PathBuilder{}
 	msgPairs := slice.ParallelTransform(stdMsgs, 8, func(i int, msg *eucommon.StandardMessage) *assoc.Pair[uint64, *eucommon.StandardMessage] {
 		// Convert the address and signature to a unique key.
-		uid := schcommon.DeriveUID((*msg.Native.To)[:], msg.Native.Data[:])
-		return &assoc.Pair[uint64, *eucommon.StandardMessage]{First: uid, Second: stdMsgs[i]}
+		pathBuilder.Address, pathBuilder.Selector = msg.GetAddressAndSelector()
+		return &assoc.Pair[uint64, *eucommon.StandardMessage]{First: pathBuilder.DeriveUID(), Second: stdMsgs[i]}
 	})
 
 	if len(msgPairs) == 0 {
@@ -191,7 +196,7 @@ func (this *Scheduler) StaticSchedule(stdMsgs []*eucommon.StandardMessage) (*wor
 	// If a profile has no known conflicts with anyone else, it is either a conflict-free implementation or
 	// has been fortunate enough to avoid conflicts so far.
 	unknows := slice.MoveIf(&msgPairs, func(_ int, v *assoc.Pair[uint64, *eucommon.StandardMessage]) bool {
-		_, ok := this.profileManager.Find(v.First)
+		_, ok := this.ProfileManager.Find(v.First)
 		return !ok // No profile found in the dictionary.
 	})
 	sch.Unknowns = (*assoc.Pairs[uint64, *eucommon.StandardMessage])(&unknows).Seconds()
@@ -199,7 +204,7 @@ func (this *Scheduler) StaticSchedule(stdMsgs []*eucommon.StandardMessage) (*wor
 	// Sequential only callees.
 	sequentialOnly := slice.MoveIf(&msgPairs, func(_ int, v *assoc.Pair[uint64, *eucommon.StandardMessage]) bool {
 		// The profile isn't new, otherwise the v.First would be math.MaxUint64.
-		if profile, ok := this.profileManager.Find(v.First); ok {
+		if profile, ok := this.ProfileManager.Find(v.First); ok {
 			return profile.ParallelismDegree == 1
 		}
 		return false

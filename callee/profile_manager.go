@@ -22,34 +22,33 @@ import (
 
 	"github.com/arcology-network/common-lib/codec"
 	"github.com/arcology-network/common-lib/crdt/noncommutative"
-	eucommon "github.com/arcology-network/common-lib/types"
-	schcommon "github.com/arcology-network/scheduler/common"
+	commontypes "github.com/arcology-network/common-lib/types"
 	stateengine "github.com/arcology-network/state-engine"
 	statecommon "github.com/arcology-network/state-engine/common"
 )
 
 type ProfileManager struct {
-	LocalCache  map[uint64]*Profile
-	schStorage  *stateengine.StateStore
-	maxCapacity uint64 // Maximum number of profiles to cache in memory
+	profileCache map[uint64]*Profile
+	maxCapacity  uint64 // Maximum number of profiles to cache in memory
+	schStorage   *stateengine.StateStore
 }
 
 func NewProfileManager(schStorage *stateengine.StateStore, maxCapacity uint64) *ProfileManager {
 	return &ProfileManager{
-		LocalCache:  make(map[uint64]*Profile),
-		schStorage:  schStorage,
-		maxCapacity: maxCapacity,
+		profileCache: make(map[uint64]*Profile),
+		schStorage:   schStorage,
+		maxCapacity:  maxCapacity,
 	}
 }
 
 // Preload the scheduler with the given message profiles.
-func (this *ProfileManager) Preload(stdMsgs []*eucommon.StandardMessage) {
+func (this *ProfileManager) Preload(stdMsgs []*commontypes.StandardMessage) {
 	for _, v := range stdMsgs {
-		if len(v.Native.Data) == 0 || v.Native.To == nil { // Transfer tx, no LocalCache
+		if len(v.Native.Data) == 0 || v.Native.To == nil { // Transfer tx, no profileCache
 			continue
 		}
 		profile := this.LoadProfile(*v.Native.To, new(codec.Bytes4).FromBytes(v.Native.Data))
-		this.LocalCache[profile.UID] = profile
+		this.profileCache[profile.UID] = profile
 	}
 }
 
@@ -57,15 +56,15 @@ func (this *ProfileManager) Preload(stdMsgs []*eucommon.StandardMessage) {
 func (this *ProfileManager) LoadProfile(addr [20]byte, selector [4]byte) *Profile {
 	pathBuiler := &statecommon.PathBuilder{Address: addr, Selector: selector, Platform: statecommon.ETH_PATH}
 
-	UID := schcommon.DeriveUID(pathBuiler.Address[:], pathBuiler.Selector[:]) // Get the unique ID for the callee.
-	if profile := this.LocalCache[UID]; profile != nil {
+	UID := pathBuiler.DeriveUID() // Get the unique ID for the callee.
+	if profile := this.profileCache[UID]; profile != nil {
 		profile.UsageCount++
 		return profile // Profile already exists
 	}
 
 	// Load the profile from the storage.
 	profile := &Profile{
-		UID:        schcommon.DeriveUID(pathBuiler.Address[:], pathBuiler.Selector[:]), // UID for quick matching
+		UID:        UID, // UID for quick matching
 		Contract:   pathBuiler.Address,
 		Selector:   pathBuiler.Selector,
 		UsageCount: 1,
@@ -92,19 +91,19 @@ func (this *ProfileManager) LoadProfile(addr [20]byte, selector [4]byte) *Profil
 		profile.ConflictWith = codec.Uint64s{}.Decode(buffer).(codec.Uint64s)
 	}
 
-	this.LocalCache[UID] = profile
+	this.profileCache[UID] = profile
 	return profile
 }
 
 func (this *ProfileManager) Find(UID uint64) (*Profile, bool) {
-	v, ok := this.LocalCache[UID]
+	v, ok := this.profileCache[UID]
 	return v, ok
 }
 
 // Write back the modified callee profiles to the storage.
 func (this *ProfileManager) Save() error {
 	var err error
-	for _, profile := range this.LocalCache {
+	for _, profile := range this.profileCache {
 		if !profile.Dirty {
 			continue
 		}
@@ -133,20 +132,20 @@ func (this *ProfileManager) Save() error {
 
 // Clear the least frequently used profiles from the local cache to free up memory.
 func (this *ProfileManager) Clear() {
-	if len(this.LocalCache)-int(this.maxCapacity) <= 0 {
+	if len(this.profileCache)-int(this.maxCapacity) <= 0 {
 		return
 	}
 
 	totalAccess := 0
-	for _, v := range this.LocalCache {
+	for _, v := range this.profileCache {
 		totalAccess += int(v.UsageCount)
 	}
 
 	// Remove the profiles with usage count less than the average usage count.!
-	threshold := totalAccess / len(this.LocalCache)
-	for k, v := range this.LocalCache {
+	threshold := totalAccess / len(this.profileCache)
+	for k, v := range this.profileCache {
 		if v.UsageCount <= uint64(threshold) {
-			delete(this.LocalCache, k)
+			delete(this.profileCache, k)
 		}
 	}
 }
@@ -155,14 +154,14 @@ func (this *ProfileManager) Clear() {
 // The conflict pairs are usually returned by the conflict detection module
 // after analyzing the transaction execution traces.
 func (this *ProfileManager) RegisterNewConflict(lftAddr [20]byte, lftSig [4]byte, rgtAddr [20]byte, rgtSig [4]byte) {
-	seedCallee := this.LoadProfile(lftAddr, lftSig)
-	otherCallee := this.LoadProfile(rgtAddr, rgtSig)
+	thisCallee := this.LoadProfile(lftAddr, lftSig)
+	peerCallee := this.LoadProfile(rgtAddr, rgtSig)
 
 	// The conflict exists already.
-	if seedCallee.IfConflictExists(otherCallee) {
-		panic("Schduler: Conflict already exists! " + seedCallee.PrintToString() + otherCallee.PrintToString())
+	if thisCallee.IfConflictExists(peerCallee) {
+		panic("Schduler: Conflict already exists! " + thisCallee.PrintToString() + peerCallee.PrintToString())
 	}
 
 	// Add the conflict entries both ways.
-	seedCallee.AddConflict(otherCallee)
+	thisCallee.AddConflict(peerCallee)
 }

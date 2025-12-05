@@ -38,7 +38,7 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 
 		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
-		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		conflictdict, _ := Conflicts(conflicts).CollectConflictMetrics()
 		if len(conflictdict) != 0 {
 			t.Error("Error: There should be NO conflict")
 		}
@@ -56,7 +56,7 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 		// arib := new(Arbitrator)
 		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
-		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		conflictdict, _ := Conflicts(conflicts).CollectConflictMetrics()
 		if len(conflictdict) != 0 {
 			t.Error("Error: There should be NO conflict")
 		}
@@ -71,7 +71,7 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 
 		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
-		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		conflictdict, _ := Conflicts(conflicts).CollectConflictMetrics()
 		if len(conflictdict) != 0 {
 			t.Error("Error: There should be NO conflict")
 		}
@@ -84,7 +84,7 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
 		// Nil init never exists, so it should be treated as a conflict
-		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		conflictdict, _ := Conflicts(conflicts).CollectConflictMetrics()
 		if len(conflictdict) != 1 {
 			t.Error("Error: There should be ONE conflict", len(conflictdict))
 		}
@@ -99,7 +99,7 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 
 		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
-		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		conflictdict, _ := Conflicts(conflicts).CollectConflictMetrics()
 		if len(conflictdict) != 1 {
 			t.Error("Error: There should be ONE conflict")
 		}
@@ -116,7 +116,7 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 
 		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
-		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		conflictdict, _ := Conflicts(conflicts).CollectConflictMetrics()
 		if len(conflictdict) != 0 {
 			t.Error("Error: There should be NO conflict")
 		}
@@ -131,7 +131,7 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 
 		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
-		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		conflictdict, _ := Conflicts(conflicts).CollectConflictMetrics()
 		if len(conflictdict) != 0 {
 			t.Error("Error: There should be NO conflict")
 		}
@@ -148,7 +148,7 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 
 		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
-		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		conflictdict, _ := Conflicts(conflicts).CollectConflictMetrics()
 		if len(conflictdict) != 0 {
 			t.Error("Error: There should be NO conflict")
 		}
@@ -165,7 +165,7 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 
 		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
-		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		conflictdict, _ := Conflicts(conflicts).CollectConflictMetrics()
 		if len(conflictdict) != 1 {
 			t.Error("Error: There should be ONE conflict", len(conflictdict))
 		}
@@ -182,7 +182,7 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 
 		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
-		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		conflictdict, _ := Conflicts(conflicts).CollectConflictMetrics()
 		if len(conflictdict) != 0 {
 			t.Error("Error: There should be NO conflict")
 		}
@@ -199,7 +199,7 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 
 		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
-		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		conflictdict, _ := Conflicts(conflicts).CollectConflictMetrics()
 		if len(conflictdict) != 1 {
 			t.Error("Error: There should be ONE conflict")
 		}
@@ -216,7 +216,7 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 
 		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
-		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		conflictdict, _ := Conflicts(conflicts).CollectConflictMetrics()
 		if len(conflictdict) != 1 {
 			t.Error("Error: There should be ONE conflict, actual:", len(conflictdict))
 		}
@@ -229,7 +229,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 
 		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0})
 
-		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		conflictdict, _ := Conflicts(conflicts).CollectConflictMetrics()
 		if len(conflictdict) != 0 {
 			t.Error("Error: There should be NO conflict")
 		}
@@ -240,7 +240,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 
 		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
-		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		conflictdict, _ := Conflicts(conflicts).CollectConflictMetrics()
 		if len(conflictdict) != 0 {
 			t.Error("Error: There should be NO conflict")
 		}
@@ -252,7 +252,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 
 		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
-		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		conflictdict, _ := Conflicts(conflicts).CollectConflictMetrics()
 		if len(conflictdict) != 0 {
 			t.Error("Error: There should be NO conflict")
 		}
@@ -265,7 +265,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 
 		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
-		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		conflictdict, _ := Conflicts(conflicts).CollectConflictMetrics()
 		if len(conflictdict) != 1 {
 			t.Error("Error: There should be ONE conflict")
 		}
@@ -281,7 +281,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 
 		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
-		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		conflictdict, _ := Conflicts(conflicts).CollectConflictMetrics()
 		if len(conflictdict) != 1 {
 			t.Error("Error: There should be ONE conflict")
 		}
@@ -295,7 +295,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 
 		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
-		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		conflictdict, _ := Conflicts(conflicts).CollectConflictMetrics()
 		if len(conflictdict) != 1 {
 			t.Error("Error: There should be ONE conflict")
 		}
@@ -309,7 +309,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 
 		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
-		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		conflictdict, _ := Conflicts(conflicts).CollectConflictMetrics()
 		if len(conflictdict) != 1 {
 			t.Error("Error: There should be ONE conflict")
 		}
@@ -322,7 +322,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 
 		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
-		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		conflictdict, _ := Conflicts(conflicts).CollectConflictMetrics()
 		if len(conflictdict) != 1 {
 			t.Error("Error: There should be ONE conflict")
 		}
@@ -335,7 +335,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 
 		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
-		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		conflictdict, _ := Conflicts(conflicts).CollectConflictMetrics()
 		if len(conflictdict) != 1 {
 			t.Error("Error: There should be ONE conflict")
 		}
@@ -348,7 +348,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 
 		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
-		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		conflictdict, _ := Conflicts(conflicts).CollectConflictMetrics()
 		if len(conflictdict) != 1 {
 			t.Error("Error: There should be ONE conflict")
 		}
@@ -360,7 +360,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 
 		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
-		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		conflictdict, _ := Conflicts(conflicts).CollectConflictMetrics()
 		if len(conflictdict) != 1 {
 			t.Error("Error: There should be ONE conflict")
 		}
@@ -372,7 +372,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 
 		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 1}, []*statecell.StateCell{_0, _1})
 
-		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		conflictdict, _ := Conflicts(conflicts).CollectConflictMetrics()
 		if len(conflictdict) != 1 {
 			t.Error("Error: There should be ONE conflict")
 		}
@@ -389,7 +389,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 
 		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 2}, []*statecell.StateCell{_0, _2})
 
-		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		conflictdict, _ := Conflicts(conflicts).CollectConflictMetrics()
 		if len(conflictdict) != 0 {
 			t.Error("Error: ", len(conflictdict))
 		}
@@ -407,7 +407,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 
 		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 2}, []*statecell.StateCell{_0, _2})
 
-		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		conflictdict, _ := Conflicts(conflicts).CollectConflictMetrics()
 		if len(conflictdict) != 1 {
 			t.Error("Error: ", len(conflictdict))
 		}
@@ -425,7 +425,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 
 		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 2}, []*statecell.StateCell{_0, _2})
 
-		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		conflictdict, _ := Conflicts(conflicts).CollectConflictMetrics()
 		if len(conflictdict) != 1 {
 			t.Error("Error: ", len(conflictdict))
 		}
@@ -443,7 +443,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 
 		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 2}, []*statecell.StateCell{_0, _2})
 
-		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		conflictdict, _ := Conflicts(conflicts).CollectConflictMetrics()
 		if len(conflictdict) != 0 {
 			t.Error("Error: ", len(conflictdict))
 		}
@@ -461,7 +461,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 
 		conflicts := NewArbitrator().InsertAndDetect([]uint64{0, 2}, []*statecell.StateCell{_0, _2})
 
-		conflictdict, _, _ := Conflicts(conflicts).ToDict()
+		conflictdict, _ := Conflicts(conflicts).CollectConflictMetrics()
 		if len(conflictdict) != 1 {
 			t.Error("Error: ", len(conflictdict))
 		}

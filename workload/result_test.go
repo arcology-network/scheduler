@@ -83,25 +83,25 @@ func TestResultPostprocessor(t *testing.T) {
 		t.Errorf("Postprocess failed, expecting 7, got %d", len(results.RawStateAccesses)+len(results.Immuned))
 	}
 
-	delta, DeltaSign := results.RawStateAccesses[2].Value().(crdtcommon.Type).Delta()
+	delta, DeltaSign := results.RawStateAccesses[2].Value().(crdtcommon.CRDT).Delta()
 	if v := delta.(uint256.Int); (&v).Uint64() != 200 && DeltaSign {
 		t.Errorf("Postprocess failed, expecting 100, got %d", v)
 	}
 
 	// Sender pay gas fee -100.
-	delta, DeltaSign = results.Immuned[0].Value().(crdtcommon.Type).Delta()
+	delta, DeltaSign = results.Immuned[0].Value().(crdtcommon.CRDT).Delta()
 	if v := delta.(uint256.Int); (&v).Uint64() != 100 && !DeltaSign {
 		t.Errorf("Postprocess failed, expecting 50, got %d", v)
 	}
 
 	// Coinbase gas fee + 100.
-	delta, DeltaSign = results.Immuned[1].Value().(crdtcommon.Type).Delta()
+	delta, DeltaSign = results.Immuned[1].Value().(crdtcommon.CRDT).Delta()
 	if v := delta.(uint256.Int); (&v).Uint64() != 100 && DeltaSign {
 		t.Errorf("Postprocess failed, expecting 50, got %d", v)
 	}
 
 	// Sender transfers -50.
-	delta, _ = results.RawStateAccesses[1].Value().(crdtcommon.Type).Delta()
+	delta, _ = results.RawStateAccesses[1].Value().(crdtcommon.CRDT).Delta()
 	if v := delta.(uint256.Int); (&v).Uint64() != 50 && !DeltaSign {
 		t.Errorf("Postprocess failed, expecting 50, got %d", v)
 	}

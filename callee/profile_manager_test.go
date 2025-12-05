@@ -51,15 +51,15 @@ func TestCalleeManager(t *testing.T) {
 	mgr.RegisterNewConflict([20]byte(alice), [4]byte{1, 1, 1, 1}, [20]byte(bob), [4]byte{2, 2, 2, 2})
 	mgr.RegisterNewConflict([20]byte(carol), [4]byte{3, 3, 3, 3}, [20]byte(david), [4]byte{4, 4, 4, 4})
 
-	if len(mgr.LocalCache) != 4 {
-		t.Error("Failed to add contracts", len(mgr.LocalCache))
+	if len(mgr.profileCache) != 4 {
+		t.Error("Failed to add contracts", len(mgr.profileCache))
 	}
 
 	mgr.Save()
 	mgr.Clear()
 
-	if len(mgr.LocalCache) != 4 {
-		t.Error("Failed to add contracts", len(mgr.LocalCache))
+	if len(mgr.profileCache) != 4 {
+		t.Error("Failed to add contracts", len(mgr.profileCache))
 	}
 }
 
@@ -76,15 +76,15 @@ func TestCalleeManagerCacheLimit(t *testing.T) {
 	mgr.RegisterNewConflict([20]byte(alice), [4]byte{1, 1, 1, 1}, [20]byte(bob), [4]byte{2, 2, 2, 2})
 	mgr.RegisterNewConflict([20]byte(carol), [4]byte{3, 3, 3, 3}, [20]byte(david), [4]byte{4, 4, 4, 4})
 
-	if len(mgr.LocalCache) != 4 {
-		t.Error("Failed to add contracts", len(mgr.LocalCache))
+	if len(mgr.profileCache) != 4 {
+		t.Error("Failed to add contracts", len(mgr.profileCache))
 	}
 
 	mgr.Save()
 	mgr.Clear()
 
-	if len(mgr.LocalCache) != 0 {
-		t.Error("Failed to add contracts", len(mgr.LocalCache))
+	if len(mgr.profileCache) != 0 {
+		t.Error("Failed to add contracts", len(mgr.profileCache))
 	}
 
 	if k, v := sstore.StateCache.KVs(); len(k) != 4 || len(v) != 4 {
