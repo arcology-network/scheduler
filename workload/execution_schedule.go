@@ -20,20 +20,21 @@ package workload
 import (
 	"runtime"
 
+	libcommon "github.com/arcology-network/common-lib/common"
 	"github.com/arcology-network/common-lib/exp/slice"
-	eucommon "github.com/arcology-network/common-lib/types"
+	libtypes "github.com/arcology-network/common-lib/types"
 )
 
-type Schedule struct {
-	Transfers    []*eucommon.StandardMessage // Transfers
-	Deployments  []*eucommon.StandardMessage // Contract deployments
-	Unknowns     []*eucommon.StandardMessage // Messages with unknown conflicts with others
-	WithConflict []*eucommon.StandardMessage // Messages with some known conflicts
-	Sequentials  []*eucommon.StandardMessage // Callees that are marked as sequential only
+type ExecutionSchedule struct {
+	Transfers    []*libtypes.StandardMessage // Transfers
+	Deployments  []*libtypes.StandardMessage // Contract deployments
+	Unknowns     []*libtypes.StandardMessage // Messages with unknown conflicts with others
+	WithConflict []*libtypes.StandardMessage // Messages with some known conflicts
+	Sequentials  []*libtypes.StandardMessage // Callees that are marked as sequential only
 
 	Generations []*Generation
-	RawMsgSet   [][][]*eucommon.StandardMessage
-	MsgLookup   map[uint64]*eucommon.StandardMessage // Message lookup by sequence ID
+	RawMsgSet   [][][]*libtypes.StandardMessage
+	MsgLookup   map[uint64]*libtypes.StandardMessage // Message lookup by sequence ID
 	// CallCounts  []map[string]int
 }
 
@@ -50,18 +51,11 @@ type Schedule struct {
 // i = transaction index within a parallel group://
 //	Transactions inside a group must execute in strict sequential order.
 
-func (this *Schedule) Finalize() []*Generation {
+func (this *ExecutionSchedule) Finalize() []*Generation {
 	//  Transfers + deployments can be executed in parallel with withConflict + sequentials.
-	_1 := slice.ConcateNonEmpty(func(v []*eucommon.StandardMessage) bool { return len(v) > 0 }, this.Transfers, this.Deployments, this.Unknowns)
-	_2 := slice.ConcateNonEmpty(func(v []*eucommon.StandardMessage) bool { return len(v) > 0 }, this.WithConflict, this.Sequentials)
-
-	// Reshape to 2D array.
-	_1Gen := slice.Transform(_1, func(i int, msg *eucommon.StandardMessage) []*eucommon.StandardMessage {
-		return []*eucommon.StandardMessage{msg}
-	})
-
-	_2Gen := slice.Transform(_2, func(i int, msg *eucommon.StandardMessage) []*eucommon.StandardMessage {
-		return []*eucommon.StandardMessage{msg}
+	_1 := slice.ConcateNonEmpty(func(v []*libtypes.StandardMessage) bool { return len(v) > 0 }, this.Transfers, this.Deployments, this.Unknowns)
+	_1Gen := slice.Transform(_1, func(i int, msg *libtypes.StandardMessage) []*libtypes.StandardMessage {
+		return []*libtypes.StandardMessage{msg}
 	})
 
 	if len(_1Gen) > 0 {
@@ -73,23 +67,48 @@ func (this *Schedule) Finalize() []*Generation {
 		}
 	}
 
+	_2 := slice.ConcateNonEmpty(func(v []*libtypes.StandardMessage) bool { return len(v) > 0 }, this.WithConflict, this.Sequentials)
+	_2Gen := slice.Transform(_2, func(i int, msg *libtypes.StandardMessage) []*libtypes.StandardMessage {
+		return []*libtypes.StandardMessage{msg}
+	})
+
 	if len(_2Gen) > 0 {
-		this.RawMsgSet[0] = append(this.RawMsgSet[0], _2Gen...)
+		if len(this.RawMsgSet) == 0 {
+			this.RawMsgSet = append(this.RawMsgSet, _2Gen)
+		} else {
+			// Merge with the first generation, since they are all parallel.
+			this.RawMsgSet[0] = append(this.RawMsgSet[0], _2Gen...)
+		}
 	}
 
-	slice.RemoveIf(&this.RawMsgSet, func(i int, seq [][]*eucommon.StandardMessage) bool {
+	slice.RemoveIf(&this.RawMsgSet, func(i int, seq [][]*libtypes.StandardMessage) bool {
 		return len(seq) == 0
 	})
 
-	// Convert to Generation structs.
-	numCores := uint32(runtime.NumCPU())
-	this.Generations = make([]*Generation, 0, len(this.RawMsgSet))
-	for i, msgs := range this.RawMsgSet {
-		seqs := make([]*JobSequence, len(msgs))
-		for j, msg := range msgs {
-			seqs[j] = new(JobSequence).FromStandardMessages(uint64(j), msg)
-		}
-		this.Generations = append(this.Generations, NewGeneration(uint64(i), numCores, seqs))
-	}
+	// Execute the conversion in parallel.
+	libcommon.ParallelExecute(
+		func() {
+			// Convert to Generation structs.
+			numCores := uint32(runtime.NumCPU())
+			this.Generations = make([]*Generation, 0, len(this.RawMsgSet))
+			for i, msgs := range this.RawMsgSet {
+				seqs := make([]*JobSequence, len(msgs))
+				for j, msg := range msgs {
+					seqs[j] = new(JobSequence).FromStandardMessages(uint64(j), msg)
+				}
+				this.Generations = append(this.Generations, NewGeneration(uint64(i), numCores, seqs))
+			}
+		},
+		func() {
+			// Build the message lookup map for the schedule.
+			for _, gen := range this.Generations {
+				for _, seq := range gen.JobSeqs {
+					for _, job := range seq.Jobs {
+						this.MsgLookup[job.StdMsg.ID] = job.StdMsg
+					}
+				}
+			}
+		},
+	)
 	return this.Generations
 }

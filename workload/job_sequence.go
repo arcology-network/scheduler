@@ -18,6 +18,8 @@
 package workload
 
 import (
+	"sort"
+
 	crdtcommon "github.com/arcology-network/common-lib/crdt/common"
 	"github.com/arcology-network/common-lib/crdt/commutative"
 	statecell "github.com/arcology-network/common-lib/crdt/statecell"
@@ -49,14 +51,17 @@ func (*JobSequence) FromEthMessages(ID uint64, jobIDs []uint64, evmMsgs []*evmco
 	return newJobSeq
 }
 
-// func (*JobSequence) FromStandardMessage(ID uint64, stdMsg *commontype.StandardMessage) *JobSequence {
-// 	newJobSeq := &JobSequence{
-// 		ID: ID, // Sequence ID
-// 	}
+func (this *JobSequence) MsgIDs() []uint64 {
+	unique := make(map[uint64]bool)
+	for _, job := range this.Jobs {
+		unique[job.StdMsg.ID] = true
+	}
 
-// 	newJobSeq.addJob(stdMsg)
-// 	return newJobSeq
-// }
+	// Extract the unique IDs and sort them.
+	ids := mapi.Keys(unique)
+	sort.SliceStable(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	return ids
+}
 
 func (*JobSequence) FromStandardMessages(ID uint64, stdMsgs []*commontype.StandardMessage) *JobSequence {
 	newJobSeq := &JobSequence{
@@ -88,6 +93,11 @@ func (this *JobSequence) Length() int { return len(this.Jobs) }
 
 // GetClearedTransition returns the cleared transitions of the JobSequence.
 func (this *JobSequence) GetClearedTransition() []*statecell.StateCell {
+	// When there is only one job in the sequence, return its transitions directly.
+	if len(this.Jobs) == 1 {
+		return this.Jobs[0].Result.Transitions()
+	}
+
 	trans := slice.Concate(this.Jobs,
 		func(job *Job) []*statecell.StateCell {
 			return job.Result.Transitions()

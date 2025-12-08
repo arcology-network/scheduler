@@ -17,16 +17,12 @@
 package scheduler
 
 import (
-	"crypto/sha256"
-	"fmt"
 	"math/big"
-	"strconv"
 	"testing"
-	"time"
 
-	"github.com/arcology-network/common-lib/exp/slice"
 	eucommon "github.com/arcology-network/common-lib/types"
 	callee "github.com/arcology-network/scheduler/callee"
+	profile "github.com/arcology-network/scheduler/callee"
 	stateengine "github.com/arcology-network/state-engine"
 	proxy "github.com/arcology-network/state-engine/storage/proxy"
 	ethcommon "github.com/ethereum/go-ethereum/common"
@@ -117,13 +113,14 @@ func TestSchedulerWithConflicInfo(t *testing.T) {
 	carol := []byte("cccccccccccccccccccccccccccccccccccccccc")
 	david := []byte("dddddddddddddddddddddddddddddddddddddddd")
 
+	// registerion have problem
 	scheduler.ProfileManager.RegisterNewConflict(
-		[20]byte(alice), [4]byte{1, 1, 1, 1},
-		[20]byte(bob), [4]byte{2, 2, 2, 2})
+		profile.NewID([20]byte(alice), [4]byte{1, 1, 1, 1}),
+		profile.NewID([20]byte(bob), [4]byte{2, 2, 2, 2}))
 
 	scheduler.ProfileManager.RegisterNewConflict(
-		[20]byte(carol), [4]byte{3, 3, 3, 3},
-		[20]byte(david), [4]byte{4, 4, 4, 4})
+		profile.NewID([20]byte(carol), [4]byte{3, 3, 3, 3}),
+		profile.NewID([20]byte(david), [4]byte{4, 4, 4, 4}))
 
 	aaddr := ethcommon.BytesToAddress(alice)
 	callAlice := &eucommon.StandardMessage{
@@ -151,13 +148,13 @@ func TestSchedulerWithConflicInfo(t *testing.T) {
 
 	// deploy := ethcommon.BytesToAddress([]byte{})
 	deployment0 := &eucommon.StandardMessage{
-		ID:     3,
+		ID:     4,
 		Native: &ethcore.Message{To: nil, Data: []byte{4, 4, 4, 4}},
 	}
 
 	transferAdd := ethcommon.BytesToAddress([]byte{})
 	transfer := &eucommon.StandardMessage{
-		ID:     3,
+		ID:     5,
 		Native: &ethcore.Message{To: &transferAdd, Value: big.NewInt(100), Data: []byte{}},
 	}
 
@@ -179,33 +176,4 @@ func TestSchedulerWithConflicInfo(t *testing.T) {
 	if len(rawSch.RawMsgSet) != 2 || len(rawSch.RawMsgSet[0]) != 4 || len(rawSch.RawMsgSet[1]) != 2 {
 		t.Error("Wrong generation size", len(rawSch.RawMsgSet), len(rawSch.RawMsgSet[0]))
 	}
-}
-
-func BenchmarkSchedulerWithConflictInfo(t *testing.B) {
-	sstore := stateengine.NewStateStore(proxy.NewMemDBStoreProxy())
-	mgr := callee.NewProfileManager(sstore, 1000000)
-	scheduler, _ := NewScheduler(mgr) // No conflict db file.
-
-	alice := []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
-	aaddr := ethcommon.BytesToAddress(alice)
-
-	callAlice := &eucommon.StandardMessage{
-		ID:     0,
-		Native: &ethcore.Message{To: &aaddr, Data: []byte{1, 1, 1, 1}},
-	}
-
-	msgs := make([]*eucommon.StandardMessage, 10)
-	for i := range msgs {
-		h := sha256.Sum256([]byte(strconv.Itoa(i)))
-		addr := ethcommon.BytesToAddress(h[:])
-		msgs[i] = &eucommon.StandardMessage{
-			ID:     uint64(i),
-			Native: &ethcore.Message{To: &addr, Data: addr[:4]},
-		}
-	}
-	msgs = slice.Join(msgs, slice.New(100000, callAlice))
-
-	t0 := time.Now()
-	scheduler.New(msgs)
-	fmt.Println("Scheduler", len(msgs), time.Since(t0))
 }

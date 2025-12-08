@@ -44,7 +44,7 @@ This function should be called to update its internal conflict db after the dete
     - The input messages
     - The conflict history and the meta info of the contracts.
 
-### Schedule
+### ExecutionSchedule
 
 The shedule is a 3 dimensional array. The first dimension is the generation number. The second dimension is a set of
 parallel transaction arrays. These arrays are the transactions that can be executed in parallel. The third dimension is the transactions in the sequntial order.

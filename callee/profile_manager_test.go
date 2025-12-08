@@ -15,7 +15,7 @@
  *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package scheduler
+package profile
 
 import (
 	"testing"
@@ -48,8 +48,9 @@ func TestCalleeManager(t *testing.T) {
 	david := []byte("dddddddddddddddddddddddddddddddddddddddd")
 
 	// RegisterNewConflict the conflict pairs to the scheduler
-	mgr.RegisterNewConflict([20]byte(alice), [4]byte{1, 1, 1, 1}, [20]byte(bob), [4]byte{2, 2, 2, 2})
-	mgr.RegisterNewConflict([20]byte(carol), [4]byte{3, 3, 3, 3}, [20]byte(david), [4]byte{4, 4, 4, 4})
+
+	mgr.RegisterNewConflict(NewID([20]byte(alice), [4]byte{1, 1, 1, 1}), NewID([20]byte(bob), [4]byte{2, 2, 2, 2}))
+	mgr.RegisterNewConflict(NewID([20]byte(carol), [4]byte{3, 3, 3, 3}), NewID([20]byte(david), [4]byte{4, 4, 4, 4}))
 
 	if len(mgr.profileCache) != 4 {
 		t.Error("Failed to add contracts", len(mgr.profileCache))
@@ -58,29 +59,31 @@ func TestCalleeManager(t *testing.T) {
 	mgr.Save()
 	mgr.Clear()
 
-	if len(mgr.profileCache) != 4 {
+	if len(mgr.profileCache) != 0 {
 		t.Error("Failed to add contracts", len(mgr.profileCache))
 	}
 }
 
 func TestCalleeManagerCacheLimit(t *testing.T) {
 	sstore := stateengine.NewStateStore(proxy.NewMemDBStoreProxy())
-	mgr := NewProfileManager(sstore, 2)
+	mgr := NewProfileManager(sstore, 6)
 
 	alice := []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 	bob := []byte("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
-	carol := []byte("cccccccccccccccccccccccccccccccccccccccc")
 	david := []byte("dddddddddddddddddddddddddddddddddddddddd")
 
 	// RegisterNewConflict the conflict pairs to the scheduler
-	mgr.RegisterNewConflict([20]byte(alice), [4]byte{1, 1, 1, 1}, [20]byte(bob), [4]byte{2, 2, 2, 2})
-	mgr.RegisterNewConflict([20]byte(carol), [4]byte{3, 3, 3, 3}, [20]byte(david), [4]byte{4, 4, 4, 4})
+
+	mgr.RegisterNewConflict(NewID([20]byte(alice), [4]byte{1, 1, 1, 1}), NewID([20]byte(bob), [4]byte{2, 2, 2, 2}))
+	mgr.RegisterNewConflict(NewID([20]byte(david), [4]byte{3, 3, 3, 3}), NewID([20]byte(david), [4]byte{4, 4, 4, 4}))
 
 	if len(mgr.profileCache) != 4 {
 		t.Error("Failed to add contracts", len(mgr.profileCache))
 	}
 
-	mgr.Save()
+	if err := mgr.Save(); err != nil {
+		t.Error("Failed to save profiles", err)
+	}
 	mgr.Clear()
 
 	if len(mgr.profileCache) != 0 {

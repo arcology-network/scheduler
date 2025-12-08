@@ -15,16 +15,12 @@
  *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package scheduler
+package profile
 
 import (
 	"errors"
 
-	"github.com/arcology-network/common-lib/codec"
-	"github.com/arcology-network/common-lib/crdt/noncommutative"
-	commontypes "github.com/arcology-network/common-lib/types"
 	stateengine "github.com/arcology-network/state-engine"
-	statecommon "github.com/arcology-network/state-engine/common"
 )
 
 type ProfileManager struct {
@@ -41,127 +37,66 @@ func NewProfileManager(schStorage *stateengine.StateStore, maxCapacity uint64) *
 	}
 }
 
-// Preload the scheduler with the given message profiles.
-func (this *ProfileManager) Preload(stdMsgs []*commontypes.StandardMessage) {
-	for _, v := range stdMsgs {
-		if len(v.Native.Data) == 0 || v.Native.To == nil { // Transfer tx, no profileCache
-			continue
-		}
-		profile := this.LoadProfile(*v.Native.To, new(codec.Bytes4).FromBytes(v.Native.Data))
-		this.profileCache[profile.UID] = profile
-	}
-}
-
-// Initialize the callee profile from the storage if exists.
-func (this *ProfileManager) LoadProfile(addr [20]byte, selector [4]byte) *Profile {
-	pathBuiler := &statecommon.PathBuilder{Address: addr, Selector: selector, Platform: statecommon.ETH_PATH}
-
-	UID := pathBuiler.DeriveUID() // Get the unique ID for the callee.
-	if profile := this.profileCache[UID]; profile != nil {
-		profile.UsageCount++
+// Check if the callee profile exists in the local cache or storage.
+func (this *ProfileManager) LoadIfExists(id *ID) *Profile {
+	if profile := this.profileCache[id.UID]; profile != nil {
 		return profile // Profile already exists
 	}
 
-	// Load the profile from the storage.
-	profile := &Profile{
-		UID:        UID, // UID for quick matching
-		Contract:   pathBuiler.Address,
-		Selector:   pathBuiler.Selector,
-		UsageCount: 1,
+	profile, _ := LoadProfile(id, this.schStorage.ReadOnlyStore())
+	if profile == nil {
+		return nil // Profile does not exist
 	}
 
-	// Get the parallelism degree
-	path := pathBuiler.ProfileField(statecommon.PARALLELISM_DEGREE)
-	this.schStorage.ReadOnlyStore().IfExists(path)
-	if paraDegree, err := this.schStorage.ReadOnlyStore().Retrieve(path, uint64(0)); paraDegree != nil && err == nil {
-		profile.ParallelismDegree = paraDegree.(uint32)
-	}
-
-	// Get the minimum prepayment amount for deferred execution
-	// If the amount is zero, it means the function is not deferrable.
-	path = pathBuiler.ProfileField(statecommon.DEFERRED_PAYMENT)
-	if prepayment, err := this.schStorage.ReadOnlyStore().Retrieve(path, uint64(0)); prepayment != nil && err == nil {
-		profile.IsDeferrable = prepayment.(uint64) > 0
-	}
-
-	// Get the parallelism degree
-	path = pathBuiler.ProfileField(statecommon.PARALLELISM_DEGREE)
-	if Indices, err := this.schStorage.ReadOnlyStore().Retrieve(path, []byte{}); Indices != nil && err == nil {
-		buffer := Indices.([]byte)
-		profile.ConflictWith = codec.Uint64s{}.Decode(buffer).(codec.Uint64s)
-	}
-
-	this.profileCache[UID] = profile
+	this.profileCache[id.UID] = profile
 	return profile
 }
 
-func (this *ProfileManager) Find(UID uint64) (*Profile, bool) {
-	v, ok := this.profileCache[UID]
-	return v, ok
+// Load the callee profile from the storage if exists, otherwise create a new one.
+// This is used when updating the callee profile storage after some conflicts are detected.
+func (this *ProfileManager) LoadOrCreate(id *ID) (*Profile, error) {
+	if profile := this.profileCache[id.UID]; profile != nil {
+		return profile, nil // Profile already exists in cache.
+	}
+
+	// Load from storage if exists.
+	if profile, err := LoadProfile(id, this.schStorage.ReadOnlyStore()); profile != nil && err == nil {
+		this.profileCache[id.UID] = profile
+		return profile, nil // Profile loaded from storage.
+	}
+
+	//Create a new profile.
+	profile := NewProfile(id.Address, id.Selector)
+	this.profileCache[id.UID] = profile
+	return profile, nil // New profile.
 }
 
-// Write back the modified callee profiles to the storage.
+// Write back the modified callee profiles back to the storage.
 func (this *ProfileManager) Save() error {
 	var err error
 	for _, profile := range this.profileCache {
-		if !profile.Dirty {
-			continue
-		}
-
-		// Sequential function shouldn't exist in conflict list. The only reason for them to be
-		// in the list is that they were previously marked as parallel but later changed to sequential because
-		// of too many conflicts. So this must be dirty now.
-		pathBuiler := &statecommon.PathBuilder{Address: profile.Contract, Selector: profile.Selector, Platform: statecommon.ETH_PATH}
-
-		if profile.ParallelismDegree == 1 {
-			path := pathBuiler.ProfileField(statecommon.PARALLELISM_DEGREE) // Get the path to write.
-			v := noncommutative.NewUint32(profile.ParallelismDegree)
-			_, wError := this.schStorage.Write(statecommon.SYSTEM, path, v)
-			err = errors.Join(err, wError)
-		}
-
-		// Write conflict list to storage.
-		path := pathBuiler.ProfileField(statecommon.CONFLICT_INFO_PATH) // Get the path to write.
-		buffer := codec.Uint64s(profile.ConflictWith).Encode()
-		v := noncommutative.NewBytes(buffer)
-		_, wError := this.schStorage.Write(statecommon.SYSTEM, path, v)
-		err = errors.Join(err, wError)
+		err = errors.Join(err, profile.SaveToStorage(this.schStorage))
 	}
 	return err
 }
 
 // Clear the least frequently used profiles from the local cache to free up memory.
 func (this *ProfileManager) Clear() {
-	if len(this.profileCache)-int(this.maxCapacity) <= 0 {
-		return
-	}
-
-	totalAccess := 0
-	for _, v := range this.profileCache {
-		totalAccess += int(v.UsageCount)
-	}
-
-	// Remove the profiles with usage count less than the average usage count.!
-	threshold := totalAccess / len(this.profileCache)
-	for k, v := range this.profileCache {
-		if v.UsageCount <= uint64(threshold) {
-			delete(this.profileCache, k)
-		}
-	}
+	this.profileCache = make(map[uint64]*Profile)
 }
 
 // Register a conflict pair into the scheduler.
 // The conflict pairs are usually returned by the conflict detection module
 // after analyzing the transaction execution traces.
-func (this *ProfileManager) RegisterNewConflict(lftAddr [20]byte, lftSig [4]byte, rgtAddr [20]byte, rgtSig [4]byte) {
-	thisCallee := this.LoadProfile(lftAddr, lftSig)
-	peerCallee := this.LoadProfile(rgtAddr, rgtSig)
+func (this *ProfileManager) RegisterNewConflict(lftID *ID, rgtID *ID) {
+	selfCallee, _ := this.LoadOrCreate(lftID)
+	peerCallee, _ := this.LoadOrCreate(rgtID)
 
 	// The conflict exists already.
-	if thisCallee.IfConflictExists(peerCallee) {
-		panic("Schduler: Conflict already exists! " + thisCallee.PrintToString() + peerCallee.PrintToString())
+	if selfCallee.IsMutuallyConflicting(peerCallee) {
+		panic("Schduler: Conflict already exists! " + selfCallee.PrintToString() + peerCallee.PrintToString())
 	}
 
 	// Add the conflict entries both ways.
-	thisCallee.AddConflict(peerCallee)
+	selfCallee.CrossLink(peerCallee)
 }

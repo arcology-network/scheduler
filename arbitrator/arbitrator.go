@@ -71,8 +71,8 @@ func (this *Arbitrator) Detect() []*Conflict {
 }
 
 func (this *Arbitrator) Move(trans []*statecell.StateCell) []*statecell.StateCell {
-	slice.Foreach(trans, func(i int, v **statecell.StateCell) { (*v).IsInConflict = !(*v).IsReadOnly() })
-	return slice.MoveIf(&trans, func(i int, v *statecell.StateCell) bool { return v.IsInConflict })
+	slice.Foreach(trans, func(i int, v **statecell.StateCell) { (*v).HasConflictWith = !(*v).IsReadOnly() })
+	return slice.MoveIf(&trans, func(i int, v *statecell.StateCell) bool { return v.HasConflictWith })
 }
 
 // Looks for conflicts in the array with the same path key.
@@ -88,27 +88,27 @@ func (this *Arbitrator) LookupForConflict(trans []*statecell.StateCell) (*Confli
 	var conflictPeers []*statecell.StateCell
 	var err error
 	if first.IsReadOnly() { // Read only
-		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).IsInConflict = !(*v).IsReadOnly() })
-		conflictPeers = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.IsInConflict })
+		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).HasConflictWith = !(*v).IsReadOnly() })
+		conflictPeers = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.HasConflictWith })
 		err = errors.New("Read with non read only")
 	} else if first.IsCumulativeWriteOnly(first) { // Initialization of commutative values only
-		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).IsInConflict = !(*v).IsCumulativeWriteOnly(first) })
-		conflictPeers = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.IsInConflict })
+		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).HasConflictWith = !(*v).IsCumulativeWriteOnly(first) })
+		conflictPeers = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.HasConflictWith })
 		err = errors.New("Commutative Initialization with non commutative initialization")
 
 	} else if first.IsDeltaWriteOnly() { // Delta write only
-		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).IsInConflict = !(*v).IsDeltaWriteOnly() })
-		conflictPeers = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.IsInConflict })
+		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).HasConflictWith = !(*v).IsDeltaWriteOnly() })
+		conflictPeers = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.HasConflictWith })
 		err = errors.New("Delta write with non delta write only")
 
 	} else if first.IsDeleteOnly() { // Delta write only
-		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).IsInConflict = !(*v).IsDeleteOnly() })
-		conflictPeers = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.IsInConflict })
+		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).HasConflictWith = !(*v).IsDeleteOnly() })
+		conflictPeers = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.HasConflictWith })
 		err = errors.New("Delete with non delete only")
 
 	} else if first.IsNilInitOnly() { // Initialization with nil only.
-		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).IsInConflict = !(*v).IsNilInitOnly() })
-		conflictPeers = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.IsInConflict })
+		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).HasConflictWith = !(*v).IsNilInitOnly() })
+		conflictPeers = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.HasConflictWith })
 		err = errors.New("Nil initialization with non nil initialization")
 	} else {
 		// The first transition doesn't belong to any `special` category that can avoid at least some conflicts.
@@ -138,12 +138,8 @@ func (this *Arbitrator) Clear() {
 	clear(this.dict)
 }
 
-// Test function
-func (this *Arbitrator) InsertAndDetect(sequenceIDs []uint64, trans []*statecell.StateCell) []*Conflict {
-	for i := range trans {
-		trans[i].SetSequence(sequenceIDs[i])
-	}
-
+// Test function, the production version is doing insertion separately from detection.
+func (this *Arbitrator) DebugInsertAndDetect(trans []*statecell.StateCell) *Conflicts {
 	this.Insert(trans)
-	return this.Detect()
+	return NewConflicts(trans, this.Detect())
 }

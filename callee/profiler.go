@@ -15,14 +15,20 @@
  *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package scheduler
+package profile
 
 import (
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
 
+	"github.com/arcology-network/common-lib/codec"
+	crdtcommon "github.com/arcology-network/common-lib/crdt/common"
+	commutative "github.com/arcology-network/common-lib/crdt/commutative"
+	"github.com/arcology-network/common-lib/crdt/noncommutative"
+	stateengine "github.com/arcology-network/state-engine"
 	statecommon "github.com/arcology-network/state-engine/common"
 )
 
@@ -32,40 +38,89 @@ import (
 // It is mainly used to optimize the execution of the transactions. A callee is uniquely identified by a
 // combination of the contract's address and the function signature.
 type Profile struct {
-	UID      uint64   `json:"uid"`      // Unique identifier of the callee (derived from address + selector)
-	Contract [20]byte `json:"contract"` // Contract address
-	Selector [4]byte  `json:"selector"` // Function selector
+	ID *ID
 
-	ParallelismDegree uint32   `json:"parallelismDegree"` // Execution parallelism, 1 for sequential, otherwise parallel.
-	IsDeferrable      bool     `json:"deferredPayment"`   // Required prepayment amount for the deferrable functions
-	ConflictWith      []uint64 `json:"conflictWith"`      // ConflictWith of the conflicting callee indices.
+	parallelismDegree uint32   // Execution parallelism, 1 for sequential, otherwise parallel.
+	prepayment        uint64   // Required prepayment amount for the deferrable functions
+	ConflictPeers     []uint64 // ConflictPeers of the conflicting callee indices.
 
 	// Stats for cache management
-	Dirty      bool   `json:"Dirty"`      // Whether the conflicts in callee profile has been modified.
-	UsageCount uint64 `json:"usageCount"` // Number of times this profile has been used.
+	dirty bool // Whether the conflicts in callee profile has been modified.
 }
 
-func (this *Profile) SortConflicts() { slices.Sort(this.ConflictWith) } // Sort the callees by the indices in ascending order.
-
-func (this *Profile) AddConflict(other *Profile) {
-	this.ConflictWith = append(this.ConflictWith, other.UID)
-	if len(this.ConflictWith) > statecommon.MAX_NUM_CONFLICTS {
-		this.ConflictWith = this.ConflictWith[:0]
-		this.ParallelismDegree = 1 // Too many conflicts, mark as sequential
+func NewProfile(addr [20]byte, selector [4]byte) *Profile {
+	// Get the unique ID for the callee.
+	return &Profile{
+		ID:    NewID(addr, selector),
+		dirty: true,
 	}
-	this.Dirty = true
-
-	other.ConflictWith = append(other.ConflictWith, this.UID)
-	if len(other.ConflictWith) > statecommon.MAX_NUM_CONFLICTS {
-		other.ConflictWith = this.ConflictWith[:0]
-		other.ParallelismDegree = 1 // Too many conflicts, mark as sequential
-	}
-	other.Dirty = true
 }
 
-func (this *Profile) IfConflictExists(other *Profile) bool {
-	lft := this.IsInConflict(other)
-	rgt := other.IsInConflict(this)
+// Load the callee profile from the storage.
+func LoadProfile(id *ID, readonlyStore crdtcommon.ReadOnlyStore) (*Profile, error) {
+	// Get the unique ID for the callee.
+	pathBuiler := &statecommon.PathBuilder{
+		Address:  id.Address,
+		Selector: id.Selector,
+		Platform: statecommon.ETH_PATH}
+
+	// Check if the profile path exists
+	if v, err := readonlyStore.Retrieve(pathBuiler.ProfileField(""), new(commutative.Path)); v != nil || err != nil {
+		return nil, err
+	}
+
+	// Get the parallelism degree
+	profile := NewProfile(id.Address, id.Selector)
+	path := pathBuiler.ProfileField(statecommon.PATH_PARALLELISM_DEGREE)
+	if paraDegree, err := readonlyStore.Retrieve(path, uint64(0)); paraDegree != nil && err == nil {
+		profile.SetParallelismDegree(paraDegree.(uint32))
+	}
+
+	// Get the minimum prepayment amount for deferred execution
+	// If the amount is zero, it means the function is not deferrable.
+	path = pathBuiler.ProfileField(statecommon.PATH_DEFERRED_PAYMENT)
+	if prepayment, err := readonlyStore.Retrieve(path, uint64(0)); prepayment != nil && err == nil {
+		profile.SetPrepayment(prepayment.(uint64))
+	}
+
+	// Get the conflict peers
+	path = pathBuiler.ProfileField(statecommon.PATH_CONFLICT_INFO)
+	if Indices, err := readonlyStore.Retrieve(path, []byte{}); Indices != nil && err == nil {
+		buffer := Indices.([]byte)
+		profile.AddConflictPeers(codec.Uint64s{}.Decode(buffer).(codec.Uint64s))
+	}
+	return profile, nil
+}
+
+func (this *Profile) SetParallelismDegree(n uint32) {
+	this.parallelismDegree = n
+	this.dirty = true
+}
+
+func (this *Profile) SetPrepayment(prepayment uint64) {
+	this.prepayment = prepayment
+	this.dirty = true
+}
+
+func (this *Profile) CrossLink(other *Profile) {
+	this.AddConflictPeers([]uint64{other.ID.UID})
+	other.AddConflictPeers([]uint64{this.ID.UID})
+}
+
+func (this *Profile) AddConflictPeers(list []uint64) {
+	if len(this.ConflictPeers)+len(list) > statecommon.MAX_NUM_CONFLICTS {
+		this.ConflictPeers = this.ConflictPeers[:0]
+		this.parallelismDegree = 1 // Too many conflicts, mark as sequential only.
+	} else {
+		this.ConflictPeers = append(this.ConflictPeers, list...)
+	}
+	this.dirty = true
+}
+
+// Determine whether this callee profile already has the conflict with another callee profile.
+func (this *Profile) IsMutuallyConflicting(other *Profile) bool {
+	lft := this.HasConflictWith(other)
+	rgt := other.HasConflictWith(this)
 
 	if lft != rgt {
 		panic("Conflict list inconsistent" + this.PrintToString() + other.PrintToString())
@@ -74,29 +129,57 @@ func (this *Profile) IfConflictExists(other *Profile) bool {
 }
 
 // Determine whether this callee is in conflict with another callee.
-func (this *Profile) IsInConflict(other *Profile) bool {
-	return slices.IndexFunc(this.ConflictWith, func(i uint64) bool { return i == uint64(other.UID) }) != -1
+func (this *Profile) HasConflictWith(other *Profile) bool {
+	return slices.IndexFunc(this.ConflictPeers, func(i uint64) bool { return i == uint64(other.ID.UID) }) != -1
 }
 
 func (this *Profile) NumConflicts() int {
-	return len(this.ConflictWith)
+	return len(this.ConflictPeers)
 }
 
-func (c *Profile) PrintToString() string {
+func (this *Profile) SaveToStorage(schStorage *stateengine.StateStore) error {
+	if !this.dirty {
+		return nil
+	}
+
+	// Sequential function shouldn't exist in conflict list. The only reason for them to be
+	// in the list is that they were previously marked as parallel but later changed to sequential because
+	// of too many conflicts. So this must be dirty now.
+	pathBuiler := &statecommon.PathBuilder{
+		Address:  this.ID.Address,
+		Selector: this.ID.Selector, Platform: statecommon.ETH_PATH}
+
+	var err error
+	if this.parallelismDegree == 1 {
+		path := pathBuiler.ProfileField(statecommon.PATH_PARALLELISM_DEGREE) // Get the path to write.
+		v := noncommutative.NewUint32(this.parallelismDegree)
+		_, wError := schStorage.Write(statecommon.SYSTEM, path, v)
+		err = errors.Join(err, wError)
+	}
+
+	// Write conflict list to storage.
+	path := pathBuiler.ProfileField(statecommon.PATH_CONFLICT_INFO) // Get the path to write.
+	buffer := codec.Uint64s(this.ConflictPeers).Encode()
+	v := noncommutative.NewBytes(buffer)
+	_, wError := schStorage.Write(statecommon.SYSTEM, path, v)
+	return errors.Join(err, wError)
+}
+
+func (this *Profile) PrintToString() string {
 	var b strings.Builder
 
 	// Contract and Selector as hex
-	contract := hex.EncodeToString(c.Contract[:])
-	selector := hex.EncodeToString(c.Selector[:])
+	contract := hex.EncodeToString(this.ID.Address[:])
+	selector := hex.EncodeToString(this.ID.Selector[:])
 
 	b.WriteString("Profile {\n")
-	b.WriteString(fmt.Sprintf("  UID: %d\n", c.UID))
+	b.WriteString(fmt.Sprintf("  UID: %d\n", this.ID.UID))
 	b.WriteString(fmt.Sprintf("  Contract: 0x%s\n", contract))
 	b.WriteString(fmt.Sprintf("  Selector: 0x%s\n", selector))
-	b.WriteString(fmt.Sprintf("  ParallelismDegree: %d\n", c.ParallelismDegree))
-	b.WriteString(fmt.Sprintf("  IsDeferrable: %t\n", c.IsDeferrable))
-	b.WriteString(fmt.Sprintf("  ConflictWith: %v\n", c.ConflictWith))
-	b.WriteString(fmt.Sprintf("  Dirty: %t\n", c.Dirty))
+	b.WriteString(fmt.Sprintf("  ParallelismDegree: %d\n", this.parallelismDegree))
+	b.WriteString(fmt.Sprintf("  Prepayment: %d\n", this.prepayment))
+	b.WriteString(fmt.Sprintf("  ConflictPeers: %v\n", this.ConflictPeers))
+	b.WriteString(fmt.Sprintf("  dirty: %t\n", this.dirty))
 	b.WriteString("}")
 
 	return b.String()

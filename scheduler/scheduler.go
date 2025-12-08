@@ -21,25 +21,23 @@ import (
 	"sort"
 
 	assoc "github.com/arcology-network/common-lib/exp/associative"
-	mapi "github.com/arcology-network/common-lib/exp/map"
 	"github.com/arcology-network/common-lib/exp/slice"
+	libtypes "github.com/arcology-network/common-lib/types"
 
-	slices "github.com/arcology-network/common-lib/exp/slice"
-	eucommon "github.com/arcology-network/common-lib/types"
-
-	callee "github.com/arcology-network/scheduler/callee"
+	mapi "github.com/arcology-network/common-lib/exp/map"
+	"github.com/arcology-network/scheduler/arbitrator"
+	profile "github.com/arcology-network/scheduler/callee"
 	workload "github.com/arcology-network/scheduler/workload"
-	statecommon "github.com/arcology-network/state-engine/common"
 )
 
 type Scheduler struct {
-	latest *workload.Schedule
-	*callee.ProfileManager
+	latest *workload.ExecutionSchedule
+	*profile.ProfileManager
 }
 
 // Initialize a new scheduler, the fileName is the file path to the scheduler's conflict database and the deferByDefault
 // instructs the scheduler to schedule the deferred transactions if it is true.
-func NewScheduler(manager *callee.ProfileManager) (*Scheduler, error) {
+func NewScheduler(manager *profile.ProfileManager) (*Scheduler, error) {
 	return &Scheduler{
 		ProfileManager: manager,
 	}, nil
@@ -48,169 +46,174 @@ func NewScheduler(manager *callee.ProfileManager) (*Scheduler, error) {
 // The scheduler will optimize the given transactions and return a schedule.
 // The schedule will contain the transactions that can be executed in parallel and the ones that have to
 // be executed sequentially.
-func (this *Scheduler) New(stdMsgs []*eucommon.StandardMessage) *workload.Schedule {
+func (this *Scheduler) New(stdMsgs []*libtypes.StandardMessage) *workload.ExecutionSchedule {
 	// Get the static schedule for the given transactions first.
 	sch, profiledMsgs := this.StaticSchedule(stdMsgs) // The profiledMsgs are the transactions that need to be scheduled to avoid conflicts.
 	if len(profiledMsgs) == 0 {
 		return sch // No known conflicts and no deferred transactions.
 	}
 
-	// Sort the callees by the number of conflicts and the profile index in ascending order.
-	sort.Slice(profiledMsgs, func(i, j int) bool {
-		lft, _ := this.ProfileManager.Find(profiledMsgs[i].First)
-		rgt, _ := this.ProfileManager.Find(profiledMsgs[j].First)
-
-		if lft.NumConflicts() != rgt.NumConflicts() {
-			return lft.NumConflicts() < rgt.NumConflicts()
+	// Sort the profiles by the number of conflicts and the profile index in ascending order.
+	sort.SliceStable(profiledMsgs, func(i, j int) bool {
+		if lft, rgt := profiledMsgs[i].First.NumConflicts(), profiledMsgs[j].First.NumConflicts(); lft != rgt {
+			return lft < rgt
 		}
 		return profiledMsgs[i].Second.ID < profiledMsgs[j].Second.ID
 	})
 
 	// The code below will search for the parallel transaction set from a set of conflicting transactions.
 	// Whataever left is the sequential transaction set after this.
+	start := 0
 	for {
 		// The conflict dictionary of all indices of the current transaction set.
-		seedMsg := *slice.PopFront(&profiledMsgs)
-		paraMsgs := assoc.Pairs[uint64, *eucommon.StandardMessage]{seedMsg} // A set of conflict free transactions, starting with the first profile.
+		profiledMsgs = profiledMsgs[start:] // Shrink the search space for better performance.
+		var seed **assoc.Pair[*profile.Profile, *libtypes.StandardMessage]
 
-		// Load the conflict dictionary with the conflicts of the FIRST profile, from which the search will start.
-		// Add the first profile's conflicts to the conflict dictionary.
-		seedCallee, _ := this.ProfileManager.Find(seedMsg.First)
-		lftConflictList := mapi.FromSlice(seedCallee.ConflictWith, func(k uint64) bool { return true })
-		paraMsgIds := mapi.FromSlice(paraMsgs.Firsts(), func(_ uint64) bool {
-			return true
-		})
+		start, seed = slice.FindFirstIf(profiledMsgs,
+			func(i int, v *assoc.Pair[*profile.Profile, *libtypes.StandardMessage]) bool {
+				return v != nil
+			},
+		)
+
+		if start == -1 {
+			break // Nothing left to process.
+		}
+		paraSet := []*assoc.Pair[*profile.Profile, *libtypes.StandardMessage]{*seed} // A set of conflict free transactions, starting with the first profile.
+		profiledMsgs = profiledMsgs[start+1:]
+
+		// This set containes all the conflicts of the current parallel transaction set.
+		// Any transaction that conflicts with any of them cannot be added to the parallel set.
+		conflictLookup := mapi.FromSlice((*seed).First.ConflictPeers, func(k uint64) bool { return true })
 
 		// Look for the parallel transactions that aren't conflicting with the current set of transactions.
 		for i := 0; i < len(profiledMsgs); i++ {
-			targetMsg := profiledMsgs[i]
+			if profiledMsgs[i] == nil {
+				continue // Already processed.
+			}
+
+			candidate := profiledMsgs[i]
 
 			// The current profile isn't conflicting with any transaction in the unique profile set
-			otherCallee, _ := this.ProfileManager.Find(targetMsg.First)
-			if !lftConflictList[targetMsg.First] && !mapi.ContainsAny(paraMsgIds, otherCallee.ConflictWith) {
-				// Add the new profile's conflicts to the conflict dictionary.
-				mapi.Insert(lftConflictList, otherCallee.ConflictWith, func(_ int, k uint64) (uint64, bool) {
+			// so it can be added to the parallel transaction set. Because the conflict info is always symmetric,
+			// we only need to check one way.
+			if _, ok := conflictLookup[candidate.First.ID.UID]; !ok { // Not in the conflict dictionary
+				// Merge the new profile's conflicts to the conflict dictionary.
+				mapi.Insert(conflictLookup, candidate.First.ConflictPeers, func(_ int, k uint64) (uint64, bool) {
 					return k, true
 				})
 
-				paraMsgs = append(paraMsgs, targetMsg) // Add the current profile to the parallel transaction set.
-				paraMsgIds[targetMsg.First] = true
-				slice.RemoveAt(&profiledMsgs, i) // Remove the current profile, since it is already in the parallel set.
-				i--
+				paraSet = append(paraSet, candidate) // Add the current profile to the parallel transaction set.
+				profiledMsgs[i] = nil                // Mark as processed.
 			}
 		}
 
-		// One transaction, no need to continue.
-		if len(paraMsgs) == 1 {
-			sch.WithConflict = append(sch.WithConflict, paraMsgs.Seconds()...)
-			break
+		// Only one transaction in the parallel set, no need to proceed with planning deferred execution.
+		if len(paraSet) == 1 {
+			msgs := assoc.NewPairs(paraSet).Seconds()            // Extract the message from the pair.
+			sch.WithConflict = append(sch.WithConflict, msgs...) // Add to the conflict set.
 		}
 
 		// Look for the deferred transactions and add them to the deferred transaction set.
-		deferredGen := this.ScheduleDeferred(&paraMsgs)
+		paraGen, deferredGen := this.ScheduleWithDeferred(paraSet)
 
-		paraGen := slices.Transform(paraMsgs.Seconds(), func(i int, v *eucommon.StandardMessage) []*eucommon.StandardMessage {
-			return []*eucommon.StandardMessage{v}
-		})
+		sch.RawMsgSet = append(sch.RawMsgSet, paraGen)     // Insert the parallel transaction first
+		sch.RawMsgSet = append(sch.RawMsgSet, deferredGen) // Insert the deferred transaction generation.
 
-		sch.RawMsgSet = append(sch.RawMsgSet, paraGen)
-		sch.RawMsgSet = append(sch.RawMsgSet, deferredGen) // Insert the parallel transaction first
-
-		// new(workload.JobSequence).FromStandardMessages(0, paraGen)
-
-		// Remove the already schedule transaction from the profiledMsgs slice.
+		// Remove the already scheduled transaction from the profiledMsgs slice.
 		if len(profiledMsgs) == 0 {
 			break // Nothing left to process.
 		}
 	}
 
-	// Whatever left in the profiledMsgs array is the sequential transaction set.
-	sch.WithConflict = append(sch.WithConflict, (*assoc.Pairs[uint64, *eucommon.StandardMessage])(&profiledMsgs).Seconds()...)
 	this.latest = sch // Keep the current schedule for reference.
 	return this.latest
 }
 
 // The scheduler will scan through and look for multipl instances of the same profile and put one of them in the second
 // consecutive set of transactions for deferred execution.
-func (this *Scheduler) ScheduleDeferred(paraMsgInfo *assoc.Pairs[uint64, *eucommon.StandardMessage]) [][]*eucommon.StandardMessage {
-	sort.SliceStable(*paraMsgInfo, func(i, j int) bool {
-		if (*paraMsgInfo)[i].First != (*paraMsgInfo)[j].First {
-			return (*paraMsgInfo)[i].First < (*paraMsgInfo)[j].First
-		}
-		return (*paraMsgInfo)[i].Second.ID < (*paraMsgInfo)[j].Second.ID
-	})
-
+func (this *Scheduler) ScheduleWithDeferred(paraMsgs []*assoc.Pair[*profile.Profile, *libtypes.StandardMessage]) ([][]*libtypes.StandardMessage, [][]*libtypes.StandardMessage) {
 	// Group by profile UID.
-	pathBuilder := statecommon.PathBuilder{}
-	array := ([]*assoc.Pair[uint64, *eucommon.StandardMessage])(*paraMsgInfo)
-	_, msgSets := slice.GroupBy(array, func(i int, pair *assoc.Pair[uint64, *eucommon.StandardMessage]) *uint64 {
-		// pathBuilder.Address, pathBuilder.Selector = pair.Second.GetAddressAndSelector()
-		UID := pathBuilder.DeriveUID()
-		return &UID
+	_, msgSets := slice.GroupBy(paraMsgs, func(_ int, pair *assoc.Pair[*profile.Profile, *libtypes.StandardMessage]) *uint64 {
+		return &pair.First.ID.UID
 	})
 
-	// Remove single instances or non-deferable ones.
-	slice.RemoveIf(&msgSets, func(i int, pairs []*assoc.Pair[uint64, *eucommon.StandardMessage]) bool {
-		return len(pairs) == 1 || !pairs[0].Second.IsDeferred
-	})
-
-	deferredGen := [][]*eucommon.StandardMessage{} // The deferred transaction generation.
+	paraGen := [][]*libtypes.StandardMessage{}     // The parallel transaction generation.
+	deferredGen := [][]*libtypes.StandardMessage{} // The deferred transaction generation.
 	for _, msgs := range msgSets {
-		def := *slice.PopBack(&msgs)
-		deferredGen = append(deferredGen, []*eucommon.StandardMessage{def.Second}) // Add the deferred transaction to the new generation.
+		paraMsgs := slice.Transform(msgs,
+			func(i int, msgPair *assoc.Pair[*profile.Profile, *libtypes.StandardMessage]) []*libtypes.StandardMessage {
+				return []*libtypes.StandardMessage{msgPair.Second}
+			},
+		)
+
+		// There is more than one transaction for the same profile and the first one is marked as deferrable.
+		if len(msgs) > 1 && msgs[0].Second.IsDeferred {
+			def := *slice.PopBack(&paraMsgs)       // Use the last one as the deferred transaction.
+			deferredGen = append(deferredGen, def) // Add the deferred transaction to the new generation.
+		}
+		paraGen = append(paraGen, paraMsgs...)
 	}
-	return deferredGen
+	return paraGen, deferredGen
 }
 
 // The scheduler will StaticSchedule base on some predefined rules for specific transaction types,
 // such as transfers and contract deployments.
-func (this *Scheduler) StaticSchedule(stdMsgs []*eucommon.StandardMessage) (*workload.Schedule, []*assoc.Pair[uint64, *eucommon.StandardMessage]) {
-	sch := &workload.Schedule{}
+func (this *Scheduler) StaticSchedule(stdMsgs []*libtypes.StandardMessage) (*workload.ExecutionSchedule, []*assoc.Pair[*profile.Profile, *libtypes.StandardMessage]) {
+	sch := &workload.ExecutionSchedule{}
 	if len(stdMsgs) == 0 {
-		return sch, []*assoc.Pair[uint64, *eucommon.StandardMessage]{} // No transactions to process.
+		return sch, nil // No transactions to process.
 	}
 
 	// Transfers won't have any conflicts, as long as they have enough balances.
 	// Deployments are conflict-free as well.
-	sch.Transfers = slice.MoveIf(&stdMsgs, func(i int, msg *eucommon.StandardMessage) bool { return len(msg.Native.Data) == 0 })
-	sch.Deployments = slice.MoveIf(&stdMsgs, func(i int, msg *eucommon.StandardMessage) bool { return msg.Native.To == nil })
-
+	sch.Transfers = slice.MoveIf(&stdMsgs, func(i int, msg *libtypes.StandardMessage) bool { return len(msg.Native.Data) == 0 })
+	sch.Deployments = slice.MoveIf(&stdMsgs, func(i int, msg *libtypes.StandardMessage) bool { return msg.Native.To == nil })
 	if len(stdMsgs) == 0 {
-		return sch, []*assoc.Pair[uint64, *eucommon.StandardMessage]{} // All the transactions are transfers.
+		return sch, nil // All the transactions are transfers.
 	}
 
 	// Get the IDs for the given addresses and signatures, which will be used to find the profile index.
-	// To save memory, the callees are stored in the dictionary by their IDs, not by their addresses and signatures.
-	pathBuilder := statecommon.PathBuilder{}
-	msgPairs := slice.ParallelTransform(stdMsgs, 8, func(i int, msg *eucommon.StandardMessage) *assoc.Pair[uint64, *eucommon.StandardMessage] {
-		// Convert the address and signature to a unique key.
-		pathBuilder.Address, pathBuilder.Selector = msg.GetAddressAndSelector()
-		return &assoc.Pair[uint64, *eucommon.StandardMessage]{First: pathBuilder.DeriveUID(), Second: stdMsgs[i]}
-	})
-
-	if len(msgPairs) == 0 {
-		return sch, msgPairs
-	}
+	// To save memory, the profiles are stored in the dictionary by their IDs, not by their addresses and signatures.
+	profiledMsgs := slice.ParallelTransform(
+		stdMsgs,
+		8,
+		func(i int, msg *libtypes.StandardMessage) *assoc.Pair[*profile.Profile, *libtypes.StandardMessage] {
+			profile := this.ProfileManager.LoadIfExists(profile.NewID(msg.GetAddressAndSelector()))
+			// Convert the address and signature to a unique key.
+			return assoc.NewPair(profile, msg)
+		})
 
 	// Move the transactions that have no known conflicts to the parallel trasaction array first.
 	// If a profile has no known conflicts with anyone else, it is either a conflict-free implementation or
 	// has been fortunate enough to avoid conflicts so far.
-	unknows := slice.MoveIf(&msgPairs, func(_ int, v *assoc.Pair[uint64, *eucommon.StandardMessage]) bool {
-		_, ok := this.ProfileManager.Find(v.First)
-		return !ok // No profile found in the dictionary.
+	unknowns := slice.MoveIf(&profiledMsgs, func(_ int, v *assoc.Pair[*profile.Profile, *libtypes.StandardMessage]) bool {
+		return v.First == nil // No profile.
 	})
-	sch.Unknowns = (*assoc.Pairs[uint64, *eucommon.StandardMessage])(&unknows).Seconds()
+	sch.Unknowns = assoc.Pairs[*profile.Profile, *libtypes.StandardMessage](unknowns).Seconds()
 
-	// Sequential only callees.
-	sequentialOnly := slice.MoveIf(&msgPairs, func(_ int, v *assoc.Pair[uint64, *eucommon.StandardMessage]) bool {
-		// The profile isn't new, otherwise the v.First would be math.MaxUint64.
-		if profile, ok := this.ProfileManager.Find(v.First); ok {
-			return profile.ParallelismDegree == 1
-		}
-		return false
+	// Move Sequential only profiles to the sequential array.
+	sequentials := slice.MoveIf(&profiledMsgs, func(_ int, v *assoc.Pair[*profile.Profile, *libtypes.StandardMessage]) bool {
+		return len(v.First.ConflictPeers) == 0
 	})
-	sch.Unknowns = (*assoc.Pairs[uint64, *eucommon.StandardMessage])(&unknows).Seconds()
-	sch.Sequentials = (*assoc.Pairs[uint64, *eucommon.StandardMessage])(&sequentialOnly).Seconds()
+	sch.Sequentials = assoc.Pairs[*profile.Profile, *libtypes.StandardMessage](sequentials).Seconds()
 
-	return sch, msgPairs
+	return sch, profiledMsgs
+}
+
+// Update the scheduler's conflict database based on the latest conflict info.
+func (this *Scheduler) UpdateConflictDB(conflictSet *arbitrator.Conflicts) error {
+	// First Create a mapping from txID to UIDs.
+	// There is no UID info in the conflicts, so we have to look up the profile
+	// for each transaction that is involved in conflicts.
+	for _, conflictInfo := range conflictSet.Conflicts {
+		selfID, peerIDs := conflictInfo.MapToCallees(this.latest.MsgLookup) // Get callee Profiles.
+
+		// Get the profiles and add the conflict peers.
+		selfProfile, _ := this.ProfileManager.LoadOrCreate(selfID)
+		slice.Foreach(peerIDs, func(i int, peerID **profile.ID) {
+			peerProfile, _ := this.ProfileManager.LoadOrCreate(*peerID)
+			peerProfile.CrossLink(selfProfile) //
+		})
+	}
+	return this.ProfileManager.Save() // Save the updated profiles to the storage.
 }
