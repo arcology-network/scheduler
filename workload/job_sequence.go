@@ -26,6 +26,7 @@ import (
 	mapi "github.com/arcology-network/common-lib/exp/map"
 	slice "github.com/arcology-network/common-lib/exp/slice"
 	commontype "github.com/arcology-network/common-lib/types"
+	"github.com/arcology-network/scheduler/arbitrator"
 	evmcore "github.com/ethereum/go-ethereum/core"
 	"github.com/holiman/uint256"
 )
@@ -91,16 +92,16 @@ func (this *JobSequence) GetID() uint64 { return this.ID }
 // Length returns the number of standard messages in the JobSequence.
 func (this *JobSequence) Length() int { return len(this.Jobs) }
 
-// GetClearedTransition returns the cleared transitions of the JobSequence.
-func (this *JobSequence) GetClearedTransition() []*statecell.StateCell {
+// GetRawClearRecords returns the cleared transitions of the JobSequence.
+func (this *JobSequence) GetRawClearRecords() []*statecell.StateCell {
 	// When there is only one job in the sequence, return its transitions directly.
 	if len(this.Jobs) == 1 {
-		return this.Jobs[0].Result.Transitions()
+		return this.Jobs[0].Result.GetRawStateRecords()
 	}
 
 	trans := slice.Concate(this.Jobs,
 		func(job *Job) []*statecell.StateCell {
-			return job.Result.Transitions()
+			return job.Result.GetRawStateRecords()
 		},
 	)
 
@@ -114,7 +115,7 @@ func (this *JobSequence) GetClearedTransition() []*statecell.StateCell {
 }
 
 // FlagConflict flags the transitions after the first conflicting transaction.
-func (this *JobSequence) FlagConflict(dict map[uint64]uint64, err error) {
+func (this *JobSequence) FlagConflict(dict map[uint64][]*arbitrator.Conflict, err error) {
 	// Get the first index of the first conflict transaction.
 	// All the transitions after this index aren't usuable any more.
 	first, _ := slice.FindFirstIf(this.Jobs, func(_ int, job *Job) bool {

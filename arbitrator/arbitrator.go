@@ -62,10 +62,15 @@ func (this *Arbitrator) Detect() []*Conflict {
 	conflists := make([]*Conflict, len(keys))
 
 	// Search for conflicts in parallel within each key.
+	// for i, k := range keys {
 	slice.ParallelForeach(keys, 8, func(i int, k *string) {
 		if vArr, ok := this.dict[*k]; ok && len(*vArr) > 1 {
-			conflists[i], _ = this.LookupForConflict(*vArr)
+			var err error
+			if conflists[i], err = this.LookupForConflict(*vArr); err != nil {
+				conflists[i].Reason = err
+			}
 		}
+		// }
 	})
 	return slice.Remove(&conflists, nil)
 }

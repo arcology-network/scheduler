@@ -19,76 +19,87 @@ package profile
 
 import (
 	"errors"
+	"sync"
 
 	stateengine "github.com/arcology-network/state-engine"
 )
 
-type ProfileManager struct {
+type ProfileStore struct {
+	dirties      map[uint64]*Profile
 	profileCache map[uint64]*Profile
 	maxCapacity  uint64 // Maximum number of profiles to cache in memory
-	schStorage   *stateengine.StateStore
+	backend      *stateengine.StateStore
+	mu           sync.Mutex
 }
 
-func NewProfileManager(schStorage *stateengine.StateStore, maxCapacity uint64) *ProfileManager {
-	return &ProfileManager{
+func NewProfileManager(backend *stateengine.StateStore, maxCapacity uint64) *ProfileStore {
+	return &ProfileStore{
+		dirties:      make(map[uint64]*Profile),
 		profileCache: make(map[uint64]*Profile),
-		schStorage:   schStorage,
+		backend:      backend,
 		maxCapacity:  maxCapacity,
 	}
 }
 
 // Check if the callee profile exists in the local cache or storage.
-func (this *ProfileManager) LoadIfExists(id *ID) *Profile {
+func (this *ProfileStore) LoadIfExists(id *ID) *Profile {
 	if profile := this.profileCache[id.UID]; profile != nil {
 		return profile // Profile already exists
 	}
 
-	profile, _ := LoadProfile(id, this.schStorage.ReadOnlyStore())
+	profile, _ := LoadProfile(id, this)
 	if profile == nil {
 		return nil // Profile does not exist
 	}
 
+	this.mu.Lock()
 	this.profileCache[id.UID] = profile
+	this.mu.Unlock()
 	return profile
 }
 
 // Load the callee profile from the storage if exists, otherwise create a new one.
 // This is used when updating the callee profile storage after some conflicts are detected.
-func (this *ProfileManager) LoadOrCreate(id *ID) (*Profile, error) {
+func (this *ProfileStore) LoadOrCreate(id *ID) (*Profile, error) {
 	if profile := this.profileCache[id.UID]; profile != nil {
 		return profile, nil // Profile already exists in cache.
 	}
 
 	// Load from storage if exists.
-	if profile, err := LoadProfile(id, this.schStorage.ReadOnlyStore()); profile != nil && err == nil {
+	if profile, err := LoadProfile(id, this); profile != nil && err == nil {
 		this.profileCache[id.UID] = profile
 		return profile, nil // Profile loaded from storage.
 	}
 
 	//Create a new profile.
-	profile := NewProfile(id.Address, id.Selector)
+	profile := NewProfile(id.Address, id.Selector, this)
 	this.profileCache[id.UID] = profile
 	return profile, nil // New profile.
 }
 
 // Write back the modified callee profiles back to the storage.
-func (this *ProfileManager) Save() error {
+func (this *ProfileStore) Commit() error {
 	var err error
-	for _, profile := range this.profileCache {
-		err = errors.Join(err, profile.SaveToStorage(this.schStorage))
+	for _, dirtyProfile := range this.dirties {
+		err = errors.Join(err, dirtyProfile.Commit(this.backend)) // Save to the conflict storage.
 	}
 	return err
 }
 
 // Clear the least frequently used profiles from the local cache to free up memory.
-func (this *ProfileManager) Clear() {
+func (this *ProfileStore) Clear() {
 	this.profileCache = make(map[uint64]*Profile)
+}
+
+// Add a modified callee profile into the dirties.
+func (this *ProfileStore) AddToDirty(profile *Profile) {
+	this.dirties[profile.ID.UID] = profile
 }
 
 // Register a conflict pair into the scheduler.
 // The conflict pairs are usually returned by the conflict detection module
 // after analyzing the transaction execution traces.
-func (this *ProfileManager) RegisterNewConflict(lftID *ID, rgtID *ID) {
+func (this *ProfileStore) RegisterNewConflict(lftID *ID, rgtID *ID) {
 	selfCallee, _ := this.LoadOrCreate(lftID)
 	peerCallee, _ := this.LoadOrCreate(rgtID)
 
@@ -99,4 +110,8 @@ func (this *ProfileManager) RegisterNewConflict(lftID *ID, rgtID *ID) {
 
 	// Add the conflict entries both ways.
 	selfCallee.CrossLink(peerCallee)
+
+	// Mark both profiles as dirty for commit later.
+	this.dirties[lftID.UID] = selfCallee
+	this.dirties[rgtID.UID] = peerCallee
 }

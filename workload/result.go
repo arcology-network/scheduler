@@ -30,25 +30,25 @@ import (
 
 // The result of an execution. It includes the group ID, the transaction index, the transaction hash, the sender, the coinbase, the raw state accesses, the immune transitions, the receipt, the EVM result, the standard message, and the error.
 type Result struct {
-	GroupID          uint32 // == Group ID
-	TxIndex          uint64
-	TxHash           [32]byte
-	RawStateAccesses []*statecell.StateCell
-	Immuned          []*statecell.StateCell //These transitions will take effect anyway even if the execution fails.
-	Receipt          *ethcoretypes.Receipt
-	EvmResult        *evmcore.ExecutionResult
-	StdMsg           *commontype.StandardMessage
-	Err              error
+	GroupID         uint32 // == Group ID
+	TxIndex         uint64
+	TxHash          [32]byte
+	RawStateRecords []*statecell.StateCell
+	Immuned         []*statecell.StateCell //These transitions will take effect anyway even if the execution fails.
+	Receipt         *ethcoretypes.Receipt
+	EvmResult       *evmcore.ExecutionResult
+	StdMsg          *commontype.StandardMessage
+	Err             error
 }
 
 // If the execution is unsuccessful, only keep the transitions that are immune to failures.
-func (this *Result) Transitions() []*statecell.StateCell {
+func (this *Result) GetRawStateRecords() []*statecell.StateCell {
 	// When there is an execution error, only return the immune transitions.
 	// Immune transitions include the gas fee and the nonce, which are independent of the execution status.
 	if this.Err != nil {
 		return this.Immuned
 	}
-	return this.RawStateAccesses
+	return this.RawStateRecords
 }
 
 func (this *Result) Print() {
@@ -56,7 +56,7 @@ func (this *Result) Print() {
 	fmt.Println("TxIndex: ", this.TxIndex)
 	fmt.Println("TxHash: ", this.TxHash)
 	fmt.Println()
-	statecell.StateCells(this.RawStateAccesses).Print()
+	statecell.StateCells(this.GetRawStateRecords()).Print()
 	fmt.Println("Error: ", this.Err)
 }
 

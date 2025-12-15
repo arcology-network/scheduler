@@ -19,10 +19,12 @@ package workload
 
 import (
 	"errors"
+	"fmt"
 
 	common "github.com/arcology-network/common-lib/common"
 	statecell "github.com/arcology-network/common-lib/crdt/statecell"
 	"github.com/arcology-network/common-lib/exp/slice"
+	"github.com/arcology-network/scheduler/arbitrator"
 	statecommon "github.com/arcology-network/state-engine/common"
 )
 
@@ -123,17 +125,17 @@ Note:
 	This is NOT optimal since no all the jobs after the conflicting job are contaminated.
 	But it is simple and effective for now.
 */
-func (this *Generation) GetClearedTransitions(txLookup, seqLookup map[uint64]uint64) []*statecell.StateCell {
-	cleanTrans := slice.Concate(this.JobSeqs, func(seq *JobSequence) []*statecell.StateCell {
+func (this *Generation) GetRawClearRecords(txLookup map[uint64][]*arbitrator.Conflict, seqLookup map[uint64]uint64) []*statecell.StateCell {
+	cleanRecords := slice.Concate(this.JobSeqs, func(seq *JobSequence) []*statecell.StateCell {
 		// Check if the sequence ID is in the conflict list.
 		// If yes, locate the conflicting transactions in the sequence and mark all the
 		// transactions after the conflicting TX as conflicted as well.
 		if _, ok := seqLookup[seq.ID]; ok {
 			(*seq).FlagConflict(txLookup, errors.New(statecommon.WARN_ACCESS_CONFLICT))
 		}
-		return (*seq).GetClearedTransition() // Return the conflict-free transitions
+		return (*seq).GetRawClearRecords() // Return the conflict-free transitions
 	})
-	return cleanTrans
+	return cleanRecords
 }
 
 func (this *Generation) Length() uint64 { return uint64(len(this.JobSeqs)) }
@@ -164,4 +166,15 @@ func (this *Generation) Clear() uint64 {
 	length := len(this.JobSeqs)
 	this.JobSeqs = this.JobSeqs[:0]
 	return uint64(length)
+}
+
+func (this *Generation) PrintErrors() {
+	fmt.Printf("Generation %d:\n", this.ID)
+	for _, seq := range this.JobSeqs {
+		for _, job := range seq.Jobs {
+			if job.Result.Err != nil {
+				fmt.Printf("  Job %d: Msg ID %d, Error: %v\n", job.ID, job.StdMsg.ID, job.Result.Err)
+			}
+		}
+	}
 }

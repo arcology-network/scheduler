@@ -25,7 +25,6 @@ import (
 	"strings"
 
 	"github.com/arcology-network/common-lib/codec"
-	crdtcommon "github.com/arcology-network/common-lib/crdt/common"
 	commutative "github.com/arcology-network/common-lib/crdt/commutative"
 	"github.com/arcology-network/common-lib/crdt/noncommutative"
 	stateengine "github.com/arcology-network/state-engine"
@@ -43,21 +42,19 @@ type Profile struct {
 	parallelismDegree uint32   // Execution parallelism, 1 for sequential, otherwise parallel.
 	prepayment        uint64   // Required prepayment amount for the deferrable functions
 	ConflictPeers     []uint64 // ConflictPeers of the conflicting callee indices.
-
-	// Stats for cache management
-	dirty bool // Whether the conflicts in callee profile has been modified.
+	profileStore      *ProfileStore
 }
 
-func NewProfile(addr [20]byte, selector [4]byte) *Profile {
+func NewProfile(addr [20]byte, selector [4]byte, store *ProfileStore) *Profile {
 	// Get the unique ID for the callee.
 	return &Profile{
-		ID:    NewID(addr, selector),
-		dirty: true,
+		ID:           NewID(addr, selector),
+		profileStore: store,
 	}
 }
 
 // Load the callee profile from the storage.
-func LoadProfile(id *ID, readonlyStore crdtcommon.ReadOnlyStore) (*Profile, error) {
+func LoadProfile(id *ID, profileStore *ProfileStore) (*Profile, error) {
 	// Get the unique ID for the callee.
 	pathBuiler := &statecommon.PathBuilder{
 		Address:  id.Address,
@@ -65,27 +62,27 @@ func LoadProfile(id *ID, readonlyStore crdtcommon.ReadOnlyStore) (*Profile, erro
 		Platform: statecommon.ETH_PATH}
 
 	// Check if the profile path exists
-	if v, err := readonlyStore.Retrieve(pathBuiler.ProfileField(""), new(commutative.Path)); v != nil || err != nil {
+	if v, err := profileStore.backend.ReadOnlyStore().Retrieve(pathBuiler.ProfileField(""), new(commutative.Path)); v != nil || err != nil {
 		return nil, err
 	}
 
 	// Get the parallelism degree
-	profile := NewProfile(id.Address, id.Selector)
+	profile := NewProfile(id.Address, id.Selector, profileStore)
 	path := pathBuiler.ProfileField(statecommon.PATH_PARALLELISM_DEGREE)
-	if paraDegree, err := readonlyStore.Retrieve(path, uint64(0)); paraDegree != nil && err == nil {
+	if paraDegree, err := profileStore.backend.ReadOnlyStore().Retrieve(path, uint64(0)); paraDegree != nil && err == nil {
 		profile.SetParallelismDegree(paraDegree.(uint32))
 	}
 
 	// Get the minimum prepayment amount for deferred execution
 	// If the amount is zero, it means the function is not deferrable.
 	path = pathBuiler.ProfileField(statecommon.PATH_DEFERRED_PAYMENT)
-	if prepayment, err := readonlyStore.Retrieve(path, uint64(0)); prepayment != nil && err == nil {
+	if prepayment, err := profileStore.backend.ReadOnlyStore().Retrieve(path, uint64(0)); prepayment != nil && err == nil {
 		profile.SetPrepayment(prepayment.(uint64))
 	}
 
 	// Get the conflict peers
 	path = pathBuiler.ProfileField(statecommon.PATH_CONFLICT_INFO)
-	if Indices, err := readonlyStore.Retrieve(path, []byte{}); Indices != nil && err == nil {
+	if Indices, err := profileStore.backend.ReadOnlyStore().Retrieve(path, []byte{}); Indices != nil && err == nil {
 		buffer := Indices.([]byte)
 		profile.AddConflictPeers(codec.Uint64s{}.Decode(buffer).(codec.Uint64s))
 	}
@@ -94,12 +91,12 @@ func LoadProfile(id *ID, readonlyStore crdtcommon.ReadOnlyStore) (*Profile, erro
 
 func (this *Profile) SetParallelismDegree(n uint32) {
 	this.parallelismDegree = n
-	this.dirty = true
+	this.profileStore.AddToDirty(this)
 }
 
 func (this *Profile) SetPrepayment(prepayment uint64) {
 	this.prepayment = prepayment
-	this.dirty = true
+	this.profileStore.AddToDirty(this)
 }
 
 func (this *Profile) CrossLink(other *Profile) {
@@ -114,7 +111,7 @@ func (this *Profile) AddConflictPeers(list []uint64) {
 	} else {
 		this.ConflictPeers = append(this.ConflictPeers, list...)
 	}
-	this.dirty = true
+	this.profileStore.AddToDirty(this)
 }
 
 // Determine whether this callee profile already has the conflict with another callee profile.
@@ -137,11 +134,7 @@ func (this *Profile) NumConflicts() int {
 	return len(this.ConflictPeers)
 }
 
-func (this *Profile) SaveToStorage(schStorage *stateengine.StateStore) error {
-	if !this.dirty {
-		return nil
-	}
-
+func (this *Profile) Commit(schStorage *stateengine.StateStore) error {
 	// Sequential function shouldn't exist in conflict list. The only reason for them to be
 	// in the list is that they were previously marked as parallel but later changed to sequential because
 	// of too many conflicts. So this must be dirty now.
@@ -179,7 +172,6 @@ func (this *Profile) PrintToString() string {
 	b.WriteString(fmt.Sprintf("  ParallelismDegree: %d\n", this.parallelismDegree))
 	b.WriteString(fmt.Sprintf("  Prepayment: %d\n", this.prepayment))
 	b.WriteString(fmt.Sprintf("  ConflictPeers: %v\n", this.ConflictPeers))
-	b.WriteString(fmt.Sprintf("  dirty: %t\n", this.dirty))
 	b.WriteString("}")
 
 	return b.String()

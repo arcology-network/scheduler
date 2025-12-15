@@ -25,7 +25,6 @@ type Job struct {
 	ID           uint64 // Job id
 	StdMsg       *commontype.StandardMessage
 	Result       *Result
-	Err          error   // Execution error directly from the EVM, not from the receipt.
 	InitialGas   *uint64 // Initial gas amount for the contract, used to determine if the contract has enough gas to execute
 	GasRemaining *uint64 // Remaining gas for the contract, used to determine if the contract has enough gas to execute
 	PrepaidGas   uint64  // Gas paid for the deferred execution, negative is paying for the others, positive is paied by others.
@@ -38,11 +37,11 @@ func NewJob(stdMsg *commontype.StandardMessage, id uint64) *Job {
 	}
 }
 
-func (this *Job) Successful() bool {
-	if this.Result != nil {
-		return this.Result.Receipt != nil &&
-			this.Result.Receipt.Status == 1 &&
-			this.Result.Err == nil
-	}
-	return this.Err == nil
-}
+// func (this *Job) Successful() bool {
+// 	if this.Result != nil {
+// 		return this.Result.Receipt != nil &&
+// 			this.Result.Receipt.Status == 1 &&
+// 			this.Result.Err == nil
+// 	}
+// 	return this.Err == nil
+// }

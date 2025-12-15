@@ -114,11 +114,11 @@ func TestSchedulerWithConflicInfo(t *testing.T) {
 	david := []byte("dddddddddddddddddddddddddddddddddddddddd")
 
 	// registerion have problem
-	scheduler.ProfileManager.RegisterNewConflict(
+	scheduler.ProfileStore.RegisterNewConflict(
 		profile.NewID([20]byte(alice), [4]byte{1, 1, 1, 1}),
 		profile.NewID([20]byte(bob), [4]byte{2, 2, 2, 2}))
 
-	scheduler.ProfileManager.RegisterNewConflict(
+	scheduler.ProfileStore.RegisterNewConflict(
 		profile.NewID([20]byte(carol), [4]byte{3, 3, 3, 3}),
 		profile.NewID([20]byte(david), [4]byte{4, 4, 4, 4}))
 

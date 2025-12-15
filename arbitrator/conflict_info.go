@@ -79,19 +79,26 @@ func (this *Conflict) Print() {
 // Conflicts is a collection of Conflict pointers.
 type Conflicts struct {
 	Conflicts       []*Conflict
-	RevertTxLookup  map[uint64]uint64
+	RevertTxLookup  map[uint64][]*Conflict
 	RevertSeqLookup map[uint64]uint64
 	Cleared         []uint64 // The IDs of the transactions that are cleared.
 }
 
 func NewConflicts(trans []*statecell.StateCell, conflicts []*Conflict) *Conflicts {
-	revertTxLookup := make(map[uint64]uint64) // Unique transaction IDs to revert.
-	seqLookup := make(map[uint64]uint64)      // Unique job sequence IDs that contain the transactions to revert.
+	revertTxLookup := make(map[uint64][]*Conflict) // Unique transaction IDs to revert.
+	seqLookup := make(map[uint64]uint64)           // Unique job sequence IDs that contain the transactions to revert.
 	for _, conflict := range conflicts {
-		IDs := conflict.GetRevertTxIDs() // The IDs of the conflicting transactions.
-		slice.Foreach(IDs, func(_ int, v *uint64) {
-			revertTxLookup[*v]++
-			seqLookup[*v]++
+		IDs := conflict.GetRevertTxIDs()
+
+		// The IDs of all the conflicting transactions that share the same state cell and
+		// affected by the conflict. They all need to be reverted.
+		slice.Foreach(IDs, func(_ int, txId *uint64) {
+			mapi.Append(revertTxLookup, *txId, conflict)
+
+			// Map to the job sequence IDs as well.
+			for _, peer := range conflict.peers {
+				seqLookup[peer.GetSequence()]++
+			}
 		})
 	}
 

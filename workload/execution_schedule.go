@@ -20,7 +20,6 @@ package workload
 import (
 	"runtime"
 
-	libcommon "github.com/arcology-network/common-lib/common"
 	"github.com/arcology-network/common-lib/exp/slice"
 	libtypes "github.com/arcology-network/common-lib/types"
 )
@@ -86,29 +85,30 @@ func (this *ExecutionSchedule) Finalize() []*Generation {
 	})
 
 	// Execute the conversion in parallel.
-	libcommon.ParallelExecute(
-		func() {
-			// Convert to Generation structs.
-			numCores := uint32(runtime.NumCPU())
-			this.Generations = make([]*Generation, 0, len(this.RawMsgSet))
-			for i, msgs := range this.RawMsgSet {
-				seqs := make([]*JobSequence, len(msgs))
-				for j, msg := range msgs {
-					seqs[j] = new(JobSequence).FromStandardMessages(uint64(j), msg)
-				}
-				this.Generations = append(this.Generations, NewGeneration(uint64(i), numCores, seqs))
+	// libcommon.ParallelExecute(
+	// 	func() {
+	// Convert to Generation structs.
+	numCores := uint32(runtime.NumCPU())
+	this.Generations = make([]*Generation, 0, len(this.RawMsgSet))
+	for i, msgs := range this.RawMsgSet {
+		seqs := make([]*JobSequence, len(msgs))
+		for j, msg := range msgs {
+			seqs[j] = new(JobSequence).FromStandardMessages(uint64(j), msg)
+		}
+		this.Generations = append(this.Generations, NewGeneration(uint64(i), numCores, seqs))
+	}
+	// },
+	// func() {
+	this.MsgLookup = make(map[uint64]*libtypes.StandardMessage)
+	// Build the message lookup map for the schedule.
+	for _, gen := range this.Generations {
+		for _, seq := range gen.JobSeqs {
+			for _, job := range seq.Jobs {
+				this.MsgLookup[job.StdMsg.ID] = job.StdMsg
 			}
-		},
-		func() {
-			// Build the message lookup map for the schedule.
-			for _, gen := range this.Generations {
-				for _, seq := range gen.JobSeqs {
-					for _, job := range seq.Jobs {
-						this.MsgLookup[job.StdMsg.ID] = job.StdMsg
-					}
-				}
-			}
-		},
-	)
+		}
+	}
+	// 	},
+	// )
 	return this.Generations
 }

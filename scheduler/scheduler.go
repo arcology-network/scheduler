@@ -32,14 +32,14 @@ import (
 
 type Scheduler struct {
 	latest *workload.ExecutionSchedule
-	*profile.ProfileManager
+	*profile.ProfileStore
 }
 
 // Initialize a new scheduler, the fileName is the file path to the scheduler's conflict database and the deferByDefault
 // instructs the scheduler to schedule the deferred transactions if it is true.
-func NewScheduler(manager *profile.ProfileManager) (*Scheduler, error) {
+func NewScheduler(manager *profile.ProfileStore) (*Scheduler, error) {
 	return &Scheduler{
-		ProfileManager: manager,
+		ProfileStore: manager,
 	}, nil
 }
 
@@ -50,6 +50,7 @@ func (this *Scheduler) New(stdMsgs []*libtypes.StandardMessage) *workload.Execut
 	// Get the static schedule for the given transactions first.
 	sch, profiledMsgs := this.StaticSchedule(stdMsgs) // The profiledMsgs are the transactions that need to be scheduled to avoid conflicts.
 	if len(profiledMsgs) == 0 {
+		this.latest = sch
 		return sch // No known conflicts and no deferred transactions.
 	}
 
@@ -178,7 +179,7 @@ func (this *Scheduler) StaticSchedule(stdMsgs []*libtypes.StandardMessage) (*wor
 		stdMsgs,
 		8,
 		func(i int, msg *libtypes.StandardMessage) *assoc.Pair[*profile.Profile, *libtypes.StandardMessage] {
-			profile := this.ProfileManager.LoadIfExists(profile.NewID(msg.GetAddressAndSelector()))
+			profile := this.ProfileStore.LoadIfExists(profile.NewID(msg.GetAddressAndSelector()))
 			// Convert the address and signature to a unique key.
 			return assoc.NewPair(profile, msg)
 		})
@@ -200,20 +201,24 @@ func (this *Scheduler) StaticSchedule(stdMsgs []*libtypes.StandardMessage) (*wor
 	return sch, profiledMsgs
 }
 
-// Update the scheduler's conflict database based on the latest conflict info.
-func (this *Scheduler) UpdateConflictDB(conflictSet *arbitrator.Conflicts) error {
-	// First Create a mapping from txID to UIDs.
-	// There is no UID info in the conflicts, so we have to look up the profile
-	// for each transaction that is involved in conflicts.
+// Precommit the scheduler's conflict database based on the latest conflict info.
+func (this *Scheduler) Precommit(conflictSet *arbitrator.Conflicts) {
+	// Map the conflict info to the original callee profiles
+	// using UID as the key.
 	for _, conflictInfo := range conflictSet.Conflicts {
-		selfID, peerIDs := conflictInfo.MapToCallees(this.latest.MsgLookup) // Get callee Profiles.
+		// Map back to their orginal callee profile IDs
+		selfID, peerIDs := conflictInfo.MapToCallees(this.latest.MsgLookup)
 
-		// Get the profiles and add the conflict peers.
-		selfProfile, _ := this.ProfileManager.LoadOrCreate(selfID)
+		// Get the profiles by IDs and add the conflict peers.
+		selfProfile, _ := this.ProfileStore.LoadOrCreate(selfID)
 		slice.Foreach(peerIDs, func(i int, peerID **profile.ID) {
-			peerProfile, _ := this.ProfileManager.LoadOrCreate(*peerID)
-			peerProfile.CrossLink(selfProfile) //
+			peerProfile, _ := this.ProfileStore.LoadOrCreate(*peerID)
+			peerProfile.CrossLink(selfProfile) // Add each other as conflict peers.
 		})
 	}
-	return this.ProfileManager.Save() // Save the updated profiles to the storage.
+}
+
+// Commit the scheduler's conflict database based on the latest conflict info.
+func (this *Scheduler) Commit() error {
+	return this.ProfileStore.Commit() // Save the updated profiles to the storage.
 }
