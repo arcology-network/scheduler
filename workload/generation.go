@@ -18,14 +18,18 @@
 package workload
 
 import (
-	"errors"
 	"fmt"
+	"sort"
 
 	common "github.com/arcology-network/common-lib/common"
 	statecell "github.com/arcology-network/common-lib/crdt/statecell"
+	mapi "github.com/arcology-network/common-lib/exp/map"
 	"github.com/arcology-network/common-lib/exp/slice"
-	"github.com/arcology-network/scheduler/arbitrator"
-	statecommon "github.com/arcology-network/state-engine/common"
+
+	// "github.com/arcology-network/scheduler/workload"
+
+	associative "github.com/arcology-network/common-lib/exp/associative"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 )
 
 // ┌───────────────────────────────────────────────┐   ┌───────────────────────────────────────────────┐
@@ -54,61 +58,52 @@ import (
 // └───────────────────────────────────────────────┘   └───────────────────────────────────────────────┘
 
 type Generation struct {
-	ID           uint64
-	numThreads   uint32
-	JobSeqs      []*JobSequence          // para jobSeqs
-	JobSeqLookup map[uint64]*JobSequence // lookup by message ID in job sequences. Multiple messages may map to the same job sequence.
+	ID         uint64
+	numThreads uint32
+	JobSeqs    []*JobSequence // para jobSeqs
+
+	// lookup by Tx ID in job sequences. Multiple Tx may map to the same job sequence.
+	TxToSeqLookup map[uint64]*JobSequence
 
 	// CalleeFreq tracks how many job sequences invoke the same (address, selector)
 	// as their first transaction. Used to identify high-contention callees for
 	// scheduling and conflict-resolution heuristics.
 	CalleeFreq map[uint64]int
+
+	// Jobs from the same sender may span multiple job sequences.
+	// So we need to group them together for nonce offset insertion.
+	//
+	// For example:
+	// Sequence 0: Tx0(from A) -> Tx1(from A) -> Tx2(from B)
+	// Sequence 1: Tx3(from A) -> Tx4(from C)
+	//
+	// The SenderToSequenceLookup would be:
+	// A: [(Sequence 0, [Tx0, Tx1]), (Sequence 1, [Tx3])]
+	// B: [(Sequence 0, [Tx2])]
+	// C: [(Sequence 1, [Tx4])]
+	//
+	// This allows us to correctly insert nonce offsets for transactions from the same sender
+	// across different job sequences.
+	SenderToSequenceLookup map[ethcommon.Address][]associative.Pair[*JobSequence, []*Job]
 }
 
-func NewGeneration(id uint64, numThreads uint32, jobSeqs []*JobSequence) *Generation {
+func NewGeneration(numThreads uint32, jobSeqs []*JobSequence) *Generation {
 	gen := &Generation{
-		ID:           id,
-		numThreads:   numThreads,
-		JobSeqs:      jobSeqs,
-		JobSeqLookup: make(map[uint64]*JobSequence),
-		CalleeFreq:   make(map[uint64]int),
+		numThreads:    numThreads,
+		JobSeqs:       jobSeqs,
+		TxToSeqLookup: make(map[uint64]*JobSequence),
+		// JobLookup:    make(map[uint64]*Job),
+		CalleeFreq: make(map[uint64]int),
 	}
 
 	// Build the message lookup map. So we can use it later to find the transactions to revert.
 	for _, seq := range jobSeqs {
 		for _, job := range seq.Jobs {
-			gen.JobSeqLookup[job.StdMsg.ID] = seq
+			gen.TxToSeqLookup[job.StdMsg.ID] = seq // Multiple jobs may map to the same job sequence.
+			// gen.JobLookup[job.StdMsg.ID] = job
 		}
 	}
 	return gen
-}
-
-// CountCalleeCalleeFreq computes how many job sequences invoke the same
-// (address, selector) pair for their *first* transaction. The first job in a
-// sequence defines the sequence’s callee identity and is treated as the
-// representative callee for conflict hotspot detection.
-//
-// Rationale:
-// - Sequences operate as atomic units in the scheduler.
-// - Conflicts across sequences originate from their initial callee.
-// - Later jobs in a sequence are irrelevant to inter-sequence contention.
-//
-// For each JobSequence:
-//  1. Extract the callee (address + selector) of the first job.
-//  2. Derive its UID (stable identifier).
-//  3. Increment the occurrence count for that UID.
-//
-// The resulting CalleeFreq map is used to identify high-contention callees
-// and guide downstream scheduling and conflict-resolution heuristics.
-func (this *Generation) CountCalleeCalleeFreq() {
-	pathBuilder := statecommon.PathBuilder{}
-	for _, seq := range this.JobSeqs {
-		for _, job := range seq.Jobs {
-			pathBuilder.Address, pathBuilder.Selector = job.StdMsg.GetAddressAndSelector()
-			this.CalleeFreq[pathBuilder.DeriveUID()]++ // Only count the first one if found
-			break
-		}
-	}
 }
 
 // GetClearedTransitions returns all the conflict-free transitions in the generation.
@@ -125,15 +120,9 @@ Note:
 	This is NOT optimal since no all the jobs after the conflicting job are contaminated.
 	But it is simple and effective for now.
 */
-func (this *Generation) GetRawClearRecords(txLookup map[uint64][]*arbitrator.Conflict, seqLookup map[uint64]uint64) []*statecell.StateCell {
+func (this *Generation) GetClearRecords() []*statecell.StateCell {
 	cleanRecords := slice.Concate(this.JobSeqs, func(seq *JobSequence) []*statecell.StateCell {
-		// Check if the sequence ID is in the conflict list.
-		// If yes, locate the conflicting transactions in the sequence and mark all the
-		// transactions after the conflicting TX as conflicted as well.
-		if _, ok := seqLookup[seq.ID]; ok {
-			(*seq).FlagConflict(txLookup, errors.New(statecommon.WARN_ACCESS_CONFLICT))
-		}
-		return (*seq).GetRawClearRecords() // Return the conflict-free transitions
+		return (*seq).GetClearRecords() // Return the conflict-free transitions
 	})
 	return cleanRecords
 }
@@ -153,14 +142,82 @@ func (this *Generation) At(idx uint64) *JobSequence {
 	return common.IfThenDo1st(idx < uint64(len(this.JobSeqs)), func() *JobSequence { return this.JobSeqs[idx] }, nil)
 }
 
-func (*Generation) New(id uint64, numThreads uint32, jobSeqs []*JobSequence) *Generation {
-	return NewGeneration(id, numThreads, slice.To[*JobSequence, *JobSequence](jobSeqs))
+func (*Generation) New(numThreads uint32, jobSeqs []*JobSequence) *Generation {
+	return NewGeneration(numThreads, slice.To[*JobSequence, *JobSequence](jobSeqs))
 }
 
 func (this *Generation) Add(jobSeq *JobSequence) bool {
 	this.JobSeqs = append(this.JobSeqs, jobSeq)
 	return true
 }
+
+// Return a 2D slice of jobs grouped by sender address.
+// Jobs from the same sender may belong to different job sequences.
+// So we need to further group them by job sequence, so we can insert
+// nonce offsets later.
+//
+// For example:
+// Sequence 0: Tx0(from A) -> Tx1(from A) -> Tx2(from B)
+// Sequence 1: Tx3(from A) -> Tx4(from C)
+//
+// The SenderToSequenceLookup would be:
+// A: [(Sequence 0, [Tx0, Tx1]), (Sequence 1, [Tx3])]
+// B: [(Sequence 0, [Tx2])]
+// C: [(Sequence 1, [Tx4])]
+// Each address may map to multiple (job sequence, jobs) pairs.
+func (this *Generation) GroupBySenderAndSequence() ([]ethcommon.Address, [][]associative.Pair[*JobSequence, []*Job]) {
+	jobs := []*Job{}
+	for _, seq := range this.JobSeqs {
+		jobs = append(jobs, seq.Jobs...)
+	}
+
+	// Get jobs grouped by sender address.
+	_, jobsBySenders := slice.GroupBy(jobs,
+		func(_ int, job *Job) *ethcommon.Address {
+			return &job.StdMsg.Native.From
+		})
+
+	// Sub-group jobs by job sequence within each sender group.
+	this.SenderToSequenceLookup = make(map[ethcommon.Address][]associative.Pair[*JobSequence, []*Job])
+	for _, jobs := range jobsBySenders {
+		jobSeqs, JobsBySenderSequence := slice.GroupBy(jobs,
+			func(_ int, job *Job) **JobSequence {
+				jobSeq := this.TxToSeqLookup[job.StdMsg.ID]
+				return &jobSeq
+			})
+
+		groupedJobs := make([]associative.Pair[*JobSequence, []*Job], len(jobSeqs))
+		for i, jobSeq := range jobSeqs {
+			sort.Slice(JobsBySenderSequence[i], func(j, k int) bool {
+				return JobsBySenderSequence[i][j].StdMsg.Native.Nonce <
+					JobsBySenderSequence[i][k].StdMsg.Native.Nonce
+			})
+			
+			groupedJobs[i] = associative.Pair[*JobSequence, []*Job]{
+				First:  jobSeq,
+				Second: JobsBySenderSequence[i],
+			}
+		}
+		senderAddr := groupedJobs[0].First.Jobs[0].StdMsg.Native.From
+		this.SenderToSequenceLookup[senderAddr] = groupedJobs
+	}
+
+	return mapi.KVs(this.SenderToSequenceLookup)
+}
+
+// Return a 2D slice of jobs grouped by their job sequences.
+// func (this *Generation) JobsBySequences(jobs []*Job) []associative.Pair[*JobSequence, []*Job] {
+// 	jobs := []*Job{}
+// 	for _, seq := range this.JobSeqs {
+// 		jobs = append(jobs, seq.Jobs...)
+// 	}
+
+// 	_, msgSet := slice.GroupBy(jobs,
+// 		func(_ int, job *Job) *ethcommon.Address {
+// 			return &job.StdMsg.Native.From
+// 		})
+// 	return msgSet
+// }
 
 func (this *Generation) Clear() uint64 {
 	length := len(this.JobSeqs)

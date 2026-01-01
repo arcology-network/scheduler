@@ -85,7 +85,16 @@ func (this *Arbitrator) LookupForConflict(trans []*statecell.StateCell) (*Confli
 	statecell.StateCells(trans).SortByTx()
 
 	first := trans[0]
-	otherTrans := trans[1:]
+	// Different transactions inthe same sequence are not conflicting, even they access the same state cell.
+	idx, _ := slice.FindFirstIf(trans, func(i int, v *statecell.StateCell) bool {
+		return first.GetSequence() != v.GetSequence()
+	})
+
+	if idx == -1 {
+		return nil, nil // All the transitions are from the same sequence, no conflict.
+	}
+
+	otherTrans := trans[idx:]
 
 	// Assume all the transitions are in conflict at the beginning.
 	// Unless proven otherwise, we will return all the subsequent
@@ -127,12 +136,14 @@ func (this *Arbitrator) LookupForConflict(trans []*statecell.StateCell) (*Confli
 		return (&Accumulator{}).CheckMinMax(trans), nil
 	}
 
+	// There are some access conflicts, check if the remaining transitions are within limits.
 	conflictFree := slice.PushFront(first, &otherTrans)
 	if outOfLimit := (&Accumulator{}).CheckMinMax(conflictFree); outOfLimit != nil {
 		return outOfLimit, nil
 	}
 
-	// offset++ // The offet is actually the index of the origina index minus 1, because the first was used as the reference. Here we add it back.
+	// offset++ // The offet is actually the index of the origina index minus 1, because the first
+	// was used as the reference. Here we add it back.
 	return &Conflict{
 		self:  trans[0],
 		peers: conflictPeers,

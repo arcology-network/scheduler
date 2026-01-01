@@ -18,20 +18,26 @@
 package scheduler
 
 import (
+	"runtime"
 	"sort"
 
-	assoc "github.com/arcology-network/common-lib/exp/associative"
 	"github.com/arcology-network/common-lib/exp/slice"
 	libtypes "github.com/arcology-network/common-lib/types"
 
 	mapi "github.com/arcology-network/common-lib/exp/map"
+	queue "github.com/arcology-network/common-lib/exp/queue"
 	"github.com/arcology-network/scheduler/arbitrator"
 	profile "github.com/arcology-network/scheduler/callee"
 	workload "github.com/arcology-network/scheduler/workload"
+
+	callee "github.com/arcology-network/scheduler/callee"
+
+	stateengine "github.com/arcology-network/state-engine"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 )
 
 type Scheduler struct {
-	latest *workload.ExecutionSchedule
+	latest *workload.ExecutionPlan
 	*profile.ProfileStore
 }
 
@@ -43,112 +49,162 @@ func NewScheduler(manager *profile.ProfileStore) (*Scheduler, error) {
 	}, nil
 }
 
+// For debugging purpose only.
+func (this *Scheduler) GetLatest() *workload.ExecutionPlan    { return this.latest }
+func (this *Scheduler) SetLatest(sch *workload.ExecutionPlan) { this.latest = sch }
+func (this *Scheduler) HasLatest() bool                       { return this.latest != nil }
+func (this *Scheduler) ClearLatest()                          { this.latest = nil }
+
+func (this *Scheduler) Store() *stateengine.StateStore { return this.ProfileStore.Backend() }
+
 // The scheduler will optimize the given transactions and return a schedule.
 // The schedule will contain the transactions that can be executed in parallel and the ones that have to
 // be executed sequentially.
-func (this *Scheduler) New(stdMsgs []*libtypes.StandardMessage) *workload.ExecutionSchedule {
+func (this *Scheduler) New(stdMsgs []*libtypes.StandardMessage) (*workload.ExecutionPlan, error) {
 	// Get the static schedule for the given transactions first.
-	sch, profiledMsgs := this.StaticSchedule(stdMsgs) // The profiledMsgs are the transactions that need to be scheduled to avoid conflicts.
-	if len(profiledMsgs) == 0 {
-		this.latest = sch
-		return sch // No known conflicts and no deferred transactions.
+	// sch, pendingJobs := this.StaticSchedule(stdMsgs) // The pendingJobs are the transactions that need to be scheduled to avoid conflicts.
+	this.latest = &workload.ExecutionPlan{}
+	if len(stdMsgs) == 0 {
+		return this.latest, nil // No transactions to process.
 	}
 
-	// Sort the profiles by the number of conflicts and the profile index in ascending order.
-	sort.SliceStable(profiledMsgs, func(i, j int) bool {
-		if lft, rgt := profiledMsgs[i].First.NumConflicts(), profiledMsgs[j].First.NumConflicts(); lft != rgt {
-			return lft < rgt
-		}
-		return profiledMsgs[i].Second.ID < profiledMsgs[j].Second.ID
-	})
+	// Group the jobs into queues by their sender addresses.
+	msgQueuesBySenders := this.QueueBySender(this.CreateJobs(stdMsgs))
 
 	// The code below will search for the parallel transaction set from a set of conflicting transactions.
 	// Whataever left is the sequential transaction set after this.
-	start := 0
 	for {
-		// The conflict dictionary of all indices of the current transaction set.
-		profiledMsgs = profiledMsgs[start:] // Shrink the search space for better performance.
-		var seed **assoc.Pair[*profile.Profile, *libtypes.StandardMessage]
-
-		start, seed = slice.FindFirstIf(profiledMsgs,
-			func(i int, v *assoc.Pair[*profile.Profile, *libtypes.StandardMessage]) bool {
-				return v != nil
-			},
-		)
-
-		if start == -1 {
-			break // Nothing left to process.
-		}
-		paraSet := []*assoc.Pair[*profile.Profile, *libtypes.StandardMessage]{*seed} // A set of conflict free transactions, starting with the first profile.
-		profiledMsgs = profiledMsgs[start+1:]
-
-		// This set containes all the conflicts of the current parallel transaction set.
-		// Any transaction that conflicts with any of them cannot be added to the parallel set.
-		conflictLookup := mapi.FromSlice((*seed).First.ConflictPeers, func(k uint64) bool { return true })
-
-		// Look for the parallel transactions that aren't conflicting with the current set of transactions.
-		for i := 0; i < len(profiledMsgs); i++ {
-			if profiledMsgs[i] == nil {
-				continue // Already processed.
+		// Always start from the queue with the least number of conflicts.
+		// We need to resort the queues here because the number of conflicts may change
+		// as we dequeue transactions from the queues.
+		sort.Slice(msgQueuesBySenders, func(i, j int) bool {
+			lft, _ := msgQueuesBySenders[i].Peek()
+			rgt, _ := msgQueuesBySenders[j].Peek()
+			if lft.NumConflicts() != rgt.NumConflicts() {
+				return lft.NumConflicts() < rgt.NumConflicts()
 			}
+			return lft.StdMsg.ID < rgt.StdMsg.ID
+		})
 
-			candidate := profiledMsgs[i]
+		seedJob, _ := msgQueuesBySenders[0].Dequeue()
+		paraJobSet := []*workload.Job{seedJob} // A set of conflict free transactions, starting with the first profile.
 
-			// The current profile isn't conflicting with any transaction in the unique profile set
-			// so it can be added to the parallel transaction set. Because the conflict info is always symmetric,
-			// we only need to check one way.
-			if _, ok := conflictLookup[candidate.First.ID.UID]; !ok { // Not in the conflict dictionary
-				// Merge the new profile's conflicts to the conflict dictionary.
-				mapi.Insert(conflictLookup, candidate.First.ConflictPeers, func(_ int, k uint64) (uint64, bool) {
-					return k, true
-				})
+		//Sequential only profiles to the sequential execution set.
+		if seedJob.IsSequentialOnly() {
+			// Do nothing
+		} else {
+			// This set containes all the conflicts of the current parallel transaction set.
+			// Any transaction that conflicts with any of them cannot be added to the parallel set.
+			conflictLookup := seedJob.ConflictLookup()
 
-				paraSet = append(paraSet, candidate) // Add the current profile to the parallel transaction set.
-				profiledMsgs[i] = nil                // Mark as processed.
+			// Look for the parallel transactions that aren't conflicting with the current set of transactions.
+			for {
+				length := len(paraJobSet)
+				for i := range msgQueuesBySenders {
+					if msgQueuesBySenders[i].IsEmpty() {
+						continue // Already processed.
+					}
+
+					// We aren't sure if there is a conflict yet, peek first.
+					job, _ := msgQueuesBySenders[i].Peek()
+					if job.IsFullyParallelizable() || job.IsPotentiallyParallelizable() {
+						paraJobSet = append(paraJobSet, job)
+						msgQueuesBySenders[i].Dequeue() // Remove from the pending queue.
+						continue
+					}
+
+					// The current profile isn't conflicting with any transaction in the unique profile set
+					// so it can be added to the parallel transaction set. Because the conflict info is always symmetric,
+					// we only need to check one way.
+					if _, ok := conflictLookup[job.Profile.ID.UID]; !ok { // Not in the conflict dictionary
+						// Merge the new profile's conflicts to the conflict dictionary.
+						mapi.Insert(conflictLookup, job.Profile.ConflictPeers, func(_ int, k uint64) (uint64, bool) {
+							return k, true
+						})
+
+						// Add the current profile to the parallel transaction set.
+						paraJobSet = append(paraJobSet, job)
+						msgQueuesBySenders[i].Dequeue() // Remove from the pending queue.
+					}
+				}
+
+				if len(paraJobSet) == length {
+					break // No more jobs can be added.
+				}
 			}
 		}
 
 		// Only one transaction in the parallel set, no need to proceed with planning deferred execution.
-		if len(paraSet) == 1 {
-			msgs := assoc.NewPairs(paraSet).Seconds()            // Extract the message from the pair.
-			sch.WithConflict = append(sch.WithConflict, msgs...) // Add to the conflict set.
+		if len(paraJobSet) == 1 {
+			seq := &workload.JobSequence{
+				Jobs: paraJobSet,
+			}
+
+			this.latest.Generations = append(this.latest.Generations,
+				workload.NewGeneration(uint32(runtime.NumCPU()), []*workload.JobSequence{seq}))
+
+		} else {
+			// Look for the deferred transactions and add them to the deferred transaction set.
+			paraSeqs, deferredSeqs := this.ScheduleWithDeferred(paraJobSet)
+
+			// Insert the parallel transaction first
+			if len(paraSeqs) > 0 {
+				// Sort by the first job's message ID to ensure consistent ordering.
+				// This won't affect the execution results, as the sequences in the
+				// same generation are executed in parallel anyway.
+				workload.SortJobSequences(paraSeqs)
+
+				this.latest.Generations = append(this.latest.Generations,
+					workload.NewGeneration(uint32(runtime.NumCPU()), paraSeqs))
+			}
+
+			// Insert the deferred transaction generation.
+			if len(deferredSeqs) > 0 {
+				workload.SortJobSequences(deferredSeqs)
+
+				this.latest.Generations = append(this.latest.Generations,
+					workload.NewGeneration(uint32(runtime.NumCPU()), deferredSeqs),
+				)
+			}
 		}
 
-		// Look for the deferred transactions and add them to the deferred transaction set.
-		paraGen, deferredGen := this.ScheduleWithDeferred(paraSet)
+		slice.RemoveIf(&msgQueuesBySenders, func(_ int, msgQ *queue.Queue[*workload.Job]) bool {
+			return msgQ.IsEmpty()
+		}) // Remove empty queues.
 
-		sch.RawMsgSet = append(sch.RawMsgSet, paraGen)     // Insert the parallel transaction first
-		sch.RawMsgSet = append(sch.RawMsgSet, deferredGen) // Insert the deferred transaction generation.
-
-		// Remove the already scheduled transaction from the profiledMsgs slice.
-		if len(profiledMsgs) == 0 {
+		if len(msgQueuesBySenders) == 0 {
 			break // Nothing left to process.
 		}
 	}
 
-	this.latest = sch // Keep the current schedule for reference.
-	return this.latest
+	return this.latest, this.latest.Finalize(this.ProfileStore.Backend())
 }
 
 // The scheduler will scan through and look for multipl instances of the same profile and put one of them in the second
 // consecutive set of transactions for deferred execution.
-func (this *Scheduler) ScheduleWithDeferred(paraMsgs []*assoc.Pair[*profile.Profile, *libtypes.StandardMessage]) ([][]*libtypes.StandardMessage, [][]*libtypes.StandardMessage) {
+func (this *Scheduler) ScheduleWithDeferred(paraMsgs []*workload.Job) ([]*workload.JobSequence, []*workload.JobSequence) {
 	// Group by profile UID.
-	_, msgSets := slice.GroupBy(paraMsgs, func(_ int, pair *assoc.Pair[*profile.Profile, *libtypes.StandardMessage]) *uint64 {
-		return &pair.First.ID.UID
+	_, msgSets := slice.GroupBy(paraMsgs, func(_ int, pair *workload.Job) *uint64 {
+		if pair.Profile == nil {
+			return nil
+		}
+		return &pair.Profile.ID.UID
 	})
 
-	paraGen := [][]*libtypes.StandardMessage{}     // The parallel transaction generation.
-	deferredGen := [][]*libtypes.StandardMessage{} // The deferred transaction generation.
+	paraGen := []*workload.JobSequence{}     // The parallel transaction generation.
+	deferredGen := []*workload.JobSequence{} // The deferred transaction generation.
 	for _, msgs := range msgSets {
 		paraMsgs := slice.Transform(msgs,
-			func(i int, msgPair *assoc.Pair[*profile.Profile, *libtypes.StandardMessage]) []*libtypes.StandardMessage {
-				return []*libtypes.StandardMessage{msgPair.Second}
+			func(i int, job *workload.Job) *workload.JobSequence {
+				return &workload.JobSequence{
+					ID:   uint64(i),
+					Jobs: []*workload.Job{job},
+				}
 			},
 		)
 
 		// There is more than one transaction for the same profile and the first one is marked as deferrable.
-		if len(msgs) > 1 && msgs[0].Second.IsDeferred {
+		if len(msgs) > 1 && msgs[0].StdMsg.IsDeferred {
 			def := *slice.PopBack(&paraMsgs)       // Use the last one as the deferred transaction.
 			deferredGen = append(deferredGen, def) // Add the deferred transaction to the new generation.
 		}
@@ -157,48 +213,51 @@ func (this *Scheduler) ScheduleWithDeferred(paraMsgs []*assoc.Pair[*profile.Prof
 	return paraGen, deferredGen
 }
 
-// The scheduler will StaticSchedule base on some predefined rules for specific transaction types,
-// such as transfers and contract deployments.
-func (this *Scheduler) StaticSchedule(stdMsgs []*libtypes.StandardMessage) (*workload.ExecutionSchedule, []*assoc.Pair[*profile.Profile, *libtypes.StandardMessage]) {
-	sch := &workload.ExecutionSchedule{}
-	if len(stdMsgs) == 0 {
-		return sch, nil // No transactions to process.
-	}
-
-	// Transfers won't have any conflicts, as long as they have enough balances.
-	// Deployments are conflict-free as well.
-	sch.Transfers = slice.MoveIf(&stdMsgs, func(i int, msg *libtypes.StandardMessage) bool { return len(msg.Native.Data) == 0 })
-	sch.Deployments = slice.MoveIf(&stdMsgs, func(i int, msg *libtypes.StandardMessage) bool { return msg.Native.To == nil })
-	if len(stdMsgs) == 0 {
-		return sch, nil // All the transactions are transfers.
-	}
-
-	// Get the IDs for the given addresses and signatures, which will be used to find the profile index.
-	// To save memory, the profiles are stored in the dictionary by their IDs, not by their addresses and signatures.
-	profiledMsgs := slice.ParallelTransform(
+// CreateJobs creates jobs for the given standard messages.
+func (this *Scheduler) CreateJobs(stdMsgs []*libtypes.StandardMessage) []*workload.Job {
+	return slice.ParallelTransform(
 		stdMsgs,
 		8,
-		func(i int, msg *libtypes.StandardMessage) *assoc.Pair[*profile.Profile, *libtypes.StandardMessage] {
-			profile := this.ProfileStore.LoadIfExists(profile.NewID(msg.GetAddressAndSelector()))
-			// Convert the address and signature to a unique key.
-			return assoc.NewPair(profile, msg)
+		func(i int, msg *libtypes.StandardMessage) *workload.Job {
+			addr, selector := msg.GetAddressAndSelector()
+			profile := this.ProfileStore.LoadIfExists(addr, selector)
+			if profile == nil {
+				profile = callee.NewProfile(addr, selector, this.ProfileStore)
+			}
+
+			return &workload.Job{
+				StdMsg:  msg,
+				Profile: profile,
+			}
+		})
+}
+
+// Convert the standard messages to message queues base on their sender addresses for scheduling.
+func (this *Scheduler) QueueBySender(jobs []*workload.Job) []*queue.Queue[*workload.Job] {
+	// jobs := this.CreateJobs(stdMsgs)
+	// Sort the profiles by the number of conflicts and the profile index in ascending order.
+	sort.SliceStable(jobs, func(i, j int) bool {
+		if lft, rgt := jobs[i].NumConflicts(), jobs[j].NumConflicts(); lft != rgt {
+			return lft < rgt
+		}
+		return jobs[i].StdMsg.ID < jobs[j].StdMsg.ID
+	})
+
+	_, msgSet := slice.GroupBy(jobs,
+		func(_ int, job *workload.Job) *ethcommon.Address {
+			return &job.StdMsg.Native.From
 		})
 
-	// Move the transactions that have no known conflicts to the parallel trasaction array first.
-	// If a profile has no known conflicts with anyone else, it is either a conflict-free implementation or
-	// has been fortunate enough to avoid conflicts so far.
-	unknowns := slice.MoveIf(&profiledMsgs, func(_ int, v *assoc.Pair[*profile.Profile, *libtypes.StandardMessage]) bool {
-		return v.First == nil // No profile.
-	})
-	sch.Unknowns = assoc.Pairs[*profile.Profile, *libtypes.StandardMessage](unknowns).Seconds()
-
-	// Move Sequential only profiles to the sequential array.
-	sequentials := slice.MoveIf(&profiledMsgs, func(_ int, v *assoc.Pair[*profile.Profile, *libtypes.StandardMessage]) bool {
-		return len(v.First.ConflictPeers) == 0
-	})
-	sch.Sequentials = assoc.Pairs[*profile.Profile, *libtypes.StandardMessage](sequentials).Seconds()
-
-	return sch, profiledMsgs
+	// Create queues for each sender address.
+	// Within each queue, the jobs are sorted by their nonces in ascending order.
+	// So that they can be processed in the correct order.
+	JobsBySender := make([]*queue.Queue[*workload.Job], len(msgSet))
+	for i, msgs := range msgSet {
+		JobsBySender[i] = queue.NewSortedQueueFromSlice(msgs, func(lft, rgt *workload.Job) bool {
+			return lft.StdMsg.Native.Nonce < rgt.StdMsg.Native.Nonce
+		})
+	}
+	return JobsBySender
 }
 
 // Precommit the scheduler's conflict database based on the latest conflict info.
@@ -207,14 +266,14 @@ func (this *Scheduler) Precommit(conflictSet *arbitrator.Conflicts) {
 	// using UID as the key.
 	for _, conflictInfo := range conflictSet.Conflicts {
 		// Map back to their orginal callee profile IDs
-		selfID, peerIDs := conflictInfo.MapToCallees(this.latest.MsgLookup)
+		selfID, peerIDs := conflictInfo.MapConflictToCallee(this.latest.JobLookup)
 
 		// Get the profiles by IDs and add the conflict peers.
 		selfProfile, _ := this.ProfileStore.LoadOrCreate(selfID)
-		slice.Foreach(peerIDs, func(i int, peerID **profile.ID) {
-			peerProfile, _ := this.ProfileStore.LoadOrCreate(*peerID)
+		for _, peerID := range peerIDs {
+			peerProfile, _ := this.ProfileStore.LoadOrCreate(peerID)
 			peerProfile.CrossLink(selfProfile) // Add each other as conflict peers.
-		})
+		}
 	}
 }
 

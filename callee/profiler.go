@@ -53,6 +53,11 @@ func NewProfile(addr [20]byte, selector [4]byte, store *ProfileStore) *Profile {
 	}
 }
 
+// If the callee is supposed to be executed sequentially only.
+func (this *Profile) IsSequentialOnly() bool {
+	return this.parallelismDegree == 1
+}
+
 // Load the callee profile from the storage.
 func LoadProfile(id *ID, profileStore *ProfileStore) (*Profile, error) {
 	// Get the unique ID for the callee.
@@ -62,7 +67,7 @@ func LoadProfile(id *ID, profileStore *ProfileStore) (*Profile, error) {
 		Platform: statecommon.ETH_PATH}
 
 	// Check if the profile path exists
-	if v, err := profileStore.backend.ReadOnlyStore().Retrieve(pathBuiler.ProfileField(""), new(commutative.Path)); v != nil || err != nil {
+	if v, err := profileStore.backend.ReadOnlyStore().Retrieve(pathBuiler.ProfileField(""), new(commutative.Path)); v == nil || err != nil {
 		return nil, err
 	}
 
@@ -77,7 +82,7 @@ func LoadProfile(id *ID, profileStore *ProfileStore) (*Profile, error) {
 	// If the amount is zero, it means the function is not deferrable.
 	path = pathBuiler.ProfileField(statecommon.PATH_DEFERRED_PAYMENT)
 	if prepayment, err := profileStore.backend.ReadOnlyStore().Retrieve(path, uint64(0)); prepayment != nil && err == nil {
-		profile.SetPrepayment(prepayment.(uint64))
+		profile.SetPrepayment((uint64(*prepayment.(*noncommutative.Uint64))))
 	}
 
 	// Get the conflict peers
@@ -128,10 +133,6 @@ func (this *Profile) IsMutuallyConflicting(other *Profile) bool {
 // Determine whether this callee is in conflict with another callee.
 func (this *Profile) HasConflictWith(other *Profile) bool {
 	return slices.IndexFunc(this.ConflictPeers, func(i uint64) bool { return i == uint64(other.ID.UID) }) != -1
-}
-
-func (this *Profile) NumConflicts() int {
-	return len(this.ConflictPeers)
 }
 
 func (this *Profile) Commit(schStorage *stateengine.StateStore) error {

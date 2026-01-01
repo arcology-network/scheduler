@@ -18,30 +18,55 @@
 package workload
 
 import (
+	mapi "github.com/arcology-network/common-lib/exp/map"
 	commontype "github.com/arcology-network/common-lib/types"
+	callee "github.com/arcology-network/scheduler/callee"
 )
 
 type Job struct {
-	ID           uint64 // Job id
+	ID           uint64 // Job serial id in the sequence
+	SeqID        uint64 // Job sequence id
 	StdMsg       *commontype.StandardMessage
 	Result       *Result
 	InitialGas   *uint64 // Initial gas amount for the contract, used to determine if the contract has enough gas to execute
 	GasRemaining *uint64 // Remaining gas for the contract, used to determine if the contract has enough gas to execute
 	PrepaidGas   uint64  // Gas paid for the deferred execution, negative is paying for the others, positive is paied by others.
+
+	Profile *callee.Profile // Callee's execution profile
 }
 
-func NewJob(stdMsg *commontype.StandardMessage, id uint64) *Job {
-	return &Job{
-		StdMsg: stdMsg,
-		ID:     id,
+func (this *Job) NumConflicts() int {
+	if this.Profile == nil {
+		return 0
 	}
+	return len(this.Profile.ConflictPeers)
 }
 
-// func (this *Job) Successful() bool {
-// 	if this.Result != nil {
-// 		return this.Result.Receipt != nil &&
-// 			this.Result.Receipt.Status == 1 &&
-// 			this.Result.Err == nil
-// 	}
-// 	return this.Err == nil
-// }
+func (this *Job) IsSequentialOnly() bool {
+	return this.Profile != nil && this.Profile.IsSequentialOnly()
+}
+
+func (this *Job) ConflictLookup() map[uint64]bool {
+	if this.Profile == nil {
+		return map[uint64]bool{}
+	}
+
+	return mapi.FromSlice(this.Profile.ConflictPeers, func(k uint64) bool {
+		return true
+	})
+}
+
+// Transfer and deployment transactions are always conflict-free.
+// So they can be added to the parallel transaction set directly.
+func (this *Job) IsFullyParallelizable() bool {
+	return len(this.StdMsg.Native.Data) == 0 || this.StdMsg.Native.To == nil
+}
+
+// Possible to be parallelized if not marked as sequential only and has no conflicts.
+// No guarantee it won't conflict with others at runtime.
+func (this *Job) IsPotentiallyParallelizable() bool {
+
+	// THe conflict peers will be cleared if the profile is determined to be sequential only.
+	// In that case, it conflicts with everyone else, so no need to keep conflict peers inforamtion anymore.
+	return !this.Profile.IsSequentialOnly() && this.NumConflicts() == 0
+}

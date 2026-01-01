@@ -26,28 +26,46 @@ import (
 	mapi "github.com/arcology-network/common-lib/exp/map"
 	slice "github.com/arcology-network/common-lib/exp/slice"
 	commontype "github.com/arcology-network/common-lib/types"
-	"github.com/arcology-network/scheduler/arbitrator"
 	evmcore "github.com/ethereum/go-ethereum/core"
 	"github.com/holiman/uint256"
 )
 
 // JobSequence represents a sequence of jobs to be executed.
 type JobSequence struct {
-	ID   uint64 // group id
+	ID   uint64 // Job sequence id
 	Jobs []*Job // jobs in the sequence
+
+	// Pre-execution state changes must be applied to the job before execution.
+	// Notably, these state changes include nonce offsets for transactions in the sequence.
+	PreStateTransitions []*statecell.StateCell
 }
 
-func (*JobSequence) FromEthMessages(ID uint64, jobIDs []uint64, evmMsgs []*evmcore.Message, txHash [][32]byte) *JobSequence {
+func NewJobSequenceFromEthMessages(
+	ID uint64,
+	ethMsgIDs []uint64,
+	evmMsgs []*evmcore.Message,
+	txHash [][32]byte) *JobSequence {
 	newJobSeq := &JobSequence{
 		ID: ID, // Sequence ID
 	}
 
 	for i, evmMsg := range evmMsgs {
-		newJobSeq.addJob(&commontype.StandardMessage{
-			ID:     jobIDs[i],
+		newJobSeq.AddJob(&commontype.StandardMessage{
+			ID:     ethMsgIDs[i],
 			Native: evmMsg,
 			TxHash: txHash[i],
 		})
+	}
+	return newJobSeq
+}
+
+func NewJobSequenceFromStandardMessages(seqID uint64, stdMsgs ...*commontype.StandardMessage) *JobSequence {
+	newJobSeq := &JobSequence{
+		ID: seqID, // Sequence ID
+	}
+
+	for _, stdMsg := range stdMsgs {
+		newJobSeq.AddJob(stdMsg)
 	}
 	return newJobSeq
 }
@@ -70,16 +88,17 @@ func (*JobSequence) FromStandardMessages(ID uint64, stdMsgs []*commontype.Standa
 	}
 
 	for _, stdMsg := range stdMsgs {
-		newJobSeq.addJob(stdMsg)
+		newJobSeq.AddJob(stdMsg)
 	}
 	return newJobSeq
 }
 
 func (*JobSequence) T() *JobSequence { return &JobSequence{} }
 
-func (this *JobSequence) addJob(msg any) *JobSequence {
+func (this *JobSequence) AddJob(msg any) *JobSequence {
 	this.Jobs = append(this.Jobs, &Job{
-		ID:     msg.(*commontype.StandardMessage).ID,
+		ID:     uint64(len(this.Jobs)),
+		SeqID:  this.ID,
 		StdMsg: msg.(*commontype.StandardMessage),
 		Result: &Result{},
 	})
@@ -92,8 +111,8 @@ func (this *JobSequence) GetID() uint64 { return this.ID }
 // Length returns the number of standard messages in the JobSequence.
 func (this *JobSequence) Length() int { return len(this.Jobs) }
 
-// GetRawClearRecords returns the cleared transitions of the JobSequence.
-func (this *JobSequence) GetRawClearRecords() []*statecell.StateCell {
+// GetClearRecords returns the cleared transitions of the JobSequence.
+func (this *JobSequence) GetClearRecords() []*statecell.StateCell {
 	// When there is only one job in the sequence, return its transitions directly.
 	if len(this.Jobs) == 1 {
 		return this.Jobs[0].Result.GetRawStateRecords()
@@ -115,11 +134,11 @@ func (this *JobSequence) GetRawClearRecords() []*statecell.StateCell {
 }
 
 // FlagConflict flags the transitions after the first conflicting transaction.
-func (this *JobSequence) FlagConflict(dict map[uint64][]*arbitrator.Conflict, err error) {
+func (this *JobSequence) FlagConflict(conflictTxLookup map[uint64]bool, err error) {
 	// Get the first index of the first conflict transaction.
 	// All the transitions after this index aren't usuable any more.
 	first, _ := slice.FindFirstIf(this.Jobs, func(_ int, job *Job) bool {
-		_, ok := (dict)[job.Result.TxIndex]
+		_, ok := (conflictTxLookup)[job.Result.TxIndex]
 		return ok
 	})
 
@@ -158,4 +177,11 @@ func (this *JobSequence) RefundTo(payer, recipent *statecell.StateCell, amount u
 	}
 	payer.IncrementDeltaWrites(1)
 	return amount, nil
+}
+
+func SortJobSequences(seqs []*JobSequence) {
+	sort.Slice(seqs, func(i, j int) bool {
+		return seqs[i].Jobs[0].StdMsg.ID <
+			seqs[j].Jobs[0].StdMsg.ID
+	})
 }

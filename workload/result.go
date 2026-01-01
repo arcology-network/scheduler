@@ -33,7 +33,7 @@ type Result struct {
 	GroupID         uint32 // == Group ID
 	TxIndex         uint64
 	TxHash          [32]byte
-	RawStateRecords []*statecell.StateCell
+	RawStateRecords []*statecell.StateCell // Include both access records and transition records.
 	Immuned         []*statecell.StateCell //These transitions will take effect anyway even if the execution fails.
 	Receipt         *ethcoretypes.Receipt
 	EvmResult       *evmcore.ExecutionResult

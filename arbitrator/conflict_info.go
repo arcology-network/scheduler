@@ -24,8 +24,8 @@ import (
 	statecell "github.com/arcology-network/common-lib/crdt/statecell"
 	mapi "github.com/arcology-network/common-lib/exp/map"
 	"github.com/arcology-network/common-lib/exp/slice"
-	libcommon "github.com/arcology-network/common-lib/types"
 	profile "github.com/arcology-network/scheduler/callee"
+	"github.com/arcology-network/scheduler/workload"
 )
 
 // Conflict represents a detected write or state conflict between transactions
@@ -53,14 +53,29 @@ func (this *Conflict) GetConflictJobSeqenceIDs() []uint64 {
 }
 
 // Map the conflicting transactions to their corresponding message callee UIDs.
-func (this *Conflict) MapToCallees(msgLookup map[uint64]*libcommon.StandardMessage) (*profile.ID, []*profile.ID) {
-	selfID := profile.NewID(msgLookup[this.self.GetTx()].GetAddressAndSelector())
+func (this *Conflict) MapConflictToCallee(jobLookup map[uint64]*workload.Job) (*profile.ID, []*profile.ID) {
+	selfID := profile.NewID(jobLookup[this.self.GetTx()].StdMsg.GetAddressAndSelector())
 
 	peerIDs := slice.Transform(this.peers, func(_ int, v *statecell.StateCell) *profile.ID {
-		addr, selector := msgLookup[v.GetTx()].GetAddressAndSelector()
+		addr, selector := jobLookup[v.GetTx()].StdMsg.GetAddressAndSelector()
 		return profile.NewID(addr, selector)
 	})
 	return selfID, peerIDs
+}
+
+func (this *Conflict) Equal(other *Conflict) bool {
+	if !this.self.Equal(other.self) {
+		return false
+	}
+
+	if len(this.peers) != len(other.peers) {
+		return false
+	}
+
+	if !statecell.StateCells(this.peers).Equal(statecell.StateCells(other.peers)) {
+		return false
+	}
+	return this.Reason.Error() == other.Reason.Error()
 }
 
 // Print outputs the conflicting state cells and the conflict reason
@@ -79,21 +94,21 @@ func (this *Conflict) Print() {
 // Conflicts is a collection of Conflict pointers.
 type Conflicts struct {
 	Conflicts       []*Conflict
-	RevertTxLookup  map[uint64][]*Conflict
+	RevertTxLookup  map[uint64]bool
 	RevertSeqLookup map[uint64]uint64
 	Cleared         []uint64 // The IDs of the transactions that are cleared.
 }
 
 func NewConflicts(trans []*statecell.StateCell, conflicts []*Conflict) *Conflicts {
-	revertTxLookup := make(map[uint64][]*Conflict) // Unique transaction IDs to revert.
-	seqLookup := make(map[uint64]uint64)           // Unique job sequence IDs that contain the transactions to revert.
+	revertTxLookup := make(map[uint64]bool) // Unique transaction IDs to revert.
+	seqLookup := make(map[uint64]uint64)    // Unique job sequence IDs that contain the transactions to revert.
 	for _, conflict := range conflicts {
 		IDs := conflict.GetRevertTxIDs()
 
 		// The IDs of all the conflicting transactions that share the same state cell and
 		// affected by the conflict. They all need to be reverted.
 		slice.Foreach(IDs, func(_ int, txId *uint64) {
-			mapi.Append(revertTxLookup, *txId, conflict)
+			revertTxLookup[*txId] = true
 
 			// Map to the job sequence IDs as well.
 			for _, peer := range conflict.peers {
@@ -118,6 +133,10 @@ func NewConflicts(trans []*statecell.StateCell, conflicts []*Conflict) *Conflict
 		RevertSeqLookup: seqLookup,
 		Cleared:         slice.Exclude(slice.Clone(mapi.Keys(uniquesTx)), mapi.Keys(revertTxLookup)),
 	}
+}
+
+func (this *Conflicts) IsEmpty() bool {
+	return len(this.Conflicts) == 0
 }
 
 // Get the transaction IDs that need to be reverted.

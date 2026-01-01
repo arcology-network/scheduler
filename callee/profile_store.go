@@ -41,8 +41,18 @@ func NewProfileManager(backend *stateengine.StateStore, maxCapacity uint64) *Pro
 	}
 }
 
+func (this *ProfileStore) Backend() *stateengine.StateStore {
+	return this.backend
+}
+
 // Check if the callee profile exists in the local cache or storage.
-func (this *ProfileStore) LoadIfExists(id *ID) *Profile {
+func (this *ProfileStore) LoadIfExists(addr [20]byte, selector [4]byte) *Profile {
+	if addr == [20]byte{} || selector == [4]byte{} {
+		return nil // Transfers / Deployment. Can be seen as incomplete callee identity.
+	}
+
+	id := NewID(addr, selector)
+
 	if profile := this.profileCache[id.UID]; profile != nil {
 		return profile // Profile already exists
 	}

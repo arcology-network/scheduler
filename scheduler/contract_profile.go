@@ -60,7 +60,7 @@ func (this *ContractInfo) Decode(data []byte) *ContractInfo {
 func (this *ContractInfo) Equal(other *ContractInfo) bool {
 	return this.ID == other.ID &&
 		this.Address == other.Address &&
-		slice.EqualSet(this.FuncIdx, other.FuncIdx)
+		slice.ContentEquivalent(this.FuncIdx, other.FuncIdx)
 }
 
 // Marshal serializes Callee                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          to human-readable JSON.

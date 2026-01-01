@@ -52,7 +52,7 @@ func TestResultPostprocessor(t *testing.T) {
 		// From: sender,
 		// Coinbase: coinbase,
 		Immuned: []*statecell.StateCell{},
-		RawStateAccesses: []*statecell.StateCell{
+		RawStateRecords: []*statecell.StateCell{
 			// sender transfer -> coinbase 50
 			// sender gas fee -> Coinbase 100
 			// Other transfer -> Coinbase 50
@@ -69,21 +69,21 @@ func TestResultPostprocessor(t *testing.T) {
 	}
 
 	normalizer := statecell.NewTransactionNormalizer(results.Receipt.GasUsed, coinbase, results.StdMsg)
-	results.Immuned = normalizer.Normalize(results.RawStateAccesses)
+	results.Immuned = normalizer.Normalize(results.RawStateRecords)
 	// execPipline := (&eu.ExecutionPipeline{Config: testEu.config})
 
 	// eu.ExecutionPipeline(&results)
 
-	if len(results.RawStateAccesses) != 5 {
-		t.Errorf("Postprocess failed, expecting 5, got %d", len(results.RawStateAccesses))
+	if len(results.RawStateRecords) != 5 {
+		t.Errorf("Postprocess failed, expecting 5, got %d", len(results.RawStateRecords))
 	}
 	// // results.Postprocess()
 
-	if len(results.RawStateAccesses)+len(results.Immuned) != 8 {
-		t.Errorf("Postprocess failed, expecting 7, got %d", len(results.RawStateAccesses)+len(results.Immuned))
+	if len(results.RawStateRecords)+len(results.Immuned) != 8 {
+		t.Errorf("Postprocess failed, expecting 7, got %d", len(results.RawStateRecords)+len(results.Immuned))
 	}
 
-	delta, DeltaSign := results.RawStateAccesses[2].Value().(crdtcommon.CRDT).Delta()
+	delta, DeltaSign := results.RawStateRecords[2].Value().(crdtcommon.CRDT).Delta()
 	if v := delta.(uint256.Int); (&v).Uint64() != 200 && DeltaSign {
 		t.Errorf("Postprocess failed, expecting 100, got %d", v)
 	}
@@ -101,7 +101,7 @@ func TestResultPostprocessor(t *testing.T) {
 	}
 
 	// Sender transfers -50.
-	delta, _ = results.RawStateAccesses[1].Value().(crdtcommon.CRDT).Delta()
+	delta, _ = results.RawStateRecords[1].Value().(crdtcommon.CRDT).Delta()
 	if v := delta.(uint256.Int); (&v).Uint64() != 50 && !DeltaSign {
 		t.Errorf("Postprocess failed, expecting 50, got %d", v)
 	}
