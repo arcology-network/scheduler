@@ -30,7 +30,7 @@ import (
 
 // The result of an execution. It includes the group ID, the transaction index, the transaction hash, the sender, the coinbase, the raw state accesses, the immune transitions, the receipt, the EVM result, the standard message, and the error.
 type Result struct {
-	GroupID         uint32 // == Group ID
+	JobSequenceID   uint32 // == Group ID
 	TxIndex         uint64
 	TxHash          [32]byte
 	RawStateRecords []*statecell.StateCell // Include both access records and transition records.
@@ -43,7 +43,7 @@ type Result struct {
 
 // If the execution is unsuccessful, only keep the transitions that are immune to failures.
 func (this *Result) GetRawStateRecords() []*statecell.StateCell {
-	// When there is an execution error, only return the immune transitions.
+	// When there is an execution error, failed or conflict, only return the immune transitions.
 	// Immune transitions include the gas fee and the nonce, which are independent of the execution status.
 	if this.Err != nil {
 		return this.Immuned
@@ -52,7 +52,7 @@ func (this *Result) GetRawStateRecords() []*statecell.StateCell {
 }
 
 func (this *Result) Print() {
-	// fmt.Println("GroupID: ", this.GroupID)
+	// fmt.Println("JobSequenceID: ", this.JobSequenceID)
 	fmt.Println("TxIndex: ", this.TxIndex)
 	fmt.Println("TxHash: ", this.TxHash)
 	fmt.Println()

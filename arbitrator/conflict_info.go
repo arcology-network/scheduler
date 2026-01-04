@@ -54,11 +54,12 @@ func (this *Conflict) GetConflictJobSeqenceIDs() []uint64 {
 
 // Map the conflicting transactions to their corresponding message callee UIDs.
 func (this *Conflict) MapConflictToCallee(jobLookup map[uint64]*workload.Job) (*profile.ID, []*profile.ID) {
-	selfID := profile.NewID(jobLookup[this.self.GetTx()].StdMsg.GetAddressAndSelector())
+	addr, selector := jobLookup[this.self.GetTx()].StdMsg.GetAddressAndSelector()
+	selfID := profile.NewID(this.self.GetTx(), addr, selector)
 
 	peerIDs := slice.Transform(this.peers, func(_ int, v *statecell.StateCell) *profile.ID {
 		addr, selector := jobLookup[v.GetTx()].StdMsg.GetAddressAndSelector()
-		return profile.NewID(addr, selector)
+		return profile.NewID(v.GetTx(), addr, selector)
 	})
 	return selfID, peerIDs
 }
@@ -94,21 +95,21 @@ func (this *Conflict) Print() {
 // Conflicts is a collection of Conflict pointers.
 type Conflicts struct {
 	Conflicts       []*Conflict
-	RevertTxLookup  map[uint64]bool
+	RevertTxLookup  map[uint64]error
 	RevertSeqLookup map[uint64]uint64
 	Cleared         []uint64 // The IDs of the transactions that are cleared.
 }
 
 func NewConflicts(trans []*statecell.StateCell, conflicts []*Conflict) *Conflicts {
-	revertTxLookup := make(map[uint64]bool) // Unique transaction IDs to revert.
-	seqLookup := make(map[uint64]uint64)    // Unique job sequence IDs that contain the transactions to revert.
+	revertTxLookup := make(map[uint64]error) // Unique transaction IDs to revert.
+	seqLookup := make(map[uint64]uint64)     // Unique job sequence IDs that contain the transactions to revert.
 	for _, conflict := range conflicts {
 		IDs := conflict.GetRevertTxIDs()
 
 		// The IDs of all the conflicting transactions that share the same state cell and
 		// affected by the conflict. They all need to be reverted.
 		slice.Foreach(IDs, func(_ int, txId *uint64) {
-			revertTxLookup[*txId] = true
+			revertTxLookup[*txId] = conflict.Reason
 
 			// Map to the job sequence IDs as well.
 			for _, peer := range conflict.peers {

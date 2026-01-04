@@ -18,6 +18,8 @@
 package workload
 
 import (
+	"fmt"
+
 	mapi "github.com/arcology-network/common-lib/exp/map"
 	commontype "github.com/arcology-network/common-lib/types"
 	callee "github.com/arcology-network/scheduler/callee"
@@ -69,4 +71,9 @@ func (this *Job) IsPotentiallyParallelizable() bool {
 	// THe conflict peers will be cleared if the profile is determined to be sequential only.
 	// In that case, it conflicts with everyone else, so no need to keep conflict peers inforamtion anymore.
 	return !this.Profile.IsSequentialOnly() && this.NumConflicts() == 0
+}
+
+func (this *Job) String() string {
+	return fmt.Sprintf("Job ID: %d, SeqID: %d, TxHash: %x, SequentialOnly: %t\n",
+		this.ID, this.SeqID, this.StdMsg.TxHash, this.IsSequentialOnly())
 }

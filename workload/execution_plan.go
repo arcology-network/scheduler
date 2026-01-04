@@ -24,6 +24,7 @@ import (
 	"github.com/arcology-network/common-lib/crdt/commutative"
 	queue "github.com/arcology-network/common-lib/exp/queue"
 	stateengine "github.com/arcology-network/state-engine"
+	statestore "github.com/arcology-network/state-engine"
 	statecommon "github.com/arcology-network/state-engine/common"
 )
 
@@ -46,13 +47,16 @@ type ExecutionPlan struct {
 	// Jobs grouped by their sender addresses, jobs in the same queue are ordered by
 	// their nonces.
 	JobsBySender []*queue.Queue[*Job]
+
+	Store *stateengine.StateStore
 }
 
-func NewExecutionPlan(gens []*Generation) *ExecutionPlan {
+func NewExecutionPlan(gens []*Generation, store *stateengine.StateStore) *ExecutionPlan {
 	sch := &ExecutionPlan{
 		Generations: gens,
+		Store:       store,
 	}
-	sch.BuildJobLookup()
+	// sch.BuildJobLookup()
 	return sch
 }
 
@@ -80,7 +84,7 @@ func (this *ExecutionPlan) ExportMsgIDs(store *stateengine.StateStore) [][][]uin
 }
 
 // The function returns an optimized execution schedule represented as a 3-dimensional slice.
-func (this *ExecutionPlan) Finalize(store *stateengine.StateStore) error {
+func (this *ExecutionPlan) Finalize() error {
 	// Reassign IDs to generations, sequences, and jobs.
 	for i, gen := range this.Generations {
 		gen.ID = uint64(i)
@@ -94,7 +98,7 @@ func (this *ExecutionPlan) Finalize(store *stateengine.StateStore) error {
 	}
 
 	this.BuildJobLookup() // Rebuild the message lookup.
-	return this.InsertNonceOffsets(store)
+	return this.InsertNonceOffsets()
 }
 
 // Insert nonce offsets for each job in the execution plan.
@@ -103,7 +107,7 @@ func (this *ExecutionPlan) Finalize(store *stateengine.StateStore) error {
 // This will lead to nonce conflicts during execution or nonce too high errors.
 // To resolve this, we need to insert nonce offsets for each job based on its position among all jobs
 // from the same sender in the generation.
-func (this *ExecutionPlan) InsertNonceOffsets(store *stateengine.StateStore) error {
+func (this *ExecutionPlan) InsertNonceOffsets() error {
 	var aggregatedErr error
 	for _, gen := range this.Generations {
 		senders, seqsFromSender := gen.GroupBySenderAndSequence() // Group jobs by sender address in the generation.
@@ -138,17 +142,24 @@ func (this *ExecutionPlan) InsertNonceOffsets(store *stateengine.StateStore) err
 					Sender: senders[i],
 				}).UnderSenderPath(statecommon.PATH_NONCE)
 
-				if _, err := store.StateCache.Write(
+				// Initialize a temporary state store to write the nonce offset.
+				tmpStore := statestore.NewStateStore(this.Store.Backend())
+
+				// Calculate the nonce offset for the job sequence.
+				// Then write it to the state cache.
+				offset += uint64(len(pair.Second))
+				offsetDelta := commutative.NewUint64Delta(uint64(offset))
+				if _, err := tmpStore.StateCache.Write(
 					first.StdMsg.ID,
 					noncePath,
-					commutative.NewUint64Delta(uint64(offset))); err != nil {
+					offsetDelta,
+				); err != nil {
 					aggregatedErr = errors.Join(aggregatedErr, err)
 				}
-				offset += uint64(len(pair.Second))
 
 				// Export the nonce offset state change.
-				noncePreOffset := store.StateCache.Export()
-				store.StateCache.Clear()
+				noncePreOffset := tmpStore.StateCache.Export()
+				tmpStore.StateCache.Clear()
 
 				// Append the nonce offset to the pre-state transitions of the job sequence.
 				jobSeq := pair.First

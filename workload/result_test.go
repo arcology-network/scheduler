@@ -27,6 +27,7 @@ import (
 	noncommutative "github.com/arcology-network/common-lib/crdt/noncommutative"
 	statecell "github.com/arcology-network/common-lib/crdt/statecell"
 	commontype "github.com/arcology-network/common-lib/types"
+	statecommon "github.com/arcology-network/state-engine/common"
 	ethcore "github.com/ethereum/go-ethereum/core"
 	ethcoretypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/holiman/uint256"
@@ -68,7 +69,7 @@ func TestResultPostprocessor(t *testing.T) {
 		// Err:     errors.New("Error msg"),
 	}
 
-	normalizer := statecell.NewTransactionNormalizer(results.Receipt.GasUsed, coinbase, results.StdMsg)
+	normalizer := statecommon.NewTransactionNormalizer(results.Receipt.GasUsed, coinbase, results.StdMsg)
 	results.Immuned = normalizer.Normalize(results.RawStateRecords)
 	// execPipline := (&eu.ExecutionPipeline{Config: testEu.config})
 

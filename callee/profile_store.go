@@ -46,13 +46,12 @@ func (this *ProfileStore) Backend() *stateengine.StateStore {
 }
 
 // Check if the callee profile exists in the local cache or storage.
-func (this *ProfileStore) LoadIfExists(addr [20]byte, selector [4]byte) *Profile {
+func (this *ProfileStore) LoadIfExists(tx uint64, addr [20]byte, selector [4]byte) *Profile {
 	if addr == [20]byte{} || selector == [4]byte{} {
 		return nil // Transfers / Deployment. Can be seen as incomplete callee identity.
 	}
 
-	id := NewID(addr, selector)
-
+	id := NewID(tx, addr, selector)
 	if profile := this.profileCache[id.UID]; profile != nil {
 		return profile // Profile already exists
 	}
@@ -82,7 +81,7 @@ func (this *ProfileStore) LoadOrCreate(id *ID) (*Profile, error) {
 	}
 
 	//Create a new profile.
-	profile := NewProfile(id.Address, id.Selector, this)
+	profile := NewProfile(id.Tx, id.Address, id.Selector, this)
 	this.profileCache[id.UID] = profile
 	return profile, nil // New profile.
 }
@@ -91,7 +90,7 @@ func (this *ProfileStore) LoadOrCreate(id *ID) (*Profile, error) {
 func (this *ProfileStore) Commit() error {
 	var err error
 	for _, dirtyProfile := range this.dirties {
-		err = errors.Join(err, dirtyProfile.Commit(this.backend)) // Save to the conflict storage.
+		err = errors.Join(err, dirtyProfile.Commit()) // Save to the conflict storage.
 	}
 	return err
 }
@@ -109,9 +108,16 @@ func (this *ProfileStore) AddToDirty(profile *Profile) {
 // Register a conflict pair into the scheduler.
 // The conflict pairs are usually returned by the conflict detection module
 // after analyzing the transaction execution traces.
-func (this *ProfileStore) RegisterNewConflict(lftID *ID, rgtID *ID) {
-	selfCallee, _ := this.LoadOrCreate(lftID)
-	peerCallee, _ := this.LoadOrCreate(rgtID)
+func (this *ProfileStore) RegisterNewConflict(lftID *ID, rgtID *ID) error {
+	selfCallee, err := this.LoadOrCreate(lftID)
+	if err != nil {
+		panic("Scheduler: Failed to load or create callee profile! " + err.Error())
+	}
+
+	peerCallee, err := this.LoadOrCreate(rgtID)
+	if err != nil {
+		panic("Scheduler: Failed to load or create callee profile! " + err.Error())
+	}
 
 	// The conflict exists already.
 	if selfCallee.IsMutuallyConflicting(peerCallee) {
@@ -124,4 +130,5 @@ func (this *ProfileStore) RegisterNewConflict(lftID *ID, rgtID *ID) {
 	// Mark both profiles as dirty for commit later.
 	this.dirties[lftID.UID] = selfCallee
 	this.dirties[rgtID.UID] = peerCallee
+	return nil
 }

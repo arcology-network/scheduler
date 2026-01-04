@@ -25,13 +25,15 @@ import (
 )
 
 type ID struct {
+	Tx       uint64 // The transaction that created or loaded this profile.
 	Address  ethcommon.Address
 	Selector [4]byte
 	UID      uint64 // Unique identifier of the callee (derived from address + selector)
 }
 
-func NewID(addr ethcommon.Address, selector [4]byte) *ID {
+func NewID(tx uint64, addr ethcommon.Address, selector [4]byte) *ID {
 	return &ID{
+		Tx:       tx,
 		Address:  addr,
 		Selector: selector,
 		UID:      statecommon.DeriveEthCalleeUID(addr, selector),

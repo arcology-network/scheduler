@@ -18,13 +18,12 @@
 package arbitrator
 
 import (
-	"errors"
 	"sort"
 
 	crdtcommon "github.com/arcology-network/common-lib/crdt/common"
 	statecell "github.com/arcology-network/common-lib/crdt/statecell"
 	"github.com/arcology-network/common-lib/exp/slice"
-	statecommon "github.com/arcology-network/state-engine/common"
+	schedulercommon "github.com/arcology-network/scheduler/common"
 )
 
 // Accumualator is dedicatd to cumulative numeric variables. It check if the value is out of limits defined by
@@ -88,7 +87,7 @@ func (this *Accumulator) CheckMinMax(transitions []*statecell.StateCell) *Confli
 	if len(negatives) > 0 { // all negative deltas
 		underflowed := this.isOutOfLimits(*(transitions)[0].GetPath(), negatives)
 		if underflowed != nil {
-			underflowed.Reason = errors.New(statecommon.WARN_OUT_OF_LOWER_LIMIT)
+			underflowed.Reason = schedulercommon.WARN_OUT_OF_LOWER_LIMIT
 			return underflowed
 		}
 	}
@@ -97,7 +96,7 @@ func (this *Accumulator) CheckMinMax(transitions []*statecell.StateCell) *Confli
 	if len(positives) > 0 {
 		overflowed := this.isOutOfLimits(*(transitions)[0].GetPath(), positives)
 		if overflowed != nil {
-			overflowed.Reason = errors.New(statecommon.WARN_OUT_OF_UPPER_LIMIT)
+			overflowed.Reason = schedulercommon.WARN_OUT_OF_UPPER_LIMIT
 			return overflowed
 		}
 	}
@@ -106,7 +105,7 @@ func (this *Accumulator) CheckMinMax(transitions []*statecell.StateCell) *Confli
 
 // check if the value is out of limits defined by the user. It can be different from the type bounds.
 // It returns the conflict if it is out of bounds.
-func (this *Accumulator) isOutOfLimits(path string, newTrans []*statecell.StateCell) *Conflict {
+func (this *Accumulator) isOutOfLimits(_ string, newTrans []*statecell.StateCell) *Conflict {
 	if len(newTrans) <= 1 {
 		return nil
 	}
@@ -121,9 +120,6 @@ func (this *Accumulator) isOutOfLimits(path string, newTrans []*statecell.StateC
 	if err == nil {
 		return nil
 	}
-
-	// txIDs := []uint64{}
-	// slice.Foreach(newTrans[offset+1:], func(_ int, v **statecell.StateCell) { txIDs = append(txIDs, (*v).GetTx()) })
 
 	return &Conflict{
 		self:  newTrans[0],

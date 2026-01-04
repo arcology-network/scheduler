@@ -63,7 +63,9 @@ func (this *Scheduler) Store() *stateengine.StateStore { return this.ProfileStor
 func (this *Scheduler) New(stdMsgs []*libtypes.StandardMessage) (*workload.ExecutionPlan, error) {
 	// Get the static schedule for the given transactions first.
 	// sch, pendingJobs := this.StaticSchedule(stdMsgs) // The pendingJobs are the transactions that need to be scheduled to avoid conflicts.
-	this.latest = &workload.ExecutionPlan{}
+	this.latest = &workload.ExecutionPlan{
+		Store: this.Store(),
+	}
 	if len(stdMsgs) == 0 {
 		return this.latest, nil // No transactions to process.
 	}
@@ -177,7 +179,7 @@ func (this *Scheduler) New(stdMsgs []*libtypes.StandardMessage) (*workload.Execu
 		}
 	}
 
-	return this.latest, this.latest.Finalize(this.ProfileStore.Backend())
+	return this.latest, this.latest.Finalize()
 }
 
 // The scheduler will scan through and look for multipl instances of the same profile and put one of them in the second
@@ -220,9 +222,9 @@ func (this *Scheduler) CreateJobs(stdMsgs []*libtypes.StandardMessage) []*worklo
 		8,
 		func(i int, msg *libtypes.StandardMessage) *workload.Job {
 			addr, selector := msg.GetAddressAndSelector()
-			profile := this.ProfileStore.LoadIfExists(addr, selector)
+			profile := this.ProfileStore.LoadIfExists(msg.ID, addr, selector)
 			if profile == nil {
-				profile = callee.NewProfile(addr, selector, this.ProfileStore)
+				profile = callee.NewProfile(msg.ID, addr, selector, this.ProfileStore)
 			}
 
 			return &workload.Job{

@@ -17,51 +17,23 @@
 package scheduler
 
 import (
-	"errors"
 	"fmt"
 	"math/big"
 	"testing"
 
-	"github.com/arcology-network/common-lib/crdt/statecell"
 	queue "github.com/arcology-network/common-lib/exp/queue"
 	"github.com/arcology-network/common-lib/exp/slice"
 	eucommon "github.com/arcology-network/common-lib/types"
 	callee "github.com/arcology-network/scheduler/callee"
 	profile "github.com/arcology-network/scheduler/callee"
 	workload "github.com/arcology-network/scheduler/workload"
-	stateengine "github.com/arcology-network/state-engine"
-	statecommon "github.com/arcology-network/state-engine/common"
-	statecommitter "github.com/arcology-network/state-engine/state/committer"
-	proxy "github.com/arcology-network/state-engine/storage/proxy"
 	ethcommon "github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
+
+	statetestharness "github.com/arcology-network/state-engine/test/harness"
 
 	// "github.com/ethereum/go-ethereum/common/hexutil"
 	ethcore "github.com/ethereum/go-ethereum/core"
 )
-
-func CreateAccountInStore(accts ...[20]byte) (*stateengine.StateStore, error) {
-	sstore := stateengine.NewStateStore(proxy.NewMemDBStoreProxy())
-	writeCache := sstore.StateCache
-
-	for _, sender := range accts {
-		if _, err := statecommon.CreateDefaultPaths(1, hexutil.Encode(sender[:]), writeCache); err != nil { // NewAccount account structure {
-			return nil, errors.New("Failed to create default paths for " + hexutil.Encode(sender[:]))
-		}
-	}
-
-	raw := writeCache.Export(statecell.Sorter)
-	acctTrans := statecell.StateCells(slice.Clone(raw)).To(statecell.InterProcTransition{})
-
-	buffer := statecell.StateCells(acctTrans).Encode()
-	statecell.StateCells{}.Decode(buffer)
-
-	committer := statecommitter.NewStateCommitter(sstore, sstore.GetWriters())
-	committer.Import(acctTrans)
-	committer.Precommit([]uint64{1})
-	committer.DebugCommit(10)
-	return sstore, nil
-}
 
 func TestSchedulerNoConflictNoDeferred(t *testing.T) {
 	alice := []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
@@ -86,7 +58,7 @@ func TestSchedulerNoConflictNoDeferred(t *testing.T) {
 		Native: &ethcore.Message{From: sender1, To: &aaddr, Data: []byte{5, 5, 5, 5, 2, 2, 2, 2}},
 	}
 
-	sstore, storeErr := CreateAccountInStore(sender1)
+	sstore, storeErr := statetestharness.CreateAccountInStore(sender1)
 	if storeErr != nil {
 		t.Error(storeErr)
 	}
@@ -151,7 +123,7 @@ func TestSchedulerWithConflicInfo(t *testing.T) {
 		Native: &ethcore.Message{From: [20]byte(alice), To: &transferAdd, Nonce: 2, Value: big.NewInt(100), Data: []byte{}},
 	}
 
-	sstore, storeErr := CreateAccountInStore(
+	sstore, storeErr := statetestharness.CreateAccountInStore(
 		[20]byte(alice),
 		[20]byte(bob),
 		[20]byte(carol),
@@ -165,12 +137,12 @@ func TestSchedulerWithConflicInfo(t *testing.T) {
 	scheduler, _ := NewScheduler(mgr) // No conflict db file.
 	// registerion have problem
 	scheduler.ProfileStore.RegisterNewConflict(
-		profile.NewID([20]byte(alice), [4]byte{1, 1, 1, 1}),
-		profile.NewID([20]byte(bob), [4]byte{2, 2, 2, 2}))
+		profile.NewID(0, [20]byte(alice), [4]byte{1, 1, 1, 1}),
+		profile.NewID(0, [20]byte(bob), [4]byte{2, 2, 2, 2}))
 
 	scheduler.ProfileStore.RegisterNewConflict(
-		profile.NewID([20]byte(carol), [4]byte{3, 3, 3, 3}),
-		profile.NewID([20]byte(david), [4]byte{4, 4, 4, 4}))
+		profile.NewID(1, [20]byte(carol), [4]byte{3, 3, 3, 3}),
+		profile.NewID(1, [20]byte(david), [4]byte{4, 4, 4, 4}))
 
 	// Produce a new schedule for the given transactions based on the conflicts information.
 	// There should be 3 generations in the schedule.
@@ -309,7 +281,7 @@ func TestOffsetingNoncesSimple(t *testing.T) {
 		Native: &ethcore.Message{From: [20]byte{0x01}, Nonce: 1, To: &baddr, Data: []byte{2, 2, 2, 2}},
 	}
 
-	sstore, storeErr := CreateAccountInStore([20]byte{0x01})
+	sstore, storeErr := statetestharness.CreateAccountInStore([20]byte{0x01})
 	if storeErr != nil {
 		t.Error("Failed to create account in store:", storeErr)
 	}
@@ -367,7 +339,7 @@ func TestOffsetingNoncesWithWriteStorage(t *testing.T) {
 		Native: &ethcore.Message{From: sender3, Nonce: 0, To: &daddr, Data: []byte{4, 4, 4, 4}},
 	}
 
-	sstore, storeErr := CreateAccountInStore(sender1, sender2, sender3)
+	sstore, storeErr := statetestharness.CreateAccountInStore(sender1, sender2, sender3)
 	if storeErr != nil {
 		t.Error("Failed to initialize account in store:", storeErr)
 	}

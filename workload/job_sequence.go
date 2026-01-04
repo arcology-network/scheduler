@@ -26,6 +26,7 @@ import (
 	mapi "github.com/arcology-network/common-lib/exp/map"
 	slice "github.com/arcology-network/common-lib/exp/slice"
 	commontype "github.com/arcology-network/common-lib/types"
+	schedulercommon "github.com/arcology-network/scheduler/common"
 	evmcore "github.com/ethereum/go-ethereum/core"
 	"github.com/holiman/uint256"
 )
@@ -133,19 +134,30 @@ func (this *JobSequence) GetClearRecords() []*statecell.StateCell {
 	return statecell.StateCells(uniqueTrans).SortByKey()
 }
 
-// FlagConflict flags the transitions after the first conflicting transaction.
-func (this *JobSequence) FlagConflict(conflictTxLookup map[uint64]bool, err error) {
+// MarkJobForRollback flags the transitions after the first conflicting transaction.
+func (this *JobSequence) MarkJobForRollback(conflictTxLookup map[uint64]error) {
 	// Get the first index of the first conflict transaction.
 	// All the transitions after this index aren't usuable any more.
 	first, _ := slice.FindFirstIf(this.Jobs, func(_ int, job *Job) bool {
-		_, ok := (conflictTxLookup)[job.Result.TxIndex]
+		if job.Result.Err != nil {
+			return false // The job failed for other reasons. We only care about conflicts here.
+		}
+		err, ok := (conflictTxLookup)[job.Result.TxIndex]
+		job.Result.Err = err
 		return ok
 	})
 
-	// The results of the transactions after the first conflict transaction are flagged as conflicting as well.
-	// Because they are potentially affected by the conflict by using the conflicting state.
-	for i := first; i < len(this.Jobs); i++ {
-		this.Jobs[i].Result.Err = err
+	if first < 0 {
+		return
+	}
+
+	// Mark all the jobs after the first conflicting transaction for rollback in the sequence.
+	// Since they may have read the state written by the conflicting transaction.
+	//
+	// FIX ME: This is not optimal since not all the jobs after the conflicting job are
+	// contaminated.
+	for i := first + 1; i < len(this.Jobs); i++ {
+		this.Jobs[i].Result.Err = schedulercommon.WARN_UPSTREAM_CONFLICT_IN_SEQUENCE
 	}
 }
 

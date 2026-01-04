@@ -23,6 +23,7 @@ import (
 	statecell "github.com/arcology-network/common-lib/crdt/statecell"
 	mapi "github.com/arcology-network/common-lib/exp/map"
 	"github.com/arcology-network/common-lib/exp/slice"
+	schedulercommon "github.com/arcology-network/scheduler/common"
 	"golang.org/x/exp/maps"
 )
 
@@ -145,8 +146,9 @@ func (this *Arbitrator) LookupForConflict(trans []*statecell.StateCell) (*Confli
 	// offset++ // The offet is actually the index of the origina index minus 1, because the first
 	// was used as the reference. Here we add it back.
 	return &Conflict{
-		self:  trans[0],
-		peers: conflictPeers,
+		self:   trans[0],
+		peers:  conflictPeers,
+		Reason: schedulercommon.WARN_ACCESS_CONFLICT,
 	}, err
 }
 

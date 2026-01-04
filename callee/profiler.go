@@ -27,7 +27,6 @@ import (
 	"github.com/arcology-network/common-lib/codec"
 	commutative "github.com/arcology-network/common-lib/crdt/commutative"
 	"github.com/arcology-network/common-lib/crdt/noncommutative"
-	stateengine "github.com/arcology-network/state-engine"
 	statecommon "github.com/arcology-network/state-engine/common"
 )
 
@@ -45,10 +44,10 @@ type Profile struct {
 	profileStore      *ProfileStore
 }
 
-func NewProfile(addr [20]byte, selector [4]byte, store *ProfileStore) *Profile {
+func NewProfile(Tx uint64, addr [20]byte, selector [4]byte, store *ProfileStore) *Profile {
 	// Get the unique ID for the callee.
 	return &Profile{
-		ID:           NewID(addr, selector),
+		ID:           NewID(Tx, addr, selector),
 		profileStore: store,
 	}
 }
@@ -72,7 +71,7 @@ func LoadProfile(id *ID, profileStore *ProfileStore) (*Profile, error) {
 	}
 
 	// Get the parallelism degree
-	profile := NewProfile(id.Address, id.Selector, profileStore)
+	profile := NewProfile(id.Tx, id.Address, id.Selector, profileStore)
 	path := pathBuiler.ProfileField(statecommon.PATH_PARALLELISM_DEGREE)
 	if paraDegree, err := profileStore.backend.ReadOnlyStore().Retrieve(path, uint64(0)); paraDegree != nil && err == nil {
 		profile.SetParallelismDegree(paraDegree.(uint32))
@@ -135,7 +134,7 @@ func (this *Profile) HasConflictWith(other *Profile) bool {
 	return slices.IndexFunc(this.ConflictPeers, func(i uint64) bool { return i == uint64(other.ID.UID) }) != -1
 }
 
-func (this *Profile) Commit(schStorage *stateengine.StateStore) error {
+func (this *Profile) Commit() error {
 	// Sequential function shouldn't exist in conflict list. The only reason for them to be
 	// in the list is that they were previously marked as parallel but later changed to sequential because
 	// of too many conflicts. So this must be dirty now.
@@ -143,11 +142,23 @@ func (this *Profile) Commit(schStorage *stateengine.StateStore) error {
 		Address:  this.ID.Address,
 		Selector: this.ID.Selector, Platform: statecommon.ETH_PATH}
 
+	// Get the storage
+	store := this.profileStore.Backend()
+
+	// Ensure the parent path exists.
+	parentPath := pathBuiler.ProfileField("") // Get the path to write.
+	if v, _, _ := store.Read(this.ID.Tx, pathBuiler.ProfileField(""), nil); v == nil {
+		// Create the parent path if not exists.
+		if _, err := store.Write(this.ID.Tx, parentPath, commutative.NewPath()); err != nil {
+			return err
+		}
+	}
+
 	var err error
 	if this.parallelismDegree == 1 {
 		path := pathBuiler.ProfileField(statecommon.PATH_PARALLELISM_DEGREE) // Get the path to write.
 		v := noncommutative.NewUint32(this.parallelismDegree)
-		_, wError := schStorage.Write(statecommon.SYSTEM, path, v)
+		_, wError := store.Write(this.ID.Tx, path, v)
 		err = errors.Join(err, wError)
 	}
 
@@ -155,7 +166,7 @@ func (this *Profile) Commit(schStorage *stateengine.StateStore) error {
 	path := pathBuiler.ProfileField(statecommon.PATH_CONFLICT_INFO) // Get the path to write.
 	buffer := codec.Uint64s(this.ConflictPeers).Encode()
 	v := noncommutative.NewBytes(buffer)
-	_, wError := schStorage.Write(statecommon.SYSTEM, path, v)
+	_, wError := store.Write(this.ID.Tx, path, v)
 	return errors.Join(err, wError)
 }
 
