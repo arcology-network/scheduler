@@ -36,9 +36,9 @@ type JobSequence struct {
 	ID   uint64 // Job sequence id
 	Jobs []*Job // jobs in the sequence
 
-	// Pre-execution state changes must be applied to the job before execution.
-	// Notably, these state changes include nonce offsets for transactions in the sequence.
-	PreStateTransitions []*statecell.StateCell
+	// Pre-execution state changes must be applied to the first job in the sequence before execution.
+	// Notably, these state changes include nonce offsets.
+	PreTransitions []*statecell.StateCell
 }
 
 func NewJobSequenceFromEthMessages(

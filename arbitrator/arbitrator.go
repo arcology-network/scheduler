@@ -146,8 +146,8 @@ func (this *Arbitrator) LookupForConflict(trans []*statecell.StateCell) (*Confli
 	// offset++ // The offet is actually the index of the origina index minus 1, because the first
 	// was used as the reference. Here we add it back.
 	return &Conflict{
-		self:   trans[0],
-		peers:  conflictPeers,
+		Self:   trans[0],
+		Peers:  conflictPeers,
 		Reason: schedulercommon.WARN_ACCESS_CONFLICT,
 	}, err
 }

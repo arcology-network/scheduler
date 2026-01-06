@@ -30,7 +30,9 @@ import (
 
 // The result of an execution. It includes the group ID, the transaction index, the transaction hash, the sender, the coinbase, the raw state accesses, the immune transitions, the receipt, the EVM result, the standard message, and the error.
 type Result struct {
+	GenerationID    uint32 // == Group ID
 	JobSequenceID   uint32 // == Group ID
+	JobID           uint64
 	TxIndex         uint64
 	TxHash          [32]byte
 	RawStateRecords []*statecell.StateCell // Include both access records and transition records.

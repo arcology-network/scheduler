@@ -163,7 +163,7 @@ func (this *ExecutionPlan) InsertNonceOffsets() error {
 
 				// Append the nonce offset to the pre-state transitions of the job sequence.
 				jobSeq := pair.First
-				jobSeq.PreStateTransitions = append(jobSeq.PreStateTransitions, noncePreOffset...)
+				jobSeq.PreTransitions = append(jobSeq.PreTransitions, noncePreOffset...)
 			}
 		}
 	}

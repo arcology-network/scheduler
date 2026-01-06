@@ -296,10 +296,10 @@ func TestOffsetingNoncesSimple(t *testing.T) {
 
 	if len(rawSch.Generations) != 1 ||
 		len(rawSch.Generations[0].JobSeqs) != 2 ||
-		len(rawSch.Generations[0].JobSeqs[0].PreStateTransitions) != 0 ||
-		len(rawSch.Generations[0].JobSeqs[1].PreStateTransitions) != 1 {
-		t.Error("Wrong PreState size", len(rawSch.Generations[0].JobSeqs[0].PreStateTransitions),
-			len(rawSch.Generations[0].JobSeqs[1].PreStateTransitions))
+		len(rawSch.Generations[0].JobSeqs[0].PreTransitions) != 0 ||
+		len(rawSch.Generations[0].JobSeqs[1].PreTransitions) != 1 {
+		t.Error("Wrong PreState size", len(rawSch.Generations[0].JobSeqs[0].PreTransitions),
+			len(rawSch.Generations[0].JobSeqs[1].PreTransitions))
 	}
 }
 

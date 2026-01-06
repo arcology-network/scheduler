@@ -122,7 +122,7 @@ func (this *Accumulator) isOutOfLimits(_ string, newTrans []*statecell.StateCell
 	}
 
 	return &Conflict{
-		self:  newTrans[0],
-		peers: newTrans[offset:],
+		Self:  newTrans[0],
+		Peers: newTrans[offset:],
 	}
 }

@@ -18,11 +18,10 @@
 package arbitrator
 
 import (
+	"encoding/json"
 	"fmt"
-	"sort"
 
 	statecell "github.com/arcology-network/common-lib/crdt/statecell"
-	mapi "github.com/arcology-network/common-lib/exp/map"
 	"github.com/arcology-network/common-lib/exp/slice"
 	profile "github.com/arcology-network/scheduler/callee"
 	"github.com/arcology-network/scheduler/workload"
@@ -31,15 +30,30 @@ import (
 // Conflict represents a detected write or state conflict between transactions
 // during parallel execution.
 type Conflict struct {
-	self   *statecell.StateCell   // The current transaction.
-	peers  []*statecell.StateCell // The conflicting transactions.
-	Reason error                  // Why the conflict happens.
+	Self   *statecell.StateCell   `json:"self"`   // The current transaction.
+	Peers  []*statecell.StateCell `json:"peers"`  // The conflicting transactions.
+	Reason error                  `json:"reason"` // Why the conflict happens.
+}
+
+func (this *Conflict) MarshalJSON() ([]byte, error) {
+	type conflictAlias struct {
+		Self   *statecell.StateCell   `json:"self"`
+		Peers  []*statecell.StateCell `json:"peers"`
+		Reason string                 `json:"reason"`
+	}
+
+	alias := conflictAlias{Self: this.Self, Peers: this.Peers}
+	if this.Reason != nil {
+		alias.Reason = this.Reason.Error()
+	}
+
+	return json.Marshal(&alias)
 }
 
 // GetRevertIDs returns the unique transaction IDs of all conflicting
 // peer transactions that must be reverted to resolve this conflict.
 func (this *Conflict) GetRevertTxIDs() []uint64 {
-	return slice.Transform(this.peers, func(_ int, v *statecell.StateCell) uint64 {
+	return slice.Transform(this.Peers, func(_ int, v *statecell.StateCell) uint64 {
 		return v.GetTx()
 	})
 }
@@ -47,17 +61,17 @@ func (this *Conflict) GetRevertTxIDs() []uint64 {
 // GetConflictJobSeqences returns the unique job sequence IDs of all conflicting.
 // peer transactions involved in this conflict.
 func (this *Conflict) GetConflictJobSeqenceIDs() []uint64 {
-	return slice.Transform(this.peers, func(_ int, v *statecell.StateCell) uint64 {
+	return slice.Transform(this.Peers, func(_ int, v *statecell.StateCell) uint64 {
 		return v.GetSequence()
 	})
 }
 
 // Map the conflicting transactions to their corresponding message callee UIDs.
 func (this *Conflict) MapConflictToCallee(jobLookup map[uint64]*workload.Job) (*profile.ID, []*profile.ID) {
-	addr, selector := jobLookup[this.self.GetTx()].StdMsg.GetAddressAndSelector()
-	selfID := profile.NewID(this.self.GetTx(), addr, selector)
+	addr, selector := jobLookup[this.Self.GetTx()].StdMsg.GetAddressAndSelector()
+	selfID := profile.NewID(this.Self.GetTx(), addr, selector)
 
-	peerIDs := slice.Transform(this.peers, func(_ int, v *statecell.StateCell) *profile.ID {
+	peerIDs := slice.Transform(this.Peers, func(_ int, v *statecell.StateCell) *profile.ID {
 		addr, selector := jobLookup[v.GetTx()].StdMsg.GetAddressAndSelector()
 		return profile.NewID(v.GetTx(), addr, selector)
 	})
@@ -65,15 +79,15 @@ func (this *Conflict) MapConflictToCallee(jobLookup map[uint64]*workload.Job) (*
 }
 
 func (this *Conflict) Equal(other *Conflict) bool {
-	if !this.self.Equal(other.self) {
+	if !this.Self.Equal(other.Self) {
 		return false
 	}
 
-	if len(this.peers) != len(other.peers) {
+	if len(this.Peers) != len(other.Peers) {
 		return false
 	}
 
-	if !statecell.StateCells(this.peers).Equal(statecell.StateCells(other.peers)) {
+	if !statecell.StateCells(this.Peers).Equal(statecell.StateCells(other.Peers)) {
 		return false
 	}
 	return this.Reason.Error() == other.Reason.Error()
@@ -82,85 +96,12 @@ func (this *Conflict) Equal(other *Conflict) bool {
 // Print outputs the conflicting state cells and the conflict reason
 // to standard output for debugging.
 func (this *Conflict) Print() {
-	this.self.Print()
+	this.Self.Print()
 	fmt.Println(" ----- conflict with ----- ")
 
-	trans := slice.Transform(this.peers, func(_ int, v *statecell.StateCell) *statecell.StateCell {
+	trans := slice.Transform(this.Peers, func(_ int, v *statecell.StateCell) *statecell.StateCell {
 		return v
 	})
 	statecell.StateCells(trans).Print()
 	fmt.Println("Reason: ", this.Reason)
-}
-
-// Conflicts is a collection of Conflict pointers.
-type Conflicts struct {
-	Conflicts       []*Conflict
-	RevertTxLookup  map[uint64]error
-	RevertSeqLookup map[uint64]uint64
-	Cleared         []uint64 // The IDs of the transactions that are cleared.
-}
-
-func NewConflicts(trans []*statecell.StateCell, conflicts []*Conflict) *Conflicts {
-	revertTxLookup := make(map[uint64]error) // Unique transaction IDs to revert.
-	seqLookup := make(map[uint64]uint64)     // Unique job sequence IDs that contain the transactions to revert.
-	for _, conflict := range conflicts {
-		IDs := conflict.GetRevertTxIDs()
-
-		// The IDs of all the conflicting transactions that share the same state cell and
-		// affected by the conflict. They all need to be reverted.
-		slice.Foreach(IDs, func(_ int, txId *uint64) {
-			revertTxLookup[*txId] = conflict.Reason
-
-			// Map to the job sequence IDs as well.
-			for _, peer := range conflict.peers {
-				seqLookup[peer.GetSequence()]++
-			}
-		})
-	}
-
-	// Get unique transaction IDs.
-	uniquesTx := make(map[uint64]uint64)
-	for _, tran := range trans {
-		uniquesTx[tran.GetTx()]++
-	}
-
-	// Sort the transaction IDs and sequence IDs.
-	txs := mapi.Keys(uniquesTx)
-	sort.SliceStable(txs, func(i, j int) bool { return txs[i] < txs[j] }) // Sort the transaction IDs.
-
-	return &Conflicts{
-		Conflicts:       conflicts,
-		RevertTxLookup:  revertTxLookup,
-		RevertSeqLookup: seqLookup,
-		Cleared:         slice.Exclude(slice.Clone(mapi.Keys(uniquesTx)), mapi.Keys(revertTxLookup)),
-	}
-}
-
-func (this *Conflicts) IsEmpty() bool {
-	return len(this.Conflicts) == 0
-}
-
-// Get the transaction IDs that need to be reverted.
-func (this *Conflicts) GetRevertTxs() []uint64 {
-	reverts := mapi.Keys(this.RevertTxLookup)
-	sort.SliceStable(reverts, func(i, j int) bool { return reverts[i] < reverts[j] })
-	return reverts
-}
-
-// Get conflicted free transaction IDs.
-func (this *Conflicts) GetClearedTxs() []uint64 {
-	clearTxs := make([]uint64, 0, len(this.Conflicts)-len(this.RevertTxLookup))
-	for _, conflict := range this.Conflicts {
-		if _, ok := this.RevertTxLookup[conflict.self.GetTx()]; !ok {
-			clearTxs = append(clearTxs, conflict.self.GetTx())
-		}
-	}
-	return clearTxs
-}
-
-func (this Conflicts) Print() {
-	for _, v := range this.Conflicts {
-		v.Print()
-		fmt.Println()
-	}
 }
