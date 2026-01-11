@@ -15,7 +15,7 @@
  *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package arbitrator
+package conflictor
 
 import (
 	"encoding/json"
@@ -41,7 +41,7 @@ func marshalToJSONMap(t *testing.T, value any) map[string]json.RawMessage {
 	return out
 }
 
-func buildTestConflict(t *testing.T) *Conflict {
+func buildTestConflict(t *testing.T) *Collision {
 	t.Helper()
 
 	cells := []*statecell.StateCell{
@@ -51,10 +51,10 @@ func buildTestConflict(t *testing.T) *Conflict {
 	}
 
 	for idx, cell := range cells {
-		cell.SetSequence(uint64(idx))
+		cell.JobSequenceID = uint64(idx)
 	}
 
-	return &Conflict{
+	return &Collision{
 		Self:   cells[0],
 		Peers:  cells[1:],
 		Reason: errors.New("test reason"),
@@ -101,11 +101,11 @@ func TestConflictJSONSchema(t *testing.T) {
 func TestConflictsJSONSchema(t *testing.T) {
 	conflict := buildTestConflict(t)
 
-	bundle := &Conflicts{
-		Conflicts:       []*Conflict{conflict},
-		RevertTxLookup:  map[uint64]error{conflict.Peers[0].GetTx(): errors.New("peer reverted")},
-		RevertSeqLookup: map[uint64]uint64{conflict.Peers[0].GetSequence(): 1},
-		Cleared:         []uint64{conflict.Self.GetTx()},
+	bundle := &CollisionSummary{
+		Collisions:       []*Collision{conflict},
+		RevertTxLookup:   map[uint64]error{conflict.Peers[0].GetTx(): errors.New("peer reverted")},
+		RevertSeqLookup:  map[uint64]uint64{conflict.Peers[0].JobSequenceID: 1},
+		CollisionFreeTxs: []uint64{conflict.Self.GetTx()},
 	}
 
 	payload := marshalToJSONMap(t, bundle)
@@ -145,7 +145,7 @@ func TestConflictsJSONSchema(t *testing.T) {
 	if err := json.Unmarshal(payload["revertSeqLookup"], &revertSeq); err != nil {
 		t.Fatalf("decode revertSeqLookup failed: %v", err)
 	}
-	expectedSeqKey := fmt.Sprintf("%d", conflict.Peers[0].GetSequence())
+	expectedSeqKey := fmt.Sprintf("%d", conflict.Peers[0].JobSequenceID)
 	if revertSeq[expectedSeqKey] != 1 {
 		t.Fatalf("unexpected revert sequence count: %d", revertSeq[expectedSeqKey])
 	}

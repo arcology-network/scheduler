@@ -112,8 +112,8 @@ func (this *JobSequence) GetID() uint64 { return this.ID }
 // Length returns the number of standard messages in the JobSequence.
 func (this *JobSequence) Length() int { return len(this.Jobs) }
 
-// GetClearRecords returns the cleared transitions of the JobSequence.
-func (this *JobSequence) GetClearRecords() []*statecell.StateCell {
+// GetSuccessfulTxRecords returns the successful transaction state changes of the JobSequence.
+func (this *JobSequence) GetSuccessfulTxRecords() []*statecell.StateCell {
 	// When there is only one job in the sequence, return its transitions directly.
 	if len(this.Jobs) == 1 {
 		return this.Jobs[0].Result.GetRawStateRecords()

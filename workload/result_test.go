@@ -19,6 +19,8 @@ package workload
 
 import (
 	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"math/big"
 	"testing"
 
@@ -64,12 +66,12 @@ func TestResultPostprocessor(t *testing.T) {
 			statecell.NewStateCell(0, "blcc:/"+hex.EncodeToString(other[:])+"/balance", 0, 0, 0, commutative.NewU256Delta(uint256.NewInt(50), false), nil),
 		},
 
-		StdMsg:  StdMsg,
+		MsgView: StdMsg.ToView(),
 		Receipt: &ethcoretypes.Receipt{GasUsed: uint64(100)},
 		// Err:     errors.New("Error msg"),
 	}
 
-	normalizer := statecommon.NewTransactionNormalizer(results.Receipt.GasUsed, coinbase, results.StdMsg)
+	normalizer := statecommon.NewTransactionNormalizer(results.Receipt.GasUsed, coinbase, results.MsgView)
 	results.Immuned = normalizer.Normalize(results.RawStateRecords)
 	// execPipline := (&eu.ExecutionPipeline{Config: testEu.config})
 
@@ -105,5 +107,113 @@ func TestResultPostprocessor(t *testing.T) {
 	delta, _ = results.RawStateRecords[1].Value().(crdtcommon.CRDT).Delta()
 	if v := delta.(uint256.Int); (&v).Uint64() != 50 && !DeltaSign {
 		t.Errorf("Postprocess failed, expecting 50, got %d", v)
+	}
+}
+
+func marshalResultToJSONMap(t *testing.T, value any) map[string]json.RawMessage {
+	t.Helper()
+
+	blob, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+
+	out := make(map[string]json.RawMessage)
+	if err := json.Unmarshal(blob, &out); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	return out
+}
+
+func makeStateCell(tx uint64, seq uint64, path string, reads, writes, delta uint32) *statecell.StateCell {
+	cell := statecell.NewStateCell(tx, path, reads, writes, delta, nil, nil)
+	cell.JobSequenceID = seq
+	return cell
+}
+
+func TestResultMarshalJSONSchema(t *testing.T) {
+	cells := []*statecell.StateCell{
+		makeStateCell(11, 21, "blcc://state/0", 1, 2, 3),
+		makeStateCell(12, 22, "blcc://state/1", 0, 1, 0),
+	}
+
+	var hash [32]byte
+	hash[0] = 1
+	hash[31] = 2
+
+	result := &Result{
+		GenerationID:    7,
+		JobSequenceID:   8,
+		JobID:           9,
+		TxIndex:         10,
+		TxHash:          hash,
+		RawStateRecords: []*statecell.StateCell{cells[0]},
+		Immuned:         []*statecell.StateCell{cells[1]},
+		Receipt:         &ethcoretypes.Receipt{GasUsed: 21000},
+		EvmResult:       &ethcore.ExecutionResult{UsedGas: 21000},
+		MsgView:         nil,
+		Err:             errors.New("boom"),
+	}
+
+	payload := marshalResultToJSONMap(t, result)
+
+	required := []string{"generationId", "jobSequenceId", "jobId", "txIndex", "txHash", "rawStateRecords", "immuned", "receipt", "evmResult", "stdMsg", "err"}
+	for _, key := range required {
+		if _, found := payload[key]; !found {
+			t.Fatalf("missing %q in marshalled result", key)
+		}
+	}
+
+	var errStr string
+	if err := json.Unmarshal(payload["err"], &errStr); err != nil {
+		t.Fatalf("decode err failed: %v", err)
+	}
+	if errStr != "boom" {
+		t.Fatalf("unexpected err payload: %s", errStr)
+	}
+
+	var rawRecords []map[string]any
+	if err := json.Unmarshal(payload["rawStateRecords"], &rawRecords); err != nil {
+		t.Fatalf("decode rawStateRecords failed: %v", err)
+	}
+	if len(rawRecords) != 1 {
+		t.Fatalf("unexpected raw state record count: %d", len(rawRecords))
+	}
+
+	rawPath, ok := rawRecords[0]["path"].(string)
+	if !ok {
+		t.Fatalf("rawStateRecords path is not a string: %#v", rawRecords[0]["path"])
+	}
+	if rawPath != "blcc://state/0" {
+		t.Fatalf("unexpected path: %s", rawPath)
+	}
+	rawTx, ok := rawRecords[0]["tx"].(float64)
+	if !ok {
+		t.Fatalf("rawStateRecords tx is not numeric: %#v", rawRecords[0]["tx"])
+	}
+	if rawTx != 11 {
+		t.Fatalf("unexpected tx: %v", rawTx)
+	}
+	rawSeq, ok := rawRecords[0]["sequence"].(float64)
+	if !ok {
+		t.Fatalf("rawStateRecords sequence is not numeric: %#v", rawRecords[0]["sequence"])
+	}
+	if rawSeq != 21 {
+		t.Fatalf("unexpected jobSequenceId: %v", rawSeq)
+	}
+
+	var immuned []map[string]any
+	if err := json.Unmarshal(payload["immuned"], &immuned); err != nil {
+		t.Fatalf("decode immuned failed: %v", err)
+	}
+	if len(immuned) != 1 {
+		t.Fatalf("unexpected immuned count: %d", len(immuned))
+	}
+	immunedPath, ok := immuned[0]["path"].(string)
+	if !ok {
+		t.Fatalf("immuned path is not a string: %#v", immuned[0]["path"])
+	}
+	if immunedPath != "blcc://state/1" {
+		t.Fatalf("unexpected immuned path: %s", immunedPath)
 	}
 }

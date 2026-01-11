@@ -26,15 +26,21 @@ import (
 )
 
 type Job struct {
-	ID           uint64 // Job serial id in the sequence
-	SeqID        uint64 // Job sequence id
-	StdMsg       *commontype.StandardMessage
-	Result       *Result
+	ID     uint64 // Job serial id in the sequence
+	SeqID  uint64 // Job sequence id
+	StdMsg *commontype.StandardMessage
+
 	InitialGas   *uint64 // Initial gas amount for the contract, used to determine if the contract has enough gas to execute
 	GasRemaining *uint64 // Remaining gas for the contract, used to determine if the contract has enough gas to execute
 	PrepaidGas   uint64  // Gas paid for the deferred execution, negative is paying for the others, positive is paied by others.
 
-	Profile *callee.Profile // Callee's execution profile
+	// The field is assigned after the job is executed.
+	// It has no use before execution.
+	Result *Result
+
+	// Callee's execution profile, assigned when the job is created.
+	// Need to strip this field when serializing the job, since it has no meaning outside the scheduler.
+	Profile *callee.Profile
 }
 
 func (this *Job) NumConflicts() int {
@@ -67,7 +73,6 @@ func (this *Job) IsFullyParallelizable() bool {
 // Possible to be parallelized if not marked as sequential only and has no conflicts.
 // No guarantee it won't conflict with others at runtime.
 func (this *Job) IsPotentiallyParallelizable() bool {
-
 	// THe conflict peers will be cleared if the profile is determined to be sequential only.
 	// In that case, it conflicts with everyone else, so no need to keep conflict peers inforamtion anymore.
 	return !this.Profile.IsSequentialOnly() && this.NumConflicts() == 0

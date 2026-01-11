@@ -30,27 +30,37 @@ import (
 
 // The result of an execution. It includes the group ID, the transaction index, the transaction hash, the sender, the coinbase, the raw state accesses, the immune transitions, the receipt, the EVM result, the standard message, and the error.
 type Result struct {
-	GenerationID    uint32 // == Group ID
-	JobSequenceID   uint32 // == Group ID
+	GenerationID    uint64 // == Group ID
+	JobSequenceID   uint64 // == Group ID
 	JobID           uint64
 	TxIndex         uint64
 	TxHash          [32]byte
-	RawStateRecords []*statecell.StateCell // Include both access records and transition records.
-	Immuned         []*statecell.StateCell //These transitions will take effect anyway even if the execution fails.
+	MsgView         *commontype.MessageView // Standard message view for matching up with conflicts.
+	RawStateRecords []*statecell.StateCell  // Include both access records and transition records.
+	Immuned         []*statecell.StateCell  //These transitions will take effect anyway even if the execution fails.
 	Receipt         *ethcoretypes.Receipt
 	EvmResult       *evmcore.ExecutionResult
-	StdMsg          *commontype.StandardMessage
-	Err             error
+
+	// Job Level Error like collision or contaminated by collision.
+	// Execution error is in EvmResult.
+	Err error
 }
 
 // If the execution is unsuccessful, only keep the transitions that are immune to failures.
 func (this *Result) GetRawStateRecords() []*statecell.StateCell {
 	// When there is an execution error, failed or conflict, only return the immune transitions.
 	// Immune transitions include the gas fee and the nonce, which are independent of the execution status.
-	if this.Err != nil {
-		return this.Immuned
+	cells := this.Immuned
+	if this.Err == nil {
+		cells = this.RawStateRecords
 	}
-	return this.RawStateRecords
+
+	for _, cell := range cells {
+		cell.GenerationID = this.GenerationID
+		cell.JobSequenceID = this.JobSequenceID
+		cell.JobID = this.JobID
+	}
+	return cells
 }
 
 func (this *Result) Print() {
@@ -60,14 +70,4 @@ func (this *Result) Print() {
 	fmt.Println()
 	statecell.StateCells(this.GetRawStateRecords()).Print()
 	fmt.Println("Error: ", this.Err)
-}
-
-type Results []*Result
-
-func (this Results) Print() {
-	fmt.Println("Execution Results: ")
-	for _, v := range this {
-		v.Print()
-		fmt.Println()
-	}
 }

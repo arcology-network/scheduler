@@ -15,7 +15,7 @@
  *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package arbitrator
+package conflictor
 
 import (
 	"errors"
@@ -27,20 +27,23 @@ import (
 	"golang.org/x/exp/maps"
 )
 
-type Arbitrator struct {
-	dict      map[string]*[]*statecell.StateCell // Using any instead of []*statecell.StateCell is because most of time the there is only one element.
-	wildcards *Wildcard                          // Wildcard elements, which are used to replace the original elements.
-
+type Conflictor struct {
+	dict            map[string]*[]*statecell.StateCell // Using any instead of []*statecell.StateCell is because most of time the there is only one element.
+	wildcards       *Wildcard                          // Wildcard elements, which are used to replace the original elements.
+	transBySequence map[uint64][]*statecell.StateCell  // Transactions grouped by job sequence ID.
+	uniqueTx        map[uint64]bool                    // Unique transaction IDs.
 }
 
-func NewArbitrator() *Arbitrator {
-	return &Arbitrator{
-		dict:      make(map[string]*[]*statecell.StateCell),
-		wildcards: NewWildcard(),
+func NewConflictor() *Conflictor {
+	return &Conflictor{
+		dict:            make(map[string]*[]*statecell.StateCell),
+		wildcards:       NewWildcard(),
+		transBySequence: make(map[uint64][]*statecell.StateCell),
+		uniqueTx:        make(map[uint64]bool),
 	}
 }
 
-func (this *Arbitrator) Insert(trans []*statecell.StateCell) int {
+func (this *Conflictor) Insert(trans []*statecell.StateCell) int {
 	trans = this.wildcards.Filter(trans) // Filter the wildcards out.
 	for i, tran := range trans {
 		if vArr, ok := this.dict[*trans[i].GetPath()]; !ok {
@@ -48,11 +51,16 @@ func (this *Arbitrator) Insert(trans []*statecell.StateCell) int {
 		} else {
 			*vArr = append(*vArr, tran)
 		}
+
+		v := this.transBySequence[tran.JobSequenceID]
+		this.transBySequence[tran.JobSequenceID] = append(v, tran)
+		this.uniqueTx[tran.GetTx()] = true // Record the unique transaction ID.
 	}
 	return len(this.dict)
 }
 
-func (this *Arbitrator) Detect() []*Conflict {
+// Detects all the `DIRECT` conflicts in the inserted transactions.
+func (this *Conflictor) Detect() ([]*Collision, []uint64, []uint64) {
 	tranSet := mapi.Values(this.dict)
 	for _, trans := range tranSet {
 		// Insert the wildcards into the transition set before detection.
@@ -60,39 +68,55 @@ func (this *Arbitrator) Detect() []*Conflict {
 	}
 
 	keys := maps.Keys(this.dict)
-	conflists := make([]*Conflict, len(keys))
+	collisions := make([]*Collision, len(keys))
 
 	// Search for conflicts in parallel within each key.
 	// for i, k := range keys {
 	slice.ParallelForeach(keys, 8, func(i int, k *string) {
 		if vArr, ok := this.dict[*k]; ok && len(*vArr) > 1 {
-			var err error
-			if conflists[i], err = this.LookupForConflict(*vArr); err != nil {
-				conflists[i].Reason = err
+			collisions[i] = this.LookupForConflict(*vArr)
+		}
+	})
+
+	// Get the direct collisions only.
+	directCollisions := slice.Remove(&collisions, nil)
+
+	// Collect all the transactions directly or indirectly affected by the conflicts.
+	revertTxs := make(map[uint64]bool) // Transactions that need to be reverted.
+	for _, collions := range directCollisions {
+		for _, cell := range collions.Peers {
+			transInSeq := this.transBySequence[cell.JobSequenceID] // Get the transactions in the same sequence.
+			for _, tran := range transInSeq {
+				// Add all the transactions after the conflicting one to the revert list.
+				// Because they are all POTENTIALLY affected by the collision.
+				if tran.JobID >= cell.JobID {
+					revertTxs[tran.GetTx()] = true
+				}
 			}
 		}
-		// }
-	})
-	return slice.Remove(&conflists, nil)
+	}
+	return directCollisions, // Detected direct collisions.
+		mapi.Keys(revertTxs), // To be reverted transactions.
+		mapi.Keys(mapi.Diff(this.uniqueTx, revertTxs)) // collision-free transactions.
 }
 
-func (this *Arbitrator) Move(trans []*statecell.StateCell) []*statecell.StateCell {
+func (this *Conflictor) Move(trans []*statecell.StateCell) []*statecell.StateCell {
 	slice.Foreach(trans, func(i int, v **statecell.StateCell) { (*v).HasConflictWith = !(*v).IsReadOnly() })
 	return slice.MoveIf(&trans, func(i int, v *statecell.StateCell) bool { return v.HasConflictWith })
 }
 
 // Looks for conflicts in the array with the same path key.
-func (this *Arbitrator) LookupForConflict(trans []*statecell.StateCell) (*Conflict, error) {
+func (this *Conflictor) LookupForConflict(trans []*statecell.StateCell) *Collision {
 	statecell.StateCells(trans).SortByTx()
 
 	first := trans[0]
 	// Different transactions inthe same sequence are not conflicting, even they access the same state cell.
 	idx, _ := slice.FindFirstIf(trans, func(i int, v *statecell.StateCell) bool {
-		return first.GetSequence() != v.GetSequence()
+		return first.JobSequenceID != v.JobSequenceID
 	})
 
 	if idx == -1 {
-		return nil, nil // All the transitions are from the same sequence, no conflict.
+		return nil // All the transitions are from the same sequence, no conflict.
 	}
 
 	otherTrans := trans[idx:]
@@ -134,30 +158,31 @@ func (this *Arbitrator) LookupForConflict(trans []*statecell.StateCell) (*Confli
 
 	// No access conflict found, move on to check the under/over limit conflicts.
 	if len(conflictPeers) == 0 {
-		return (&Accumulator{}).CheckMinMax(trans), nil
+		return (&Accumulator{}).CheckMinMax(trans)
 	}
 
 	// There are some access conflicts, check if the remaining transitions are within limits.
 	conflictFree := slice.PushFront(first, &otherTrans)
 	if outOfLimit := (&Accumulator{}).CheckMinMax(conflictFree); outOfLimit != nil {
-		return outOfLimit, nil
+		return outOfLimit
 	}
 
 	// offset++ // The offet is actually the index of the origina index minus 1, because the first
 	// was used as the reference. Here we add it back.
-	return &Conflict{
+	return &Collision{
 		Self:   trans[0],
 		Peers:  conflictPeers,
-		Reason: schedulercommon.WARN_ACCESS_CONFLICT,
-	}, err
+		Reason: errors.Join(schedulercommon.WARN_ACCESS_CONFLICT, err),
+	}
 }
 
-func (this *Arbitrator) Clear() {
+func (this *Conflictor) Clear() {
 	clear(this.dict)
 }
 
 // Test function, the production version is doing insertion separately from detection.
-func (this *Arbitrator) DebugInsertAndDetect(trans []*statecell.StateCell) *Conflicts {
+func (this *Conflictor) DebugInsertAndDetect(trans []*statecell.StateCell) (*CollisionSummary, []uint64, []uint64) {
 	this.Insert(trans)
-	return NewConflicts(trans, this.Detect())
+	collision, txToRevert, txToRemain := this.Detect()
+	return NewCollisionSummary(trans, collision), txToRevert, txToRemain
 }

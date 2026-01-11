@@ -19,6 +19,7 @@ package profile
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -187,4 +188,22 @@ func (this *Profile) PrintToString() string {
 	b.WriteString("}")
 
 	return b.String()
+}
+
+func (this *Profile) MarshalJSON() ([]byte, error) {
+	type profileAlias struct {
+		ID                *ID      `json:"id"`
+		ParallelismDegree uint32   `json:"parallelismDegree"`
+		Prepayment        uint64   `json:"prepayment"`
+		ConflictPeers     []uint64 `json:"conflictPeers"`
+	}
+
+	alias := profileAlias{
+		ID:                this.ID,
+		ParallelismDegree: this.parallelismDegree,
+		Prepayment:        this.prepayment,
+		ConflictPeers:     slices.Clone(this.ConflictPeers),
+	}
+
+	return json.Marshal(&alias)
 }

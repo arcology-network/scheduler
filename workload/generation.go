@@ -64,6 +64,7 @@ type Generation struct {
 
 	// lookup by Tx ID in job sequences. Multiple Tx may map to the same job sequence.
 	TxToSeqLookup map[uint64]*JobSequence
+	TxToJobLookup map[uint64]*Job // lookup by Tx ID in jobs.
 
 	// CalleeFreq tracks how many job sequences invoke the same (address, selector)
 	// as their first transaction. Used to identify high-contention callees for
@@ -92,15 +93,15 @@ func NewGeneration(numThreads uint32, jobSeqs []*JobSequence) *Generation {
 		numThreads:    numThreads,
 		JobSeqs:       jobSeqs,
 		TxToSeqLookup: make(map[uint64]*JobSequence),
-		// JobLookup:    make(map[uint64]*Job),
-		CalleeFreq: make(map[uint64]int),
+		TxToJobLookup: make(map[uint64]*Job),
+		CalleeFreq:    make(map[uint64]int),
 	}
 
 	// Build the message lookup map. So we can use it later to find the transactions to revert.
 	for _, seq := range jobSeqs {
 		for _, job := range seq.Jobs {
 			gen.TxToSeqLookup[job.StdMsg.ID] = seq // Multiple jobs may map to the same job sequence.
-			// gen.JobLookup[job.StdMsg.ID] = job
+			gen.TxToJobLookup[job.StdMsg.ID] = job
 		}
 	}
 	return gen
@@ -122,7 +123,7 @@ Note:
 */
 func (this *Generation) GetClearRecords() []*statecell.StateCell {
 	cleanRecords := slice.Concate(this.JobSeqs, func(seq *JobSequence) []*statecell.StateCell {
-		return (*seq).GetClearRecords() // Return the conflict-free transitions
+		return (*seq).GetSuccessfulTxRecords() // Return the conflict-free transitions
 	})
 	return cleanRecords
 }
@@ -192,7 +193,7 @@ func (this *Generation) GroupBySenderAndSequence() ([]ethcommon.Address, [][]ass
 				return JobsBySenderSequence[i][j].StdMsg.Native.Nonce <
 					JobsBySenderSequence[i][k].StdMsg.Native.Nonce
 			})
-			
+
 			groupedJobs[i] = associative.Pair[*JobSequence, []*Job]{
 				First:  jobSeq,
 				Second: JobsBySenderSequence[i],

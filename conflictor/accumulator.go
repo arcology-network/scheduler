@@ -15,7 +15,7 @@
  *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package arbitrator
+package conflictor
 
 import (
 	"sort"
@@ -58,7 +58,7 @@ func (*Accumulator) PartitionByDeltaSign(transitions []*statecell.StateCell) ([]
 }
 
 // check if the value is either underflowed or overflowed. It returns the conflict if it is out of bounds.
-func (this *Accumulator) CheckMinMax(transitions []*statecell.StateCell) *Conflict {
+func (this *Accumulator) CheckMinMax(transitions []*statecell.StateCell) *Collision {
 	if len(transitions) <= 1 ||
 		(transitions)[0].Value() == nil ||
 		!(transitions)[0].Value().(crdtcommon.CRDT).IsCommutative() ||
@@ -105,7 +105,7 @@ func (this *Accumulator) CheckMinMax(transitions []*statecell.StateCell) *Confli
 
 // check if the value is out of limits defined by the user. It can be different from the type bounds.
 // It returns the conflict if it is out of bounds.
-func (this *Accumulator) isOutOfLimits(_ string, newTrans []*statecell.StateCell) *Conflict {
+func (this *Accumulator) isOutOfLimits(_ string, newTrans []*statecell.StateCell) *Collision {
 	if len(newTrans) <= 1 {
 		return nil
 	}
@@ -121,7 +121,7 @@ func (this *Accumulator) isOutOfLimits(_ string, newTrans []*statecell.StateCell
 		return nil
 	}
 
-	return &Conflict{
+	return &Collision{
 		Self:  newTrans[0],
 		Peers: newTrans[offset:],
 	}
