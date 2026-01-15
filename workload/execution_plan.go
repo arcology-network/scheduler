@@ -110,7 +110,7 @@ func (this *ExecutionPlan) Finalize() error {
 func (this *ExecutionPlan) InsertNonceOffsets() error {
 	var aggregatedErr error
 	for _, gen := range this.Generations {
-		senders, seqsFromSender := gen.GroupBySenderAndSequence() // Group jobs by sender address in the generation.
+ 		senders, seqsFromSender := gen.GroupBySenderAndSequence() // Group jobs by sender address in the generation.
 		for i, jobSeq := range seqsFromSender {
 			if len(jobSeq) == 1 {
 				continue

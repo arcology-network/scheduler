@@ -18,7 +18,6 @@
 package workload
 
 import (
-	"fmt"
 	"sort"
 
 	common "github.com/arcology-network/common-lib/common"
@@ -180,8 +179,8 @@ func (this *Generation) GroupBySenderAndSequence() ([]ethcommon.Address, [][]ass
 
 	// Sub-group jobs by job sequence within each sender group.
 	this.SenderToSequenceLookup = make(map[ethcommon.Address][]associative.Pair[*JobSequence, []*Job])
-	for _, jobs := range jobsBySenders {
-		jobSeqs, JobsBySenderSequence := slice.GroupBy(jobs,
+	for _, singleSenderJobs := range jobsBySenders {
+		jobSeqs, JobsBySenderSequence := slice.GroupBy(singleSenderJobs,
 			func(_ int, job *Job) **JobSequence {
 				jobSeq := this.TxToSeqLookup[job.StdMsg.ID]
 				return &jobSeq
@@ -224,15 +223,4 @@ func (this *Generation) Clear() uint64 {
 	length := len(this.JobSeqs)
 	this.JobSeqs = this.JobSeqs[:0]
 	return uint64(length)
-}
-
-func (this *Generation) PrintErrors() {
-	fmt.Printf("Generation %d:\n", this.ID)
-	for _, seq := range this.JobSeqs {
-		for _, job := range seq.Jobs {
-			if job.Result.Err != nil {
-				fmt.Printf("  Job %d: Msg ID %d, Error: %v\n", job.ID, job.StdMsg.ID, job.Result.Err)
-			}
-		}
-	}
 }
