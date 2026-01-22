@@ -74,20 +74,21 @@ func LoadProfile(id *ID, profileStore *ProfileStore) (*Profile, error) {
 	// Get the parallelism degree
 	profile := NewProfile(id.Tx, id.Address, id.Selector, profileStore)
 	path := pathBuiler.ProfileField(statecommon.PATH_PARALLELISM_DEGREE)
-	if paraDegree, err := profileStore.backend.ReadOnlyStore().Retrieve(path, uint64(0)); paraDegree != nil && err == nil {
-		profile.SetParallelismDegree(paraDegree.(uint32))
+	if paraDegree, err := profileStore.backend.ReadOnlyStore().Retrieve(path, noncommutative.NewUint64(0)); paraDegree != nil && err == nil {
+		profile.SetParallelismDegree(uint32(*paraDegree.(*noncommutative.Uint64)))
 	}
 
 	// Get the minimum prepayment amount for deferred execution
 	// If the amount is zero, it means the function is not deferrable.
 	path = pathBuiler.ProfileField(statecommon.PATH_DEFERRED_PAYMENT)
-	if prepayment, err := profileStore.backend.ReadOnlyStore().Retrieve(path, uint64(0)); prepayment != nil && err == nil {
+
+	if prepayment, err := profileStore.backend.ReadOnlyStore().Retrieve(path, noncommutative.NewUint64(0)); prepayment != nil && err == nil {
 		profile.SetPrepayment((uint64(*prepayment.(*noncommutative.Uint64))))
 	}
 
 	// Get the conflict peers
 	path = pathBuiler.ProfileField(statecommon.PATH_CONFLICT_INFO)
-	if Indices, err := profileStore.backend.ReadOnlyStore().Retrieve(path, []byte{}); Indices != nil && err == nil {
+	if Indices, err := profileStore.backend.ReadOnlyStore().Retrieve(path, noncommutative.NewBytes([]byte{})); Indices != nil && err == nil {
 		buffer := Indices.([]byte)
 		profile.AddConflictPeers(codec.Uint64s{}.Decode(buffer).(codec.Uint64s))
 	}
