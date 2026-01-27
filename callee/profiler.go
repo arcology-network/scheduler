@@ -100,10 +100,17 @@ func (this *Profile) SetParallelismDegree(n uint32) {
 	this.profileStore.AddToDirty(this)
 }
 
+func (this *Profile) GetParallelismDegree() uint32 { return this.parallelismDegree }
+
+// Determine whether this callee profile can be deferred for later execution.
+func (this *Profile) IsDeferrable() bool { return this.prepayment > 0 }
+
 func (this *Profile) SetPrepayment(prepayment uint64) {
 	this.prepayment = prepayment
 	this.profileStore.AddToDirty(this)
 }
+
+func (this *Profile) GetPrepayment() uint64 { return this.prepayment }
 
 func (this *Profile) CrossLink(other *Profile) {
 	this.AddConflictPeers([]uint64{other.ID.UID})

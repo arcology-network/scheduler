@@ -33,6 +33,7 @@ type Job struct {
 	InitialGas   *uint64 // Initial gas amount for the contract, used to determine if the contract has enough gas to execute
 	GasRemaining *uint64 // Remaining gas for the contract, used to determine if the contract has enough gas to execute
 	PrepaidGas   uint64  // Gas paid for the deferred execution, negative is paying for the others, positive is paied by others.
+	IsDeferred   bool    // If the job can be scheduled for deferred execution.
 
 	// The field is assigned after the job is executed.
 	// It has no use before execution.

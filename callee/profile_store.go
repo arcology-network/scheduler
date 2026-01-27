@@ -29,7 +29,8 @@ type ProfileStore struct {
 	profileCache map[uint64]*Profile
 	maxCapacity  uint64 // Maximum number of profiles to cache in memory
 	backend      *stateengine.StateStore
-	mu           sync.Mutex
+	profileMu    sync.Mutex
+	dirtyMu      sync.Mutex
 }
 
 func NewProfileManager(backend *stateengine.StateStore, maxCapacity uint64) *ProfileStore {
@@ -47,6 +48,9 @@ func (this *ProfileStore) Backend() *stateengine.StateStore {
 
 // Check if the callee profile exists in the local cache or storage.
 func (this *ProfileStore) LoadIfExists(tx uint64, addr [20]byte, selector [4]byte) *Profile {
+	this.profileMu.Lock()
+	defer this.profileMu.Unlock()
+
 	if addr == [20]byte{} || selector == [4]byte{} {
 		return nil // Transfers / Deployment. Can be seen as incomplete callee identity.
 	}
@@ -61,9 +65,7 @@ func (this *ProfileStore) LoadIfExists(tx uint64, addr [20]byte, selector [4]byt
 		return nil // Profile does not exist
 	}
 
-	this.mu.Lock()
 	this.profileCache[id.UID] = profile
-	this.mu.Unlock()
 	return profile
 }
 
@@ -102,6 +104,8 @@ func (this *ProfileStore) Clear() {
 
 // Add a modified callee profile into the dirties.
 func (this *ProfileStore) AddToDirty(profile *Profile) {
+	this.dirtyMu.Lock()
+	defer this.dirtyMu.Unlock()
 	this.dirties[profile.ID.UID] = profile
 }
 

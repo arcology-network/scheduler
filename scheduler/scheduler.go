@@ -184,9 +184,9 @@ func (this *Scheduler) New(stdMsgs []*libtypes.StandardMessage) (*workload.Execu
 
 // The scheduler will scan through and look for multipl instances of the same profile and put one of them in the second
 // consecutive set of transactions for deferred execution.
-func (this *Scheduler) ScheduleWithDeferred(paraMsgs []*workload.Job) ([]*workload.JobSequence, []*workload.JobSequence) {
+func (this *Scheduler) ScheduleWithDeferred(paraJobSet []*workload.Job) ([]*workload.JobSequence, []*workload.JobSequence) {
 	// Group by profile UID.
-	_, msgSets := slice.GroupBy(paraMsgs, func(_ int, pair *workload.Job) *uint64 {
+	_, jobSets := slice.GroupBy(paraJobSet, func(_ int, pair *workload.Job) *uint64 {
 		if pair.Profile == nil {
 			return nil
 		}
@@ -195,8 +195,8 @@ func (this *Scheduler) ScheduleWithDeferred(paraMsgs []*workload.Job) ([]*worklo
 
 	paraGen := []*workload.JobSequence{}     // The parallel transaction generation.
 	deferredGen := []*workload.JobSequence{} // The deferred transaction generation.
-	for _, msgs := range msgSets {
-		paraMsgs := slice.Transform(msgs,
+	for _, jobs := range jobSets {
+		paraJobs := slice.Transform(jobs,
 			func(i int, job *workload.Job) *workload.JobSequence {
 				return &workload.JobSequence{
 					ID:   uint64(i),
@@ -204,13 +204,20 @@ func (this *Scheduler) ScheduleWithDeferred(paraMsgs []*workload.Job) ([]*worklo
 				}
 			},
 		)
-
+		//  IsDeferrable == false both
 		// There is more than one transaction for the same profile and the first one is marked as deferrable.
-		if len(msgs) > 1 && msgs[0].StdMsg.IsDeferred {
-			def := *slice.PopBack(&paraMsgs)       // Use the last one as the deferred transaction.
-			deferredGen = append(deferredGen, def) // Add the deferred transaction to the new generation.
+		if len(jobs) > 1 && jobs[0].Profile.IsDeferrable() {
+			def := *slice.PopBack(&paraJobs) // Use the last one as the deferred transaction.
+
+			// Mark the job as deferred.
+			slice.Foreach(def.Jobs, func(_ int, job **workload.Job) {
+				(*job).IsDeferred = true
+			})
+
+			// Add the deferred transaction to the new generation.
+			deferredGen = append(deferredGen, def)
 		}
-		paraGen = append(paraGen, paraMsgs...)
+		paraGen = append(paraGen, paraJobs...)
 	}
 	return paraGen, deferredGen
 }
