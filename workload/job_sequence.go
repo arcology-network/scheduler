@@ -60,6 +60,7 @@ func NewJobSequenceFromEthMessages(
 	return newJobSeq
 }
 
+// Convert standard message into 
 func NewJobSequenceFromStandardMessages(seqID uint64, stdMsgs ...*commontype.StandardMessage) *JobSequence {
 	newJobSeq := &JobSequence{
 		ID: seqID, // Sequence ID
@@ -142,7 +143,7 @@ func (this *JobSequence) MarkJobForRollback(conflictTxLookup map[uint64]error) {
 		if job.Result.Err != nil {
 			return false // The job failed for other reasons. We only care about conflicts here.
 		}
-		err, ok := (conflictTxLookup)[job.Result.TxIndex]
+		err, ok := (conflictTxLookup)[job.Result.TxInfo.ID]
 		job.Result.Err = err
 		return ok
 	})

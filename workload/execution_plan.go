@@ -22,10 +22,14 @@ import (
 	"sort"
 
 	"github.com/arcology-network/common-lib/crdt/commutative"
+	statecell "github.com/arcology-network/common-lib/crdt/statecell"
 	queue "github.com/arcology-network/common-lib/exp/queue"
+	evmcommon "github.com/ethereum/go-ethereum/common"
+
+	// "github.com/arcology-network/evm/common"
 	stateengine "github.com/arcology-network/state-engine"
-	statestore "github.com/arcology-network/state-engine"
 	statecommon "github.com/arcology-network/state-engine/common"
+	statecache "github.com/arcology-network/state-engine/state/cache"
 )
 
 type ExecutionPlan struct {
@@ -98,7 +102,7 @@ func (this *ExecutionPlan) Finalize() error {
 	}
 
 	this.BuildJobLookup() // Rebuild the message lookup.
-	return this.InsertNonceOffsets()
+	return this.InsertNonceAdjustment()
 }
 
 // Insert nonce offsets for each job in the execution plan.
@@ -107,27 +111,26 @@ func (this *ExecutionPlan) Finalize() error {
 // This will lead to nonce conflicts during execution or nonce too high errors.
 // To resolve this, we need to insert nonce offsets for each job based on its position among all jobs
 // from the same sender in the generation.
-func (this *ExecutionPlan) InsertNonceOffsets() error {
+func (this *ExecutionPlan) InsertNonceAdjustment() error {
 	var aggregatedErr error
 	for _, gen := range this.Generations {
- 		senders, seqsFromSender := gen.GroupBySenderAndSequence() // Group jobs by sender address in the generation.
-		for i, jobSeq := range seqsFromSender {
-			if len(jobSeq) == 1 {
+		senders, seqsFromSameSender := gen.GroupBySenderAndSequence() // Group jobs by sender address in the generation.
+		for i, jobSeqs := range seqsFromSameSender {
+			if len(jobSeqs) == 1 {
 				continue
 			}
 
 			// Sort the job sequences by their IDs to ensure consistent ordering.
-			sort.Slice(jobSeq, func(i, j int) bool {
-				return jobSeq[i].First.ID < jobSeq[j].First.ID
+			sort.Slice(jobSeqs, func(i, j int) bool {
+				return jobSeqs[i].First.ID < jobSeqs[j].First.ID
 			})
 
 			// Jobs from the same sender may span multiple job sequences.
 			// We need to insert nonce offsets for each job sequencebased on its position
 			// among all jobs from the same sender in the generation.
 			offset := uint64(0)
-			for j, pair := range jobSeq {
-
-				// Only offset nonces after the first entry.
+			for j, pair := range jobSeqs {
+				// Only offset nonces AFTER the first entry.
 				// The first job nonce is already correct.
 				if j == 0 {
 					continue
@@ -136,38 +139,47 @@ func (this *ExecutionPlan) InsertNonceOffsets() error {
 				// Build the nonce offset for the job.
 				first := pair.Second[0]
 
-				// Build the nonce path for the sender, so
-				// we can write it to the state cache.
-				noncePath := (&statecommon.PathBuilder{
-					Sender: senders[i],
-				}).UnderSenderPath(statecommon.PATH_NONCE)
-
-				// Initialize a temporary state store to write the nonce offset.
-				tmpStore := statestore.NewStateStore(this.Store.Backend())
-
-				// Calculate the nonce offset for the job sequence.
-				// Then write it to the state cache.
+				var err error
 				offset += uint64(len(pair.Second))
-				offsetDelta := commutative.NewUint64Delta(uint64(offset))
-				if _, err := tmpStore.StateCache.Write(
+				noncePreOffset, err := this.GenerateNonceAjustmentTransitions(
 					first.StdMsg.ID,
-					noncePath,
-					offsetDelta,
-				); err != nil {
-					aggregatedErr = errors.Join(aggregatedErr, err)
-				}
+					this.Store.ExecutionStateCache,
+					senders[i],
+					offset,
+				)
 
-				// Export the nonce offset state change.
-				noncePreOffset := tmpStore.StateCache.Export()
-				tmpStore.StateCache.Clear()
-
-				// Append the nonce offset to the pre-state transitions of the job sequence.
-				jobSeq := pair.First
-				jobSeq.PreTransitions = append(jobSeq.PreTransitions, noncePreOffset...)
+				pair.First.PreTransitions = append(pair.First.PreTransitions, noncePreOffset...)
+				aggregatedErr = errors.Join(aggregatedErr, err)
 			}
 		}
 	}
 	return aggregatedErr
+}
+
+func (*ExecutionPlan) GenerateNonceAjustmentTransitions(
+	tx uint64,
+	stateCache *statecache.ExecutionStateCache,
+	callerAddr evmcommon.Address,
+	offset uint64) ([]*statecell.StateCell, error) {
+	noncePath := (&statecommon.PathBuilder{
+		Sender: callerAddr,
+	}).UnderSenderPath(statecommon.PATH_NONCE)
+
+	// Calculate the nonce offset for the job sequence.
+	// Then write it to the state cache.
+	offsetDelta := commutative.NewUint64Delta(uint64(offset))
+
+	// Initialize a temporary state store to write the nonce offset.
+	execCache := statecache.NewExecutionStateCache(stateCache, 32, 1)
+	_, err := execCache.Write(
+		tx,
+		noncePath,
+		offsetDelta,
+	)
+
+	// Export the nonce offset state change.
+	noncePreOffset := execCache.Export()
+	return noncePreOffset, err
 }
 
 // BuildJobLookup constructs a mapping from transaction IDs to their corresponding Job structs

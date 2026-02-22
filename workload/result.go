@@ -30,14 +30,13 @@ import (
 
 // The result of an execution. It includes the group ID, the transaction index, the transaction hash, the sender, the coinbase, the raw state accesses, the immune transitions, the receipt, the EVM result, the standard message, and the error.
 type Result struct {
-	GenerationID    uint64 // == Group ID
-	JobSequenceID   uint64 // == Group ID
-	JobID           uint64
-	TxIndex         uint64
-	TxHash          [32]byte
-	MsgView         *commontype.MessageView // Standard message view for matching up with conflicts.
-	RawStateRecords []*statecell.StateCell  // Include both access records and transition records.
-	Immuned         []*statecell.StateCell  //These transitions will take effect anyway even if the execution fails.
+	GenerationID  uint64 // == Group ID
+	JobSequenceID uint64 // == Group ID
+	JobID         uint64
+	// TxIndex         uint64
+	TxInfo          *commontype.TransactionView // Standard message view for matching up with conflicts.
+	RawStateRecords []*statecell.StateCell      // Include both access records and transition records.
+	Immuned         []*statecell.StateCell      //These transitions will take effect anyway even if the execution fails.
 	Receipt         *ethcoretypes.Receipt
 	EvmResult       *evmcore.ExecutionResult
 
@@ -65,8 +64,7 @@ func (this *Result) GetRawStateRecords() []*statecell.StateCell {
 
 func (this *Result) Print() {
 	// fmt.Println("JobSequenceID: ", this.JobSequenceID)
-	fmt.Println("TxIndex: ", this.TxIndex)
-	fmt.Println("TxHash: ", this.TxHash)
+	// fmt.Println("TxIndex: ", this.TxIndex)
 	fmt.Println()
 	statecell.StateCells(this.GetRawStateRecords()).Print()
 	fmt.Println("Error: ", this.Err)

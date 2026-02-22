@@ -123,6 +123,6 @@ func (this *Accumulator) isOutOfLimits(_ string, newTrans []*statecell.StateCell
 
 	return &Collision{
 		Self:  newTrans[0],
-		Peers: newTrans[offset:],
+		Peers: newTrans[offset+1:], // Increment to get the ORIGINAL index in the transition sequence.
 	}
 }

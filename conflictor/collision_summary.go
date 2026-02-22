@@ -82,6 +82,13 @@ func NewCollisionSummary(trans []*statecell.StateCell, conflicts []*Collision) *
 	}
 }
 
+func (this *CollisionSummary) Clear() {
+	this.Collisions = this.Collisions[:0]
+	clear(this.RevertTxLookup)
+	clear(this.RevertSeqLookup)
+	this.CollisionFreeTxs = this.CollisionFreeTxs[:0]
+}
+
 func (this *CollisionSummary) IsEmpty() bool {
 	return len(this.Collisions) == 0
 }

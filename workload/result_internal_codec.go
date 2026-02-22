@@ -31,27 +31,24 @@ import (
 // }
 
 func (this *Result) Encode() []byte {
-	buffer := make([]byte,
+	fixedBuffer := make([]byte,
 		8+ // GenerationID
 			8+ // JobSequenceID
-			8+ // JobID
-			8+ // TxIndex
-			32) // TxHash
+			8) // JobID
 
-	offset := codec.Uint64(this.GenerationID).EncodeTo(buffer)
-	offset += codec.Uint64(this.JobSequenceID).EncodeTo(buffer[offset:])
-	offset += codec.Uint64(this.JobID).EncodeTo(buffer[offset:])
-	offset += codec.Uint64(this.TxIndex).EncodeTo(buffer[offset:])
-	codec.Bytes32(this.TxHash).EncodeTo(buffer[offset:])
+	offset := codec.Uint64(this.GenerationID).EncodeTo(fixedBuffer)
+	offset += codec.Uint64(this.JobSequenceID).EncodeTo(fixedBuffer[offset:])
+	offset += codec.Uint64(this.JobID).EncodeTo(fixedBuffer[offset:])
+	// codec.Uint64(this.TxIndex).EncodeTo(fixedBuffer[offset:])
 
-	msgViewEncoded, _ := this.MsgView.Encode()
+	msgViewEncoded, _ := this.TxInfo.Encode()
 	rawStates := statecell.StateCells(this.RawStateRecords).Encode()
 	immunedStates := statecell.StateCells(this.Immuned).Encode()
 	receiptEncoded, _ := commontype.EncodeReceipt(this.Receipt)
 	evmResultEncoded, _ := commontype.EncodeExecutionResult(this.EvmResult)
 
 	return codec.Byteset([][]byte{
-		buffer, // fixed size items
+		fixedBuffer, // fixed size items
 		msgViewEncoded,
 		rawStates,
 		immunedStates,
@@ -66,10 +63,9 @@ func (this *Result) Decode(buffer []byte) (any, error) {
 	this.GenerationID = uint64(codec.Uint64(0).Decode(fixed).(codec.Uint64))
 	this.JobSequenceID = uint64(codec.Uint64(0).Decode(fixed[8:]).(codec.Uint64))
 	this.JobID = uint64(codec.Uint64(0).Decode(fixed[16:]).(codec.Uint64))
-	this.TxIndex = uint64(codec.Uint64(0).Decode(fixed[24:]).(codec.Uint64))
-	this.TxHash = codec.Bytes32{}.Decode(fixed[32:]).(codec.Bytes32)
 
-	this.MsgView = (&commontype.MessageView{}).Decode(fields[1]).(*commontype.MessageView)
+
+	this.TxInfo = (&commontype.TransactionView{}).Decode(fields[1]).(*commontype.TransactionView)
 	this.RawStateRecords = []*statecell.StateCell(statecell.StateCells{}.Decode(fields[2]).(statecell.StateCells))
 	this.Immuned = []*statecell.StateCell(statecell.StateCells{}.Decode(fields[3]).(statecell.StateCells))
 	this.Receipt, _ = commontype.DecodeReceipt(fields[4])

@@ -29,7 +29,6 @@ import (
 	noncommutative "github.com/arcology-network/common-lib/crdt/noncommutative"
 	statecell "github.com/arcology-network/common-lib/crdt/statecell"
 	commontype "github.com/arcology-network/common-lib/types"
-	statecommon "github.com/arcology-network/state-engine/common"
 	ethcore "github.com/ethereum/go-ethereum/core"
 	ethcoretypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/holiman/uint256"
@@ -66,13 +65,13 @@ func TestResultPostprocessor(t *testing.T) {
 			statecell.NewStateCell(0, "blcc:/"+hex.EncodeToString(other[:])+"/balance", 0, 0, 0, commutative.NewU256Delta(uint256.NewInt(50), false), nil),
 		},
 
-		MsgView: StdMsg.ToView(),
+		TxInfo:  StdMsg.ToView(),
 		Receipt: &ethcoretypes.Receipt{GasUsed: uint64(100)},
 		// Err:     errors.New("Error msg"),
 	}
 
-	normalizer := statecommon.NewTransactionNormalizer(results.Receipt.GasUsed, coinbase, results.MsgView)
-	results.Immuned = normalizer.Normalize(results.RawStateRecords)
+	normalizer := NewTransactionNormalizer(results.Receipt.GasUsed, coinbase, results.TxInfo)
+	results.Immuned = normalizer.Normalize(nil, results.RawStateRecords)
 	// execPipline := (&eu.ExecutionPipeline{Config: testEu.config})
 
 	// eu.ExecutionPipeline(&results)
@@ -142,22 +141,21 @@ func TestResultMarshalJSONSchema(t *testing.T) {
 	hash[31] = 2
 
 	result := &Result{
-		GenerationID:    7,
-		JobSequenceID:   8,
-		JobID:           9,
-		TxIndex:         10,
-		TxHash:          hash,
+		GenerationID:  7,
+		JobSequenceID: 8,
+		JobID:         9,
+		// TxIndex:         10,
 		RawStateRecords: []*statecell.StateCell{cells[0]},
 		Immuned:         []*statecell.StateCell{cells[1]},
 		Receipt:         &ethcoretypes.Receipt{GasUsed: 21000},
 		EvmResult:       &ethcore.ExecutionResult{UsedGas: 21000},
-		MsgView:         nil,
+		TxInfo:          nil,
 		Err:             errors.New("boom"),
 	}
 
 	payload := marshalResultToJSONMap(t, result)
 
-	required := []string{"generationId", "jobSequenceId", "jobId", "txIndex", "txHash", "rawStateRecords", "immuned", "receipt", "evmResult", "stdMsg", "err"}
+	required := []string{"generationId", "jobSequenceId", "jobId", "rawStateRecords", "immuned", "receipt", "evmResult", "stdMsg", "err"}
 	for _, key := range required {
 		if _, found := payload[key]; !found {
 			t.Fatalf("missing %q in marshalled result", key)

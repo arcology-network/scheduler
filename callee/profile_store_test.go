@@ -41,7 +41,7 @@ func BobAccount() string {
 	return hexutil.Encode(b)
 }
 
-func CreateConflictParentPaths(acct []byte, selector [4]byte, writeCache *cache.StateCache) (string, error) {
+func CreateConflictParentPaths(acct []byte, selector [4]byte, writeCache *cache.ExecutionStateCache) (string, error) {
 	account := ethcommon.BytesToAddress(acct)
 	path := "blcc://eth1.0/account/" + hexutil.Encode(account[:])
 	if typedv, _, _ := writeCache.Read(1, path, commutative.NewPath()); typedv == nil {
@@ -76,7 +76,7 @@ func TestCalleeManager(t *testing.T) {
 		t.Error("Failed to create accounts in store", err)
 	}
 
-	writeCache := sstore.StateCache
+	writeCache := sstore.ExecutionStateCache
 
 	if _, err := CreateConflictParentPaths(alice, [4]byte{1, 1, 1, 1}, writeCache); err != nil {
 		t.Error(err)
@@ -128,7 +128,7 @@ func TestCalleeManagerCacheLimit(t *testing.T) {
 	if err != nil {
 		t.Error("Failed to create accounts in store", err)
 	}
-	writeCache := sstore.StateCache
+	writeCache := sstore.ExecutionStateCache
 
 	alicePath, err := CreateConflictParentPaths(alice, [4]byte{1, 1, 1, 1}, writeCache)
 	if err != nil {
@@ -176,7 +176,7 @@ func TestCalleeManagerCacheLimit(t *testing.T) {
 		t.Error("Failed to add contracts", len(mgr.profileCache))
 	}
 
-	keys, _ := sstore.StateCache.KVs()
+	keys, _ := sstore.ExecutionStateCache.KVs()
 	// if len(keys) != 4 || len(v) != 4 {
 	// 	t.Error("Failed to write back to storage", len(k), len(v))
 	// }

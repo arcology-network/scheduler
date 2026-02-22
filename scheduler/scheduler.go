@@ -39,6 +39,7 @@ import (
 type Scheduler struct {
 	latest *workload.ExecutionPlan
 	*profile.ProfileStore
+	SkipDeferred bool // If the scheduler should skip planning deferred executions.
 }
 
 // Initialize a new scheduler, the fileName is the file path to the scheduler's conflict database and the deferByDefault
@@ -137,7 +138,7 @@ func (this *Scheduler) New(stdMsgs []*libtypes.StandardMessage) (*workload.Execu
 		}
 
 		// Only one transaction in the parallel set, no need to proceed with planning deferred execution.
-		if len(paraJobSet) == 1 {
+		if len(paraJobSet) == 1 && !this.SkipDeferred {
 			seq := &workload.JobSequence{
 				Jobs: paraJobSet,
 			}
@@ -163,7 +164,6 @@ func (this *Scheduler) New(stdMsgs []*libtypes.StandardMessage) (*workload.Execu
 			// Insert the deferred transaction generation.
 			if len(deferredSeqs) > 0 {
 				workload.SortJobSequences(deferredSeqs)
-
 				this.latest.Generations = append(this.latest.Generations,
 					workload.NewGeneration(uint32(runtime.NumCPU()), deferredSeqs),
 				)
@@ -178,7 +178,6 @@ func (this *Scheduler) New(stdMsgs []*libtypes.StandardMessage) (*workload.Execu
 			break // Nothing left to process.
 		}
 	}
-
 	return this.latest, this.latest.Finalize()
 }
 

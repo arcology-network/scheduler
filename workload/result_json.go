@@ -33,16 +33,15 @@ import (
 
 func (this *Result) MarshalJSON() ([]byte, error) {
 	type resultAlias struct {
-		GenerationID    uint64                   `json:"generationId"`
-		JobSequenceID   uint64                   `json:"jobSequenceId"`
-		JobID           uint64                   `json:"jobId"`
-		TxIndex         uint64                   `json:"txIndex"`
-		TxHash          [32]byte                 `json:"txHash"`
-		MsgView         *commontype.MessageView  `json:"stdMsg"`
-		RawStateRecords []encodedStateMeta       `json:"rawStateRecords"`
-		Immuned         []encodedStateMeta       `json:"immuned"`
-		Receipt         *ethcoretypes.Receipt    `json:"receipt"`
-		EvmResult       *evmcore.ExecutionResult `json:"evmResult"`
+		GenerationID  uint64 `json:"generationId"`
+		JobSequenceID uint64 `json:"jobSequenceId"`
+		JobID         uint64 `json:"jobId"`
+
+		TxInfo          *commontype.TransactionView `json:"stdMsg"`
+		RawStateRecords []encodedStateMeta          `json:"rawStateRecords"`
+		Immuned         []encodedStateMeta          `json:"immuned"`
+		Receipt         *ethcoretypes.Receipt       `json:"receipt"`
+		EvmResult       *evmcore.ExecutionResult    `json:"evmResult"`
 
 		Err string `json:"err"`
 	}
@@ -51,9 +50,6 @@ func (this *Result) MarshalJSON() ([]byte, error) {
 		GenerationID:    this.GenerationID,
 		JobSequenceID:   this.JobSequenceID,
 		JobID:           this.JobID,
-		TxIndex:         this.TxIndex,
-		TxHash:          this.TxHash,
-		MsgView:         this.MsgView,
 		RawStateRecords: encodeStateCells(this.RawStateRecords),
 		Immuned:         encodeStateCells(this.Immuned),
 		Receipt:         this.Receipt,
@@ -99,6 +95,7 @@ func encodeStateCells(cells []*statecell.StateCell) []encodedStateMeta {
 			GenerationID:  cell.GenerationID,
 			JobSequenceID: cell.JobSequenceID,
 			JobID:         cell.JobID,
+			Sequence:      cell.JobSequenceID,
 			Path:          path,
 			Reads:         cell.Reads(),
 			Writes:        cell.Writes(),

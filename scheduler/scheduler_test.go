@@ -23,7 +23,7 @@ import (
 
 	queue "github.com/arcology-network/common-lib/exp/queue"
 	"github.com/arcology-network/common-lib/exp/slice"
-	eucommon "github.com/arcology-network/common-lib/types"
+	libcommontype "github.com/arcology-network/common-lib/types"
 	callee "github.com/arcology-network/scheduler/callee"
 	profile "github.com/arcology-network/scheduler/callee"
 	workload "github.com/arcology-network/scheduler/workload"
@@ -43,17 +43,17 @@ func TestSchedulerNoConflictNoDeferred(t *testing.T) {
 	// sender2 := [20]byte{0x02}
 	// sender3 := [20]byte{0x03}
 
-	callAlice0 := &eucommon.StandardMessage{
+	callAlice0 := &libcommontype.StandardMessage{
 		ID:     0,
 		Native: &ethcore.Message{From: sender1, To: &aaddr, Data: []byte{5, 5, 5, 5, 0, 0, 0, 0}},
 	}
 
-	callAlice1 := &eucommon.StandardMessage{
+	callAlice1 := &libcommontype.StandardMessage{
 		ID:     1,
 		Native: &ethcore.Message{From: sender1, To: &aaddr, Data: []byte{5, 5, 5, 5, 1, 1, 1, 1}},
 	}
 
-	callAlice2 := &eucommon.StandardMessage{
+	callAlice2 := &libcommontype.StandardMessage{
 		ID:     2,
 		Native: &ethcore.Message{From: sender1, To: &aaddr, Data: []byte{5, 5, 5, 5, 2, 2, 2, 2}},
 	}
@@ -66,7 +66,7 @@ func TestSchedulerNoConflictNoDeferred(t *testing.T) {
 	// Produce a new schedule for the given transactions based on the conflicts information.
 	mgr := callee.NewProfileManager(sstore, 1000000)
 	scheduler, _ := NewScheduler(mgr) // No conflict db file.
-	rawSch, err := scheduler.New([]*eucommon.StandardMessage{
+	rawSch, err := scheduler.New([]*libcommontype.StandardMessage{
 		callAlice0,
 		callAlice1,
 		callAlice2,
@@ -88,37 +88,37 @@ func TestSchedulerWithConflicInfo(t *testing.T) {
 	david := []byte("dddddddddddddddddddddddddddddddddddddddd")
 
 	aaddr := ethcommon.BytesToAddress(alice)
-	callAlice := &eucommon.StandardMessage{
+	callAlice := &libcommontype.StandardMessage{
 		ID:     0,
 		Native: &ethcore.Message{From: [20]byte(alice), To: &aaddr, Nonce: 0, Data: []byte{1, 1, 1, 1}},
 	}
 
 	baddr := ethcommon.BytesToAddress(bob)
-	callBob := &eucommon.StandardMessage{
+	callBob := &libcommontype.StandardMessage{
 		ID:     1,
 		Native: &ethcore.Message{From: [20]byte(bob), To: &baddr, Nonce: 0, Data: []byte{2, 2, 2, 2}},
 	}
 
 	caddr := ethcommon.BytesToAddress(carol)
-	callCarol := &eucommon.StandardMessage{
+	callCarol := &libcommontype.StandardMessage{
 		ID:     2,
 		Native: &ethcore.Message{From: [20]byte(carol), Nonce: 0, To: &caddr, Data: []byte{3, 3, 3, 3}},
 	}
 
 	daddr := ethcommon.BytesToAddress(david)
-	callDavid := &eucommon.StandardMessage{
+	callDavid := &libcommontype.StandardMessage{
 		ID:     3,
 		Native: &ethcore.Message{From: [20]byte(david), Nonce: 0, To: &daddr, Data: []byte{4, 4, 4, 4}},
 	}
 
 	// deploy := ethcommon.BytesToAddress([]byte{})
-	deployment0 := &eucommon.StandardMessage{
+	deployment0 := &libcommontype.StandardMessage{
 		ID:     4,
 		Native: &ethcore.Message{From: [20]byte(alice), To: nil, Nonce: 1, Data: []byte{4, 4, 4, 4}},
 	}
 
 	transferAdd := ethcommon.BytesToAddress([]byte{})
-	transfer := &eucommon.StandardMessage{
+	transfer := &libcommontype.StandardMessage{
 		ID:     5,
 		Native: &ethcore.Message{From: [20]byte(alice), To: &transferAdd, Nonce: 2, Value: big.NewInt(100), Data: []byte{}},
 	}
@@ -148,7 +148,7 @@ func TestSchedulerWithConflicInfo(t *testing.T) {
 	// There should be 3 generations in the schedule.
 	// 1. [Transfer], [deployment], [Alice], [Carol]
 	// 2. [Bob, David]
-	rawSch, err := scheduler.New([]*eucommon.StandardMessage{
+	rawSch, err := scheduler.New([]*libcommontype.StandardMessage{
 		callAlice, // Conflict with callCarol
 		callBob,
 		callCarol, // Conflict with callAlice
@@ -193,25 +193,25 @@ func TestCategorizeNonceOrderingWithinEachQueue(t *testing.T) {
 	// s := &Scheduler{}
 
 	aaddr := ethcommon.BytesToAddress(alice)
-	callAlice := &eucommon.StandardMessage{
+	callAlice := &libcommontype.StandardMessage{
 		ID:     0,
 		Native: &ethcore.Message{From: sender1, Nonce: 0, To: &aaddr, Data: []byte{1, 1, 1, 1}},
 	}
 
 	baddr := ethcommon.BytesToAddress(bob)
-	callBob := &eucommon.StandardMessage{
+	callBob := &libcommontype.StandardMessage{
 		ID:     1,
 		Native: &ethcore.Message{From: sender1, Nonce: 1, To: &baddr, Data: []byte{2, 2, 2, 2}},
 	}
 
 	caddr := ethcommon.BytesToAddress(carol)
-	callCarol := &eucommon.StandardMessage{
+	callCarol := &libcommontype.StandardMessage{
 		ID:     2,
 		Native: &ethcore.Message{From: sender2, Nonce: 0, To: &caddr, Data: []byte{3, 3, 3, 3}},
 	}
 
 	daddr := ethcommon.BytesToAddress(david)
-	callDavid := &eucommon.StandardMessage{
+	callDavid := &libcommontype.StandardMessage{
 		ID:     3,
 		Native: &ethcore.Message{From: sender3, Nonce: 0, To: &daddr, Data: []byte{4, 4, 4, 4}},
 	}
@@ -270,13 +270,13 @@ func TestOffsetingNoncesSimple(t *testing.T) {
 	bob := []byte("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
 
 	aaddr := ethcommon.BytesToAddress(alice)
-	callAlice := &eucommon.StandardMessage{
+	callAlice := &libcommontype.StandardMessage{
 		ID:     0,
 		Native: &ethcore.Message{From: [20]byte{0x01}, Nonce: 0, To: &aaddr, Data: []byte{1, 1, 1, 1}},
 	}
 
 	baddr := ethcommon.BytesToAddress(bob)
-	callBob := &eucommon.StandardMessage{
+	callBob := &libcommontype.StandardMessage{
 		ID:     1,
 		Native: &ethcore.Message{From: [20]byte{0x01}, Nonce: 1, To: &baddr, Data: []byte{2, 2, 2, 2}},
 	}
@@ -289,7 +289,7 @@ func TestOffsetingNoncesSimple(t *testing.T) {
 	mgr := callee.NewProfileManager(sstore, 1000000)
 	scheduler, _ := NewScheduler(mgr) // No conflict db file.
 
-	rawSch, err := scheduler.New([]*eucommon.StandardMessage{callAlice, callBob})
+	rawSch, err := scheduler.New([]*libcommontype.StandardMessage{callAlice, callBob})
 	if err != nil {
 		t.Error("Failed to New schedule:", err)
 	}
@@ -316,25 +316,25 @@ func TestOffsetingNoncesWithWriteStorage(t *testing.T) {
 	// s := &Scheduler{}
 
 	aaddr := ethcommon.BytesToAddress(alice)
-	callAlice := &eucommon.StandardMessage{
+	callAlice := &libcommontype.StandardMessage{
 		ID:     0,
 		Native: &ethcore.Message{From: sender1, Nonce: 0, To: &aaddr, Data: []byte{1, 1, 1, 1}},
 	}
 
 	baddr := ethcommon.BytesToAddress(bob)
-	callBob := &eucommon.StandardMessage{
+	callBob := &libcommontype.StandardMessage{
 		ID:     1,
 		Native: &ethcore.Message{From: sender1, Nonce: 1, To: &baddr, Data: []byte{2, 2, 2, 2}},
 	}
 
 	caddr := ethcommon.BytesToAddress(carol)
-	callCarol := &eucommon.StandardMessage{
+	callCarol := &libcommontype.StandardMessage{
 		ID:     2,
 		Native: &ethcore.Message{From: sender2, Nonce: 0, To: &caddr, Data: []byte{3, 3, 3, 3}},
 	}
 
 	daddr := ethcommon.BytesToAddress(david)
-	callDavid := &eucommon.StandardMessage{
+	callDavid := &libcommontype.StandardMessage{
 		ID:     3,
 		Native: &ethcore.Message{From: sender3, Nonce: 0, To: &daddr, Data: []byte{4, 4, 4, 4}},
 	}
@@ -347,7 +347,7 @@ func TestOffsetingNoncesWithWriteStorage(t *testing.T) {
 	mgr := callee.NewProfileManager(sstore, 1000000)
 	scheduler, _ := NewScheduler(mgr) // No conflict db file.
 
-	_, err := scheduler.New([]*eucommon.StandardMessage{callAlice, callBob, callCarol, callDavid})
+	_, err := scheduler.New([]*libcommontype.StandardMessage{callAlice, callBob, callCarol, callDavid})
 	if err != nil {
 		t.Error("Failed to New schedule:", err)
 	}

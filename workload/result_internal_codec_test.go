@@ -60,14 +60,14 @@ func buildResultFixture(t *testing.T) *Result {
 
 	rawState := statecell.NewStateCell(11, "blcc://account/alpha", 1, 1, 0, noncommutative.NewString("alpha"), nil)
 	immunedState := statecell.NewStateCell(12, "blcc://account/beta", 0, 1, 0, commutative.NewUnboundedUint64(), nil)
-
+	TxInfo := stdMsg.ToView()
+	TxInfo.Hash = hash
 	return &Result{
-		GenerationID:    1,
-		JobSequenceID:   2,
-		JobID:           3,
-		TxIndex:         4,
-		TxHash:          hash,
-		MsgView:         stdMsg.ToView(),
+		GenerationID:  1,
+		JobSequenceID: 2,
+		JobID:         3,
+		// TxIndex:         4,
+		TxInfo:          TxInfo,
 		RawStateRecords: []*statecell.StateCell{rawState},
 		Immuned:         []*statecell.StateCell{immunedState},
 		Receipt:         &ethcoretypes.Receipt{GasUsed: 21000},
@@ -94,25 +94,26 @@ func TestResultEncodeDecodeRoundTrip(t *testing.T) {
 	if decoded.JobID != original.JobID {
 		t.Fatalf("job id mismatch: got %d want %d", decoded.JobID, original.JobID)
 	}
-	if decoded.TxIndex != original.TxIndex {
-		t.Fatalf("tx index mismatch: got %d want %d", decoded.TxIndex, original.TxIndex)
-	}
-	if decoded.TxHash != original.TxHash {
-		t.Fatalf("tx hash mismatch: got %x want %x", decoded.TxHash, original.TxHash)
+	// if decoded.TxIndex != original.TxIndex {
+	// 	t.Fatalf("tx index mismatch: got %d want %d", decoded.TxIndex, original.TxIndex)
+	// }
+
+	if decoded.TxInfo.Hash != original.TxInfo.Hash {
+		t.Fatalf("tx hash mismatch: got %x want %x", decoded.TxInfo.Hash, original.TxInfo.Hash)
 	}
 
-	if decoded.MsgView == nil {
+	if decoded.TxInfo == nil {
 		t.Fatal("decoded message view is nil")
 	}
-	originalMsgView, err := original.MsgView.Encode()
+	originalTxView, err := original.TxInfo.Encode()
 	if err != nil {
 		t.Fatalf("original message view encode failed: %v", err)
 	}
-	decodedMsgView, err := decoded.MsgView.Encode()
+	decodedTxView, err := decoded.TxInfo.Encode()
 	if err != nil {
 		t.Fatalf("decoded message view encode failed: %v", err)
 	}
-	if !bytes.Equal(decodedMsgView, originalMsgView) {
+	if !bytes.Equal(decodedTxView, originalTxView) {
 		t.Fatalf("message view payload mismatch")
 	}
 
@@ -167,12 +168,11 @@ func TestResultEncodeDecodeWithEmptySlices(t *testing.T) {
 	copy(hash[:], []byte("result-internal-codec-empty........"))
 
 	original := &Result{
-		GenerationID:    100,
-		JobSequenceID:   200,
-		JobID:           300,
-		TxIndex:         400,
-		TxHash:          hash,
-		MsgView:         stdMsg.ToView(),
+		GenerationID:  100,
+		JobSequenceID: 200,
+		JobID:         300,
+		// TxIndex:         400,
+		TxInfo:          stdMsg.ToView(),
 		RawStateRecords: nil,
 		Immuned:         nil,
 		Receipt:         nil,

@@ -39,7 +39,7 @@ import (
 type Profile struct {
 	ID *ID
 
-	parallelismDegree uint32   // Execution parallelism, 1 for sequential, otherwise parallel.
+	parallelismDegree uint64   // Execution parallelism, 1 for sequential, otherwise parallel.
 	prepayment        uint64   // Required prepayment amount for the deferrable functions
 	ConflictPeers     []uint64 // ConflictPeers of the conflicting callee indices.
 	profileStore      *ProfileStore
@@ -75,7 +75,7 @@ func LoadProfile(id *ID, profileStore *ProfileStore) (*Profile, error) {
 	profile := NewProfile(id.Tx, id.Address, id.Selector, profileStore)
 	path := pathBuiler.ProfileField(statecommon.PATH_PARALLELISM_DEGREE)
 	if paraDegree, err := profileStore.backend.ReadOnlyStore().Retrieve(path, noncommutative.NewUint64(0)); paraDegree != nil && err == nil {
-		profile.SetParallelismDegree(uint32(*paraDegree.(*noncommutative.Uint64)))
+		profile.SetParallelismDegree(uint64(*paraDegree.(*noncommutative.Uint64)))
 	}
 
 	// Get the minimum prepayment amount for deferred execution
@@ -95,12 +95,12 @@ func LoadProfile(id *ID, profileStore *ProfileStore) (*Profile, error) {
 	return profile, nil
 }
 
-func (this *Profile) SetParallelismDegree(n uint32) {
+func (this *Profile) SetParallelismDegree(n uint64) {
 	this.parallelismDegree = n
 	this.profileStore.AddToDirty(this)
 }
 
-func (this *Profile) GetParallelismDegree() uint32 { return this.parallelismDegree }
+func (this *Profile) GetParallelismDegree() uint64 { return this.parallelismDegree }
 
 // Determine whether this callee profile can be deferred for later execution.
 func (this *Profile) IsDeferrable() bool { return this.prepayment > 0 }
@@ -166,7 +166,7 @@ func (this *Profile) Commit() error {
 	var err error
 	if this.parallelismDegree == 1 {
 		path := pathBuiler.ProfileField(statecommon.PATH_PARALLELISM_DEGREE) // Get the path to write.
-		v := noncommutative.NewUint32(this.parallelismDegree)
+		v := noncommutative.NewUint64(this.parallelismDegree)
 		_, wError := store.Write(this.ID.Tx, path, v)
 		err = errors.Join(err, wError)
 	}
@@ -201,7 +201,7 @@ func (this *Profile) PrintToString() string {
 func (this *Profile) MarshalJSON() ([]byte, error) {
 	type profileAlias struct {
 		ID                *ID      `json:"id"`
-		ParallelismDegree uint32   `json:"parallelismDegree"`
+		ParallelismDegree uint64   `json:"parallelismDegree"`
 		Prepayment        uint64   `json:"prepayment"`
 		ConflictPeers     []uint64 `json:"conflictPeers"`
 	}
