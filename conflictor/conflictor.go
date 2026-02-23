@@ -19,6 +19,8 @@ package conflictor
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 
 	statecell "github.com/arcology-network/common-lib/crdt/statecell"
 	mapi "github.com/arcology-network/common-lib/exp/map"
@@ -47,7 +49,7 @@ func (this *Conflictor) Insert(trans []*statecell.StateCell) int {
 	trans = this.wildcards.Filter(trans) // Filter the wildcards out.
 	for i, tran := range trans {
 		if vArr, ok := this.dict[*trans[i].GetPath()]; !ok {
-			this.dict[*trans[i].GetPath()] = &([]*statecell.StateCell{trans[i]}) // First time insert, using the element itself to save memory.
+			this.dict[*trans[i].GetPath()] = &([]*statecell.StateCell{trans[i]}) // First time insert.
 		} else {
 			*vArr = append(*vArr, tran)
 		}
@@ -117,6 +119,11 @@ func (this *Conflictor) LookupForConflict(trans []*statecell.StateCell) *Collisi
 
 	if idx == -1 {
 		return nil // All the transitions are from the same sequence, no conflict.
+	}
+
+	if strings.HasSuffix(*first.GetPath(), "container") {
+		fmt.Println("Container level state cell accessed by different sequences, but we consider them as non conflicting: ", *first.GetPath())
+		// return nil // Container level state cells are not conflicting, even they are accessed by different sequences.
 	}
 
 	otherTrans := trans[idx:]
