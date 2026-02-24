@@ -14,25 +14,24 @@
 *   You should have received a copy of the GNU General Public License
 *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package arbitrator
+package conflictor
 
 import (
 	"sort"
 	"strings"
 
 	"github.com/arcology-network/common-lib/common"
+	"github.com/arcology-network/common-lib/crdt/commutative"
+	statecell "github.com/arcology-network/common-lib/crdt/statecell"
 	"github.com/arcology-network/common-lib/exp/slice"
-	"github.com/arcology-network/storage-committer/type/commutative"
-	univalue "github.com/arcology-network/storage-committer/type/univalue"
 )
 
-// Wildcard is a struct that holds the wildcards and provides methods to filter and substitute them.
-
+// Wildcard handles the wildcard transition related conflict detection.
 type Wildcard struct {
-	WildcardTrans []*univalue.Univalue
+	WildcardTrans []*statecell.StateCell
 }
 
-func NewWildcard(initWildcardTrans ...*univalue.Univalue) *Wildcard {
+func NewWildcard(initWildcardTrans ...*statecell.StateCell) *Wildcard {
 	return &Wildcard{
 		WildcardTrans: initWildcardTrans,
 	}
@@ -40,7 +39,7 @@ func NewWildcard(initWildcardTrans ...*univalue.Univalue) *Wildcard {
 
 // Filter filters the wildcards from the transitions.
 // It will also add the wildcards to the WildcardTrans field.
-func (this *Wildcard) Filter(trans []*univalue.Univalue) []*univalue.Univalue {
+func (this *Wildcard) Filter(trans []*statecell.StateCell) []*statecell.StateCell {
 	for _, tran := range trans {
 		if strings.Contains(*tran.GetPath(), "*") || strings.Contains(*tran.GetPath(), "[:]") {
 			clearPath, _ := common.TrimWildcardSuffix(*tran.GetPath())
@@ -55,9 +54,9 @@ func (this *Wildcard) Filter(trans []*univalue.Univalue) []*univalue.Univalue {
 
 // Expand in the transitions with the corresponding values.
 // This function assumes that all the elements in the trans array have the same path.
-func (this *Wildcard) Expand(trans *[]*univalue.Univalue) []*univalue.Univalue {
+func (this *Wildcard) Expand(trans *[]*statecell.StateCell) []*statecell.StateCell {
 	if len(this.WildcardTrans) == 0 {
-		return []*univalue.Univalue{}
+		return []*statecell.StateCell{}
 	}
 
 	sort.SliceStable(this.WildcardTrans, func(i, j int) bool {
@@ -65,7 +64,7 @@ func (this *Wildcard) Expand(trans *[]*univalue.Univalue) []*univalue.Univalue {
 	})
 
 	// Remove the duplicates from the WildcardTrans.
-	allExpanded := []*univalue.Univalue{}
+	allExpanded := []*statecell.StateCell{}
 	k := (*trans)[0].GetPath() // All the tarns have the same path. So we can use the first one.
 	for _, wildcard := range this.WildcardTrans {
 		addedDeleted := wildcard.Value().(*commutative.Path).DeltaSet.Removed().StagedAddedDeleted   // Mark the wildcard as a staged deleted one, so that it won't be used in the conflict detection.
@@ -84,11 +83,11 @@ func (this *Wildcard) Expand(trans *[]*univalue.Univalue) []*univalue.Univalue {
 
 			// Delete the committed entries and this transition is not a preexist one.
 			if (addedDeleted && !(*trans)[0].IsCommitted()) || (committedDeleted && (*trans)[0].IsCommitted()) {
-				if idx, _ := slice.FindFirstIf(*trans, func(_ int, v *univalue.Univalue) bool { return v.GetTx() == wildcard.GetTx() }); idx == -1 {
+				if idx, _ := slice.FindFirstIf(*trans, func(_ int, v *statecell.StateCell) bool { return v.GetTx() == wildcard.GetTx() }); idx == -1 {
 					// On expand it to preexist entries. otherwise there will be independent transitions
 					// for them.
 
-					newUnival := new(univalue.Univalue)
+					newUnival := new(statecell.StateCell)
 					newUnival.Property = wildcard.Property.Clone()
 					newUnival.SetExpanded(true)
 					newUnival.IncrementWrites(1) // Increment the writes by 1, so that it will be treated as a write operation.

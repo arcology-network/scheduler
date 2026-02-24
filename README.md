@@ -19,7 +19,7 @@ The scheduler takes a list of `StandardMessage` as input and makes a schedule ba
 
 ## Conflict DB
 
-The conflict db is where the scheduler stores the conflict history. It is a map of `Callee` to `Callee` where the key is the callee and the value is the callee that has a conflict with the key.
+The conflict db is where the scheduler stores the conflict history. It is a map of `Callee                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         ` to `Callee                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         ` where the key is the callee and the value is the callee that has a conflict with the key.
 
 
 ## Conflict Info
@@ -29,7 +29,7 @@ The scheduler uses the conflict info and the function meta to determine how to s
 - The conflict is coming from the conflict detection module.
 - The function meta is the info of the contracts provide at the deployment time.
 
-## Callee 
+## Callee                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          
 
 Enties in the DB are named calles. Each callee is uniquely identified by a combination of the contract's address and the function signature. It keep track of the callees that have conflicts with each other in the past.
 
@@ -44,7 +44,7 @@ This function should be called to update its internal conflict db after the dete
     - The input messages
     - The conflict history and the meta info of the contracts.
 
-### Schedule
+### ExecutionSchedule
 
 The shedule is a 3 dimensional array. The first dimension is the generation number. The second dimension is a set of
 parallel transaction arrays. These arrays are the transactions that can be executed in parallel. The third dimension is the transactions in the sequntial order.

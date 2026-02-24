@@ -1,0 +1,71 @@
+/*
+ *   Copyright (c) 2024 Arcology Network
+
+ *   This program is free software: you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation, either version 3 of the License, or
+ *   (at your option) any later version.
+
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+
+ *   You should have received a copy of the GNU General Public License
+ *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+package workload
+
+import (
+	// "github.com/arcology-network/common-lib/codec"
+
+	"fmt"
+
+	"github.com/arcology-network/common-lib/crdt/statecell"
+	commontype "github.com/arcology-network/common-lib/types"
+	evmcore "github.com/ethereum/go-ethereum/core"
+	ethcoretypes "github.com/ethereum/go-ethereum/core/types"
+)
+
+// The result of an execution. It includes the group ID, the transaction index, the transaction hash, the sender, the coinbase, the raw state accesses, the immune transitions, the receipt, the EVM result, the standard message, and the error.
+type Result struct {
+	GenerationID  uint64 // == Group ID
+	JobSequenceID uint64 // == Group ID
+	JobID         uint64
+	// TxIndex         uint64
+	TxInfo          *commontype.TransactionView // Standard message view for matching up with conflicts.
+	RawStateRecords []*statecell.StateCell      // Include both access records and transition records.
+	Immuned         []*statecell.StateCell      //These transitions will take effect anyway even if the execution fails.
+	Receipt         *ethcoretypes.Receipt
+	EvmResult       *evmcore.ExecutionResult
+
+	// Job Level Error like collision or contaminated by collision.
+	// Execution error is in EvmResult.
+	Err error
+}
+
+// If the execution is unsuccessful, only keep the transitions that are immune to failures.
+func (this *Result) GetRawStateRecords() []*statecell.StateCell {
+	// When there is an execution error, failed or conflict, only return the immune transitions.
+	// Immune transitions include the gas fee and the nonce, which are independent of the execution status.
+	cells := this.Immuned
+	if this.Err == nil {
+		cells = this.RawStateRecords
+	}
+
+	for _, cell := range cells {
+		cell.GenerationID = this.GenerationID
+		cell.JobSequenceID = this.JobSequenceID
+		cell.JobID = this.JobID
+	}
+	return cells
+}
+
+func (this *Result) Print() {
+	// fmt.Println("JobSequenceID: ", this.JobSequenceID)
+	// fmt.Println("TxIndex: ", this.TxIndex)
+	fmt.Println()
+	statecell.StateCells(this.GetRawStateRecords()).Print()
+	fmt.Println("Error: ", this.Err)
+}
