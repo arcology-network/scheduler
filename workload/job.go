@@ -26,6 +26,7 @@ import (
 )
 
 type Job struct {
+	TxId   uint64 // The global transaction id in the block, not the job id.
 	ID     uint64 // Job serial id in the sequence
 	SeqID  uint64 // Job sequence id
 	StdMsg *commontype.StandardMessage

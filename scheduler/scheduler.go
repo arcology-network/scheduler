@@ -178,6 +178,7 @@ func (this *Scheduler) New(stdMsgs []*libtypes.StandardMessage) (*workload.Execu
 			break // Nothing left to process.
 		}
 	}
+	
 	return this.latest, this.latest.Finalize()
 }
 

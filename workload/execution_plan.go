@@ -89,6 +89,7 @@ func (this *ExecutionPlan) ExportMsgIDs(store *stateengine.StateStore) [][][]uin
 
 // The function returns an optimized execution schedule represented as a 3-dimensional slice.
 func (this *ExecutionPlan) Finalize() error {
+	txID := 0
 	// Reassign IDs to generations, sequences, and jobs.
 	for i, gen := range this.Generations {
 		gen.ID = uint64(i)
@@ -97,6 +98,8 @@ func (this *ExecutionPlan) Finalize() error {
 			for k, job := range seq.Jobs {
 				job.ID = uint64(k)
 				job.SeqID = seq.ID
+				job.TxId = uint64(txID)
+				txID++
 			}
 		}
 	}
