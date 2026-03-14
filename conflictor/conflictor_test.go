@@ -67,8 +67,8 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 		v0 := commutative.NewPath()
 		v1 := commutative.NewPath()
 
-		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v0, nil)
-		_1 := statecell.NewStateCell(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, v1, nil)
+		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/0x0000000/", 0, 1, 0, v0, nil)
+		_1 := statecell.NewStateCell(1, "blcc://eth1.0/account/0x0000000/", 0, 1, 0, v1, nil)
 		_0.JobSequenceID = 0
 		_1.JobSequenceID = 1
 
@@ -130,8 +130,8 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
 		_1 := statecell.NewStateCell(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
 
-		_0.SetIsDeleted(true)
-		_1.SetIsDeleted(true)
+		_0.DebugSetIsDeleted(true)
+		_1.DebugSetIsDeleted(true)
 
 		collisionSummary, _, _ := NewConflictor().DebugInsertAndDetect([]*statecell.StateCell{_0, _1})
 
@@ -395,7 +395,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 	t.Run("Clear Committed / New Byte write", func(t *testing.T) {
 		// Read an element
 		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/ctrn/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
-		_0.Property.SetPreexist(false)
+		_0.Property.DebugSetPreexist(false)
 
 		// Clear all committed entries under the path
 		_2 := statecell.NewStateCell(2, "blcc://eth1.0/account/ctrn/[:]", 0, 2, 1, commutative.NewPath(), nil)
@@ -413,7 +413,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 	t.Run("Clear All / Byte write", func(t *testing.T) {
 		// Read + write an existing element
 		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/ctrn/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
-		_0.Property.SetPreexist(true)
+		_0.Property.DebugSetPreexist(true)
 
 		// Clear all  entries (committed + Added) under the path
 		_2 := statecell.NewStateCell(2, "blcc://eth1.0/account/ctrn/*", 0, 2, 1, commutative.NewPath(), nil)
@@ -433,7 +433,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 	t.Run("Clear All / existing Byte write", func(t *testing.T) {
 		// Read an element
 		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/ctrn/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
-		_0.Property.SetPreexist(false)
+		_0.Property.DebugSetPreexist(false)
 
 		// Clear all committed entries under the path
 		_2 := statecell.NewStateCell(2, "blcc://eth1.0/account/ctrn/*", 0, 2, 1, commutative.NewPath(), nil)
@@ -453,7 +453,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 	t.Run("Clear Committed / New Byte write", func(t *testing.T) {
 		// Read an element
 		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/ctrn/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
-		_0.Property.SetPreexist(false)
+		_0.Property.DebugSetPreexist(false)
 		// This one isn't pre-exists
 
 		// Clear all committed entries under the path
@@ -473,7 +473,7 @@ func TestArbiCreateTwoAccountsNoConflict(t *testing.T) {
 	t.Run("Preexist Byte write /  Clear Committed", func(t *testing.T) {
 		// Read an element
 		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/ctrn/0x0000000", 2, 2, 0, noncommutative.NewBytes([]byte{1, 2}), nil)
-		_0.Property.SetPreexist(true)
+		_0.Property.DebugSetPreexist(true)
 		// This one is pre-exists
 
 		// Clear all committed entries under the path
