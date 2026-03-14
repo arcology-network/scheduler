@@ -178,6 +178,7 @@ func (this *Scheduler) New(stdMsgs []*libtypes.StandardMessage) (*workload.Execu
 			break // Nothing left to process.
 		}
 	}
+
 	return this.latest, this.latest.Finalize()
 }
 
@@ -212,6 +213,12 @@ func (this *Scheduler) ScheduleWithDeferred(paraJobSet []*workload.Job) ([]*work
 			slice.Foreach(def.Jobs, func(_ int, job **workload.Job) {
 				(*job).IsDeferred = true
 			})
+
+			if len(jobs) == 1 {
+				// Only one transaction for the profile, no need to add to the deferred generation. Add it back to the parallel generation.
+				paraJobs = append(paraJobs, def)
+				continue
+			}
 
 			// Add the deferred transaction to the new generation.
 			deferredGen = append(deferredGen, def)

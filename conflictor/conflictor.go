@@ -103,8 +103,8 @@ func (this *Conflictor) Detect() ([]*Collision, []uint64, []uint64) {
 }
 
 func (this *Conflictor) Move(trans []*statecell.StateCell) []*statecell.StateCell {
-	slice.Foreach(trans, func(i int, v **statecell.StateCell) { (*v).HasConflict = !(*v).IsReadOnly() })
-	return slice.MoveIf(&trans, func(i int, v *statecell.StateCell) bool { return v.HasConflict })
+	slice.Foreach(trans, func(i int, v **statecell.StateCell) { (*v).HasCollision = !(*v).IsReadOnly() })
+	return slice.MoveIf(&trans, func(i int, v *statecell.StateCell) bool { return v.HasCollision })
 }
 
 // Looks for conflicts in the array with the same path key.
@@ -134,26 +134,26 @@ func (this *Conflictor) LookupForConflict(trans []*statecell.StateCell) *Collisi
 	var conflictPeers []*statecell.StateCell
 	var err error
 	if first.IsReadOnly() { // Read only
-		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).HasConflict = !(*v).IsReadOnly() })
-		conflictPeers = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.HasConflict })
+		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).HasCollision = !(*v).IsReadOnly() })
+		conflictPeers = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.HasCollision })
 		err = errors.New("Read with non read only")
 	} else if first.IsCumulativeWriteOnly(first) { // Initialization of commutative values only
-		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).HasConflict = !(*v).IsCumulativeWriteOnly(first) })
-		conflictPeers = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.HasConflict })
+		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).HasCollision = !(*v).IsCumulativeWriteOnly(first) })
+		conflictPeers = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.HasCollision })
 		err = errors.New("Commutative Initialization with non commutative initialization")
 	} else if first.IsDeltaWriteOnly() { // Delta write only
-		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).HasConflict = !(*v).IsDeltaWriteOnly() })
-		conflictPeers = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.HasConflict })
+		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).HasCollision = !(*v).IsDeltaWriteOnly() })
+		conflictPeers = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.HasCollision })
 		err = errors.New("Delta write with non delta write only")
 
 	} else if first.IsDeleteOnly() { // Delta write only
-		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).HasConflict = !(*v).IsDeleteOnly() })
-		conflictPeers = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.HasConflict })
+		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).HasCollision = !(*v).IsDeleteOnly() })
+		conflictPeers = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.HasCollision })
 		err = errors.New("Delete with non delete only")
 
-	} else if first.IsNilInitOnly() { // Initialization with nil only.
-		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).HasConflict = !(*v).IsNilInitOnly() })
-		conflictPeers = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.HasConflict })
+	} else if first.IsPathCreationOnly() { // Initialization with nil only.
+		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).HasCollision = !(*v).IsPathCreationOnly() })
+		conflictPeers = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.HasCollision })
 		err = errors.New("Nil initialization with non nil initialization")
 	} else {
 		// The first transition doesn't belong to any `special` category that can avoid at least some conflicts.
