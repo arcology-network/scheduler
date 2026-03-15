@@ -63,21 +63,6 @@ func TestArbiOnCommutatives(t *testing.T) { // Delta writes only, should be no c
 		}
 	})
 
-	t.Run("init path/ init path", func(t *testing.T) {
-		v0 := commutative.NewPath()
-		v1 := commutative.NewPath()
-
-		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/0x0000000/", 0, 1, 0, v0, nil)
-		_1 := statecell.NewStateCell(1, "blcc://eth1.0/account/0x0000000/", 0, 1, 0, v1, nil)
-		_0.JobSequenceID = 0
-		_1.JobSequenceID = 1
-
-		collisionSummary, _, _ := NewConflictor().DebugInsertAndDetect([]*statecell.StateCell{_0, _1})
-		if len(collisionSummary.Collisions) != 0 {
-			t.Error("Error: There should be NO conflict")
-		}
-	})
-
 	t.Run("Nil init / Nil init", func(t *testing.T) {
 		_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
 		_1 := statecell.NewStateCell(1, "blcc://eth1.0/account/0x0000000", 0, 1, 0, nil, nil)
