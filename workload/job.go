@@ -43,6 +43,11 @@ type Job struct {
 	// Callee's execution profile, assigned when the job is created.
 	// Need to strip this field when serializing the job, since it has no meaning outside the scheduler.
 	Profile *callee.Profile
+
+	// The surcharge rate for this job, based on execution complexity.
+	// A Tx requiring the scheduler to plan a deferred execution will
+	// have a higher surcharge rate.
+	Surcharge int64
 }
 
 func (this *Job) NumConflicts() int {

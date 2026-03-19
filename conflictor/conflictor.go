@@ -151,10 +151,10 @@ func (this *Conflictor) LookupForConflict(trans []*statecell.StateCell) *Collisi
 		conflictPeers = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.HasCollision })
 		err = errors.New("Delete with non delete only")
 
-	} else if first.IsPathCreationOnly() { // Initialization with nil only.
-		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).HasCollision = !(*v).IsPathCreationOnly() })
-		conflictPeers = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.HasCollision })
-		err = errors.New("Nil initialization with non nil initialization")
+		// } else if first.IsPathCreationOnly() { // Initialization with nil only.
+		// 	slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).HasCollision = !(*v).IsPathCreationOnly() })
+		// 	conflictPeers = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.HasCollision })
+		// 	err = errors.New("Nil initialization with non nil initialization")
 	} else {
 		// The first transition doesn't belong to any `special` category that can avoid at least some conflicts.
 		// Thus, we mark all the subsequent transitions as conflicts.

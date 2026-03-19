@@ -117,7 +117,8 @@ func (this *ExecutionPlan) Finalize() error {
 func (this *ExecutionPlan) InsertNonceAdjustment() error {
 	var aggregatedErr error
 	for _, gen := range this.Generations {
-		senders, seqsFromSameSender := gen.GroupBySenderAndSequence() // Group jobs by sender address in the generation.
+		// Group jobs by sender address in the generation.
+		senders, seqsFromSameSender := gen.GroupBySenderAndSequence()
 		for i, jobSeqs := range seqsFromSameSender {
 			if len(jobSeqs) == 1 {
 				continue
@@ -125,7 +126,7 @@ func (this *ExecutionPlan) InsertNonceAdjustment() error {
 
 			// Sort the job sequences by their IDs to ensure consistent ordering.
 			sort.Slice(jobSeqs, func(i, j int) bool {
-				return jobSeqs[i].First.ID < jobSeqs[j].First.ID
+				return jobSeqs[i].Second[0].StdMsg.Native.Nonce < jobSeqs[j].Second[0].StdMsg.Native.Nonce
 			})
 
 			// Jobs from the same sender may span multiple job sequences.
