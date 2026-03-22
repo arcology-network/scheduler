@@ -139,6 +139,10 @@ func (this *Scheduler) New(stdMsgs []*libtypes.StandardMessage) (*workload.Execu
 
 		// Only one transaction in the parallel set, no need to proceed with planning deferred execution.
 		if len(paraJobSet) == 1 && !this.SkipDeferred {
+			if paraJobSet[0].Profile.IsDeferrable() {
+				paraJobSet[0].IsDeferred = true
+			}
+
 			seq := &workload.JobSequence{
 				Jobs: paraJobSet,
 			}
