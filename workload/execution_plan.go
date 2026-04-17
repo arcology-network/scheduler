@@ -147,7 +147,7 @@ func (this *ExecutionPlan) InsertNonceAdjustment() error {
 				offset += uint64(len(pair.Second))
 				noncePreOffset, err := this.GenerateNonceAjustmentTransitions(
 					first.StdMsg.ID,
-					this.Store.ExecutionStateCache,
+					this.Store.ExecutionStateStore,
 					senders[i],
 					offset,
 				)
@@ -162,7 +162,7 @@ func (this *ExecutionPlan) InsertNonceAdjustment() error {
 
 func (*ExecutionPlan) GenerateNonceAjustmentTransitions(
 	tx uint64,
-	stateCache *statecache.ExecutionStateCache,
+	stateCache *statecache.ExecutionStateStore,
 	callerAddr evmcommon.Address,
 	offset uint64) ([]*statecell.StateCell, error) {
 	noncePath := (&statecommon.PathBuilder{
@@ -174,7 +174,7 @@ func (*ExecutionPlan) GenerateNonceAjustmentTransitions(
 	offsetDelta := commutative.NewUint64Delta(uint64(offset))
 
 	// Initialize a temporary state store to write the nonce offset.
-	execCache := statecache.NewExecutionStateCache(stateCache, 32, 1)
+	execCache := statecache.NewExecutionStateStore(stateCache, 32, 1)
 	_, err := execCache.Write(
 		tx,
 		noncePath,

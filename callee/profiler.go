@@ -67,14 +67,14 @@ func LoadProfile(id *ID, profileStore *ProfileStore) (*Profile, error) {
 		Platform: statecommon.ETH_PATH}
 
 	// Check if the profile path exists
-	if v, err := profileStore.backend.ReadOnlyStore().Retrieve(pathBuiler.ProfileField(""), new(commutative.Path)); v == nil || err != nil {
+	if v, err := profileStore.backend.ReadOnlyStore().GetAs(pathBuiler.ProfileField(""), new(commutative.Path)); v == nil || err != nil {
 		return nil, err
 	}
 
 	// Get the parallelism degree
 	profile := NewProfile(id.Tx, id.Address, id.Selector, profileStore)
 	path := pathBuiler.ProfileField(statecommon.PATH_PARALLELISM_DEGREE)
-	if paraDegree, err := profileStore.backend.ReadOnlyStore().Retrieve(path, noncommutative.NewUint64(0)); paraDegree != nil && err == nil {
+	if paraDegree, err := profileStore.backend.ReadOnlyStore().GetAs(path, noncommutative.NewUint64(0)); paraDegree != nil && err == nil {
 		profile.SetParallelismDegree(uint64(*paraDegree.(*noncommutative.Uint64)))
 	}
 
@@ -82,13 +82,13 @@ func LoadProfile(id *ID, profileStore *ProfileStore) (*Profile, error) {
 	// If the amount is zero, it means the function is not deferrable.
 	path = pathBuiler.ProfileField(statecommon.PATH_DEFERRED_PAYMENT)
 
-	if prepayment, err := profileStore.backend.ReadOnlyStore().Retrieve(path, noncommutative.NewUint64(0)); prepayment != nil && err == nil {
+	if prepayment, err := profileStore.backend.ReadOnlyStore().GetAs(path, noncommutative.NewUint64(0)); prepayment != nil && err == nil {
 		profile.SetPrepayment((uint64(*prepayment.(*noncommutative.Uint64))))
 	}
 
 	// Get the conflict peers
 	path = pathBuiler.ProfileField(statecommon.PATH_CONFLICT_INFO)
-	if Indices, err := profileStore.backend.ReadOnlyStore().Retrieve(path, noncommutative.NewBytes([]byte{})); Indices != nil && err == nil {
+	if Indices, err := profileStore.backend.ReadOnlyStore().GetAs(path, noncommutative.NewBytes([]byte{})); Indices != nil && err == nil {
 		buffer := Indices.([]byte)
 		profile.AddConflictPeers(codec.Uint64s{}.Decode(buffer).(codec.Uint64s))
 	}
