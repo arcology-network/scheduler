@@ -32,7 +32,7 @@ import (
 
 	callee "github.com/arcology-network/scheduler/callee"
 
-	stateengine "github.com/arcology-network/state-engine"
+	execstatestore "github.com/arcology-network/state-engine/state/cache"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 )
 
@@ -56,7 +56,9 @@ func (this *Scheduler) SetLatest(sch *workload.ExecutionPlan) { this.latest = sc
 func (this *Scheduler) HasLatest() bool                       { return this.latest != nil }
 func (this *Scheduler) ClearLatest()                          { this.latest = nil }
 
-func (this *Scheduler) Store() *stateengine.StateStore { return this.ProfileStore.Backend() }
+func (this *Scheduler) Store() *execstatestore.ExecutionStateStore {
+	return this.ProfileStore.Backend()
+}
 
 // The scheduler will optimize the given transactions and return a schedule.
 // The schedule will contain the transactions that can be executed in parallel and the ones that have to

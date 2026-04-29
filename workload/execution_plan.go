@@ -21,13 +21,14 @@ import (
 	"errors"
 	"sort"
 
+	crdtcommon "github.com/arcology-network/common-lib/crdt/common"
 	"github.com/arcology-network/common-lib/crdt/commutative"
 	statecell "github.com/arcology-network/common-lib/crdt/statecell"
 	queue "github.com/arcology-network/common-lib/exp/queue"
 	evmcommon "github.com/ethereum/go-ethereum/common"
 
 	// "github.com/arcology-network/evm/common"
-	stateengine "github.com/arcology-network/state-engine"
+	storageintf "github.com/arcology-network/common-lib/storage/interface"
 	statecommon "github.com/arcology-network/state-engine/common"
 	statecache "github.com/arcology-network/state-engine/state/cache"
 )
@@ -52,10 +53,10 @@ type ExecutionPlan struct {
 	// their nonces.
 	JobsBySender []*queue.Queue[*Job]
 
-	Store *stateengine.StateStore
+	Store *statecache.ExecutionStateStore
 }
 
-func NewExecutionPlan(gens []*Generation, store *stateengine.StateStore) *ExecutionPlan {
+func NewExecutionPlan(gens []*Generation, store *statecache.ExecutionStateStore) *ExecutionPlan {
 	sch := &ExecutionPlan{
 		Generations: gens,
 		Store:       store,
@@ -71,7 +72,7 @@ func NewExecutionPlan(gens []*Generation, store *stateengine.StateStore) *Execut
 // g = Generations run sequentially. Generation g+1 begins only after generation g completes.
 // s = Sequences within a generation that can run in parallel.
 // j = Transactions inside a job sequence must execute in strict sequential order.
-func (this *ExecutionPlan) ExportMsgIDs(store *stateengine.StateStore) [][][]uint64 {
+func (this *ExecutionPlan) ExportMsgIDs(store *statecache.ExecutionStateStore) [][][]uint64 {
 	result := [][][]uint64{}
 	for _, gen := range this.Generations {
 		genIDs := [][]uint64{}
@@ -147,7 +148,7 @@ func (this *ExecutionPlan) InsertNonceAdjustment() error {
 				offset += uint64(len(pair.Second))
 				noncePreOffset, err := this.GenerateNonceAjustmentTransitions(
 					first.StdMsg.ID,
-					this.Store.ExecutionStateStore,
+					this.Store.CommittedStore(),
 					senders[i],
 					offset,
 				)
@@ -162,7 +163,7 @@ func (this *ExecutionPlan) InsertNonceAdjustment() error {
 
 func (*ExecutionPlan) GenerateNonceAjustmentTransitions(
 	tx uint64,
-	stateCache *statecache.ExecutionStateStore,
+	committedStore storageintf.ReadOnlyStore[string, crdtcommon.CRDT],
 	callerAddr evmcommon.Address,
 	offset uint64) ([]*statecell.StateCell, error) {
 	noncePath := (&statecommon.PathBuilder{
@@ -174,7 +175,7 @@ func (*ExecutionPlan) GenerateNonceAjustmentTransitions(
 	offsetDelta := commutative.NewUint64Delta(uint64(offset))
 
 	// Initialize a temporary state store to write the nonce offset.
-	execCache := statecache.NewExecutionStateStore(stateCache, 32, 1)
+	execCache := statecache.NewExecutionStateStore(committedStore, 32, 1)
 	_, err := execCache.Write(
 		tx,
 		noncePath,

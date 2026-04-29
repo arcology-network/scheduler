@@ -21,19 +21,19 @@ import (
 	"errors"
 	"sync"
 
-	stateengine "github.com/arcology-network/state-engine"
+	stateengine "github.com/arcology-network/state-engine/state/cache"
 )
 
 type ProfileStore struct {
 	dirties      map[uint64]*Profile
 	profileCache map[uint64]*Profile
 	maxCapacity  uint64 // Maximum number of profiles to cache in memory
-	backend      *stateengine.StateStore
+	backend      *stateengine.ExecutionStateStore
 	profileMu    sync.Mutex
 	dirtyMu      sync.Mutex
 }
 
-func NewProfileManager(backend *stateengine.StateStore, maxCapacity uint64) *ProfileStore {
+func NewProfileManager(backend *stateengine.ExecutionStateStore, maxCapacity uint64) *ProfileStore {
 	return &ProfileStore{
 		dirties:      make(map[uint64]*Profile),
 		profileCache: make(map[uint64]*Profile),
@@ -42,7 +42,7 @@ func NewProfileManager(backend *stateengine.StateStore, maxCapacity uint64) *Pro
 	}
 }
 
-func (this *ProfileStore) Backend() *stateengine.StateStore {
+func (this *ProfileStore) Backend() *stateengine.ExecutionStateStore {
 	return this.backend
 }
 

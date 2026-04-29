@@ -76,7 +76,7 @@ func TestCalleeManager(t *testing.T) {
 		t.Error("Failed to create accounts in store", err)
 	}
 
-	writeCache := sstore.ExecutionStateStore
+	writeCache := sstore
 
 	if _, err := CreateConflictParentPaths(alice, [4]byte{1, 1, 1, 1}, writeCache); err != nil {
 		t.Error(err)
@@ -128,7 +128,7 @@ func TestCalleeManagerCacheLimit(t *testing.T) {
 	if err != nil {
 		t.Error("Failed to create accounts in store", err)
 	}
-	writeCache := sstore.ExecutionStateStore
+	writeCache := sstore
 
 	alicePath, err := CreateConflictParentPaths(alice, [4]byte{1, 1, 1, 1}, writeCache)
 	if err != nil {
@@ -176,7 +176,7 @@ func TestCalleeManagerCacheLimit(t *testing.T) {
 		t.Error("Failed to add contracts", len(mgr.profileCache))
 	}
 
-	keys, _ := sstore.ExecutionStateStore.KVs()
+	keys, _ := sstore.KVs()
 	// if len(keys) != 4 || len(v) != 4 {
 	// 	t.Error("Failed to write back to storage", len(k), len(v))
 	// }
