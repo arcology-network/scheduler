@@ -23,7 +23,7 @@ import (
 
 	"github.com/arcology-network/common-lib/codec"
 	"github.com/arcology-network/common-lib/crdt/noncommutative"
-	"github.com/arcology-network/common-lib/exp/storageex/cache"
+	"github.com/arcology-network/common-lib/storage/cache"
 	statecommon "github.com/arcology-network/state-engine/common"
 	stateengine "github.com/arcology-network/state-engine/state/cache"
 )
