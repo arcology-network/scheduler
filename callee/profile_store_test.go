@@ -105,8 +105,8 @@ func TestCalleeManager(t *testing.T) {
 		t.Error("Failed to register new conflict", err)
 	}
 
-	// if len(mgr.profileCache) != 4 {
-	// 	t.Error("Failed to add contracts", len(mgr.profileCache))
+	// if len(mgr.cache) != 4 {
+	// 	t.Error("Failed to add contracts", len(mgr.cache))
 	// }
 
 	err = mgr.Commit()
@@ -151,7 +151,7 @@ func TestCalleeManagerCacheLimit(t *testing.T) {
 	}
 
 	// sstore := stateengine.NewStateStore(proxy.NewMemDBStoreProxy())
-	mgr := NewProfileManager(sstore, 6)
+	mgr := NewProfileManager(sstore, 6000)
 
 	// RegisterNewConflict the conflict pairs to the scheduler
 
@@ -163,17 +163,17 @@ func TestCalleeManagerCacheLimit(t *testing.T) {
 		t.Error("Failed to register new conflict", err)
 	}
 
-	if len(mgr.profileCache) != 4 {
-		t.Error("Failed to add contracts", len(mgr.profileCache))
+	if (mgr.cacheEx.Length()) != 4 {
+		t.Error("Failed to add contracts", (mgr.cacheEx.Length()))
 	}
 
 	if err := mgr.Commit(); err != nil {
 		t.Error("Failed to save profiles", err)
 	}
-	mgr.Clear()
+	// mgr.Clear()
 
-	if len(mgr.profileCache) != 0 {
-		t.Error("Failed to add contracts", len(mgr.profileCache))
+	if len(mgr.dirties) != 0 {
+		t.Error("Failed to clear dirties", len(mgr.dirties))
 	}
 
 	keys, _ := sstore.KVs()

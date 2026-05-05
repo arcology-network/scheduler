@@ -37,8 +37,8 @@ import (
 )
 
 type Scheduler struct {
-	latest *workload.ExecutionPlan
 	*profile.ProfileStore
+	latest       *workload.ExecutionPlan
 	SkipDeferred bool // If the scheduler should skip planning deferred executions.
 }
 
@@ -57,12 +57,11 @@ func (this *Scheduler) HasLatest() bool                       { return this.late
 func (this *Scheduler) ClearLatest()                          { this.latest = nil }
 
 func (this *Scheduler) Store() *execstatestore.ExecutionStateStore {
-	return this.ProfileStore.Backend()
+	return this.ProfileStore.StateStore()
 }
 
 // The scheduler will optimize the given transactions and return a schedule.
-// The schedule will contain the transactions that can be executed in parallel and the ones that have to
-// be executed sequentially.
+// The schedule will contain the transactions that can be executed in parallel and the ones that have to be executed sequentially.
 func (this *Scheduler) New(stdMsgs []*libtypes.StandardMessage) (*workload.ExecutionPlan, error) {
 	// Get the static schedule for the given transactions first.
 	// sch, pendingJobs := this.StaticSchedule(stdMsgs) // The pendingJobs are the transactions that need to be scheduled to avoid conflicts.
@@ -241,7 +240,7 @@ func (this *Scheduler) CreateJobs(stdMsgs []*libtypes.StandardMessage) []*worklo
 		8,
 		func(i int, msg *libtypes.StandardMessage) *workload.Job {
 			addr, selector := msg.GetAddressAndSelector()
-			profile := this.ProfileStore.LoadIfExists(msg.ID, addr, selector)
+			profile, _ := this.ProfileStore.LoadIfExists(msg.ID, addr, selector)
 			if profile == nil {
 				profile = callee.NewProfile(msg.ID, addr, selector, this.ProfileStore)
 			}
