@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"unsafe"
 
 	"github.com/arcology-network/common-lib/codec"
 	commutative "github.com/arcology-network/common-lib/crdt/commutative"
@@ -56,43 +57,6 @@ func NewProfile(Tx uint64, addr [20]byte, selector [4]byte, store *ProfileStore)
 // If the callee is supposed to be executed sequentially only.
 func (this *Profile) IsSequentialOnly() bool {
 	return this.parallelismDegree == 1
-}
-
-// Load the callee profile from the storage.
-func LoadProfile(id *ID, profileStore *ProfileStore) (*Profile, error) {
-	// Get the unique ID for the callee.
-	pathBuiler := &statecommon.PathBuilder{
-		Address:  id.Address,
-		Selector: id.Selector,
-		Platform: statecommon.ETH_PATH}
-
-	// Check if the profile path exists
-	if v, err := profileStore.backend.ReadOnlyStore().Retrieve(pathBuiler.ProfileField(""), new(commutative.Path)); v == nil || err != nil {
-		return nil, err
-	}
-
-	// Get the parallelism degree
-	profile := NewProfile(id.Tx, id.Address, id.Selector, profileStore)
-	path := pathBuiler.ProfileField(statecommon.PATH_PARALLELISM_DEGREE)
-	if paraDegree, err := profileStore.backend.ReadOnlyStore().Retrieve(path, noncommutative.NewUint64(0)); paraDegree != nil && err == nil {
-		profile.SetParallelismDegree(uint64(*paraDegree.(*noncommutative.Uint64)))
-	}
-
-	// Get the minimum prepayment amount for deferred execution
-	// If the amount is zero, it means the function is not deferrable.
-	path = pathBuiler.ProfileField(statecommon.PATH_DEFERRED_PAYMENT)
-
-	if prepayment, err := profileStore.backend.ReadOnlyStore().Retrieve(path, noncommutative.NewUint64(0)); prepayment != nil && err == nil {
-		profile.SetPrepayment((uint64(*prepayment.(*noncommutative.Uint64))))
-	}
-
-	// Get the conflict peers
-	path = pathBuiler.ProfileField(statecommon.PATH_CONFLICT_INFO)
-	if Indices, err := profileStore.backend.ReadOnlyStore().Retrieve(path, noncommutative.NewBytes([]byte{})); Indices != nil && err == nil {
-		buffer := Indices.([]byte)
-		profile.AddConflictPeers(codec.Uint64s{}.Decode(buffer).(codec.Uint64s))
-	}
-	return profile, nil
 }
 
 func (this *Profile) SetParallelismDegree(n uint64) {
@@ -143,6 +107,8 @@ func (this *Profile) HasConflictWith(other *Profile) bool {
 	return slices.IndexFunc(this.ConflictPeers, func(i uint64) bool { return i == uint64(other.ID.UID) }) != -1
 }
 
+// Scheduler will update the calleed profile based on the conflict information returned by the
+// conflict detection module after analyzing the transaction execution traces.
 func (this *Profile) Commit() error {
 	// Sequential function shouldn't exist in conflict list. The only reason for them to be
 	// in the list is that they were previously marked as parallel but later changed to sequential because
@@ -152,7 +118,7 @@ func (this *Profile) Commit() error {
 		Selector: this.ID.Selector, Platform: statecommon.ETH_PATH}
 
 	// Get the storage
-	store := this.profileStore.Backend()
+	store := this.profileStore.stateStore
 
 	// Ensure the parent path exists.
 	parentPath := pathBuiler.ProfileField("") // Get the path to write.
@@ -177,6 +143,29 @@ func (this *Profile) Commit() error {
 	v := noncommutative.NewBytes(buffer)
 	_, wError := store.Write(this.ID.Tx, path, v)
 	return errors.Join(err, wError)
+}
+
+// Get the estimate memory size of a callee profile for cache management.
+func SizeOf(this *Profile) uint64 {
+	if this == nil {
+		return 0
+	}
+
+	size := uint64(unsafe.Sizeof(this.ID))
+	size += 8                                         // parallelismDegree uint64
+	size += 8                                         // prepayment uint64
+	size += uint64(unsafe.Sizeof(this.ConflictPeers)) // slice header for ConflictPeers
+	size += uint64(unsafe.Sizeof(this.profileStore))  // pointer to the owning profile store
+
+	if this.ID != nil {
+		size += 8  // Tx uint64
+		size += 20 // Address [20]byte
+		size += 4  // Selector [4]byte
+		size += 8  // UID uint64
+	}
+
+	size += uint64(len(this.ConflictPeers)) * 8 // conflict peer payload entries
+	return size
 }
 
 func (this *Profile) PrintToString() string {

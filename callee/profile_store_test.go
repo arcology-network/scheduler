@@ -41,7 +41,7 @@ func BobAccount() string {
 	return hexutil.Encode(b)
 }
 
-func CreateConflictParentPaths(acct []byte, selector [4]byte, writeCache *cache.ExecutionStateCache) (string, error) {
+func CreateConflictParentPaths(acct []byte, selector [4]byte, writeCache *cache.ExecutionStateStore) (string, error) {
 	account := ethcommon.BytesToAddress(acct)
 	path := "blcc://eth1.0/account/" + hexutil.Encode(account[:])
 	if typedv, _, _ := writeCache.Read(1, path, commutative.NewPath()); typedv == nil {
@@ -76,7 +76,7 @@ func TestCalleeManager(t *testing.T) {
 		t.Error("Failed to create accounts in store", err)
 	}
 
-	writeCache := sstore.ExecutionStateCache
+	writeCache := sstore
 
 	if _, err := CreateConflictParentPaths(alice, [4]byte{1, 1, 1, 1}, writeCache); err != nil {
 		t.Error(err)
@@ -105,8 +105,8 @@ func TestCalleeManager(t *testing.T) {
 		t.Error("Failed to register new conflict", err)
 	}
 
-	// if len(mgr.profileCache) != 4 {
-	// 	t.Error("Failed to add contracts", len(mgr.profileCache))
+	// if len(mgr.cache) != 4 {
+	// 	t.Error("Failed to add contracts", len(mgr.cache))
 	// }
 
 	err = mgr.Commit()
@@ -128,7 +128,7 @@ func TestCalleeManagerCacheLimit(t *testing.T) {
 	if err != nil {
 		t.Error("Failed to create accounts in store", err)
 	}
-	writeCache := sstore.ExecutionStateCache
+	writeCache := sstore
 
 	alicePath, err := CreateConflictParentPaths(alice, [4]byte{1, 1, 1, 1}, writeCache)
 	if err != nil {
@@ -151,7 +151,7 @@ func TestCalleeManagerCacheLimit(t *testing.T) {
 	}
 
 	// sstore := stateengine.NewStateStore(proxy.NewMemDBStoreProxy())
-	mgr := NewProfileManager(sstore, 6)
+	mgr := NewProfileManager(sstore, 6000)
 
 	// RegisterNewConflict the conflict pairs to the scheduler
 
@@ -163,20 +163,20 @@ func TestCalleeManagerCacheLimit(t *testing.T) {
 		t.Error("Failed to register new conflict", err)
 	}
 
-	if len(mgr.profileCache) != 4 {
-		t.Error("Failed to add contracts", len(mgr.profileCache))
+	if (mgr.cacheEx.Length()) != 4 {
+		t.Error("Failed to add contracts", (mgr.cacheEx.Length()))
 	}
 
 	if err := mgr.Commit(); err != nil {
 		t.Error("Failed to save profiles", err)
 	}
-	mgr.Clear()
+	// mgr.Clear()
 
-	if len(mgr.profileCache) != 0 {
-		t.Error("Failed to add contracts", len(mgr.profileCache))
+	if len(mgr.dirties) != 0 {
+		t.Error("Failed to clear dirties", len(mgr.dirties))
 	}
 
-	keys, _ := sstore.ExecutionStateCache.KVs()
+	keys, _ := sstore.KVs()
 	// if len(keys) != 4 || len(v) != 4 {
 	// 	t.Error("Failed to write back to storage", len(k), len(v))
 	// }

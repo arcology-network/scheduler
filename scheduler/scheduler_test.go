@@ -161,7 +161,7 @@ func TestSchedulerWithConflicInfo(t *testing.T) {
 		t.Error("Failed to create schedule:", err)
 	}
 
-	msgIDSet := rawSch.ExportMsgIDs(scheduler.ProfileStore.Backend())
+	msgIDSet := rawSch.ExportMsgIDs(scheduler.ProfileStore.StateStore())
 	_0 := slice.Flatten(msgIDSet[0])
 	_1 := slice.Flatten(msgIDSet[1])
 

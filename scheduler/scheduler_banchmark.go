@@ -27,7 +27,7 @@ import (
 	"github.com/arcology-network/common-lib/exp/slice"
 	libtypes "github.com/arcology-network/common-lib/types"
 	profile "github.com/arcology-network/scheduler/callee"
-	stateengine "github.com/arcology-network/state-engine"
+	execstatestore "github.com/arcology-network/state-engine/state/cache"
 	proxy "github.com/arcology-network/state-engine/storage/proxy"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 
@@ -36,7 +36,7 @@ import (
 )
 
 func BenchmarkSchedulerWithConflictInfo(t *testing.B) {
-	sstore := stateengine.NewStateStore(proxy.NewMemDBStoreProxy())
+	sstore := execstatestore.NewDefaultExecutionStateStore(proxy.NewMemDBStoreProxy())
 	manager := profile.NewProfileManager(sstore, 1000000)
 	scheduler, _ := NewScheduler(manager) // No conflict db file.
 
