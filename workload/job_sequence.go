@@ -39,6 +39,8 @@ type JobSequence struct {
 	// Pre-execution state changes must be applied to the first job in the sequence before execution.
 	// Notably, these state changes include nonce offsets.
 	PreTransitions []*statecell.StateCell
+
+	collisionLookup map[uint64]bool
 }
 
 func NewJobSequenceFromEthMessages(
@@ -51,7 +53,7 @@ func NewJobSequenceFromEthMessages(
 	}
 
 	for i, evmMsg := range evmMsgs {
-		newJobSeq.AddJob(&commontype.StandardMessage{
+		newJobSeq.AddMsgFromJob(&commontype.StandardMessage{
 			ID:     ethMsgIDs[i],
 			Native: evmMsg,
 			TxHash: txHash[i],
@@ -60,14 +62,25 @@ func NewJobSequenceFromEthMessages(
 	return newJobSeq
 }
 
-// Convert standard message into 
+// HasConflictWith counts the number of conflicts between the given job and the jobs in the sequence.
+func (this *JobSequence) HasConflictWith(job *Job) int {
+	totalConflicts := 0
+	for _, j := range this.Jobs {
+		if _, ok := j.CollidesWith[job.Profile.ID.UID]; ok {
+			totalConflicts++
+		}
+	}
+	return totalConflicts
+}
+
+// Convert standard message into
 func NewJobSequenceFromStandardMessages(seqID uint64, stdMsgs ...*commontype.StandardMessage) *JobSequence {
 	newJobSeq := &JobSequence{
 		ID: seqID, // Sequence ID
 	}
 
 	for _, stdMsg := range stdMsgs {
-		newJobSeq.AddJob(stdMsg)
+		newJobSeq.AddMsgFromJob(stdMsg)
 	}
 	return newJobSeq
 }
@@ -90,14 +103,14 @@ func (*JobSequence) FromStandardMessages(ID uint64, stdMsgs []*commontype.Standa
 	}
 
 	for _, stdMsg := range stdMsgs {
-		newJobSeq.AddJob(stdMsg)
+		newJobSeq.AddMsgFromJob(stdMsg)
 	}
 	return newJobSeq
 }
 
 func (*JobSequence) T() *JobSequence { return &JobSequence{} }
 
-func (this *JobSequence) AddJob(msg any) *JobSequence {
+func (this *JobSequence) AddMsgFromJob(msg any) *JobSequence {
 	this.Jobs = append(this.Jobs, &Job{
 		ID:     uint64(len(this.Jobs)),
 		SeqID:  this.ID,

@@ -48,6 +48,8 @@ type Job struct {
 	// A Tx requiring the scheduler to plan a deferred execution will
 	// have a higher surcharge rate.
 	Surcharge int64
+
+	CollidesWith map[uint64]bool // A set of job IDs that this job collides with, for quick lookup.
 }
 
 func (this *Job) NumConflicts() int {
@@ -61,12 +63,12 @@ func (this *Job) IsSequentialOnly() bool {
 	return this.Profile != nil && this.Profile.IsSequentialOnly()
 }
 
-func (this *Job) ConflictLookup() map[uint64]bool {
-	if this.Profile == nil {
-		return map[uint64]bool{}
+func (this *Job) GenerateConflictLookup() {
+	if this.Profile != nil {
+		this.CollidesWith = make(map[uint64]bool)
 	}
 
-	return mapi.FromSlice(this.Profile.ConflictPeers, func(k uint64) bool {
+	this.CollidesWith = mapi.FromSlice(this.Profile.ConflictPeers, func(k uint64) bool {
 		return true
 	})
 }
@@ -88,4 +90,15 @@ func (this *Job) IsPotentiallyParallelizable() bool {
 func (this *Job) String() string {
 	return fmt.Sprintf("Job ID: %d, SeqID: %d, TxHash: %x, SequentialOnly: %t\n",
 		this.ID, this.SeqID, this.StdMsg.TxHash, this.IsSequentialOnly())
+}
+
+type Jobs []*Job
+
+func (this Jobs) HasConflictWith(job *Job) bool {
+	for j := range this {
+		if _, ok := (this)[j].CollidesWith[job.Profile.ID.UID]; ok {
+			return true
+		}
+	}
+	return false
 }
