@@ -25,6 +25,7 @@ import (
 	"github.com/arcology-network/common-lib/crdt/commutative"
 	statecell "github.com/arcology-network/common-lib/crdt/statecell"
 	queue "github.com/arcology-network/common-lib/exp/queue"
+	"github.com/arcology-network/common-lib/exp/slice"
 	evmcommon "github.com/ethereum/go-ethereum/common"
 
 	// "github.com/arcology-network/evm/common"
@@ -45,9 +46,8 @@ type ExecutionPlan struct {
 	Generations   []*Generation
 	RawMsgSet     [][][]*Job
 
-	// Where each job is located based on its StdMsg.ID. Multiple jobs may map to the same queue.
-	// If the queue has multiple jobs, which are ordered by their nonces.
-	JobLookup map[uint64]*Job
+	// Jobs by their transaction IDs for quick lookup.
+	JobIDLookup map[uint64]*Job
 
 	// Jobs grouped by their sender addresses, jobs in the same queue are ordered by
 	// their nonces.
@@ -90,6 +90,42 @@ func (this *ExecutionPlan) ExportMsgIDs(store *statecache.ExecutionStateStore) [
 
 // The function returns an optimized execution schedule represented as a 3-dimensional slice.
 func (this *ExecutionPlan) Finalize() error {
+	for i := 1; i < len(this.Generations); i++ {
+		for j := 0; j < len(this.Generations[i].JobSeqs); j++ {
+			for k, job := range this.Generations[i].JobSeqs[j].Jobs {
+				// This only makes sense when the job has conflicts with exactly one job sequence in
+				// the previous generation. If there are multiple conflicts, we can't merge
+				// it into one sequence without introducing new conflicts.
+				if conflictSeqs := this.Generations[i-1].HasConflictWith(job); len(conflictSeqs) == 1 {
+					// Merge the job into the conflicting sequence in the previous generation.
+					conflictSeqs[0].Jobs = append(conflictSeqs[0].Jobs, job)
+					// slice.RemoveAt(&this.Generations[i].JobSeqs[j].Jobs, k)
+					this.Generations[i].JobSeqs[j].Jobs[k] = nil
+				}
+			}
+			slice.RemoveIf(&this.Generations[i].JobSeqs[j].Jobs, func(_ int, j *Job) bool {
+				return j == nil
+			})
+		}
+
+		slice.RemoveIf(&this.Generations[i].JobSeqs, func(_ int, seq *JobSequence) bool {
+			return len(seq.Jobs) == 0
+		})
+	}
+
+	slice.RemoveIf(&this.Generations, func(_ int, gen *Generation) bool {
+		return gen.NumJobs() == 0
+	})
+
+	// Rebuild the transaction ID to job sequence mapping after merging.
+	for _, gen := range this.Generations {
+		for _, seq := range gen.JobSeqs {
+			for _, job := range seq.Jobs {
+				gen.TxToSeqLookup[job.StdMsg.ID] = seq // Multiple jobs may map to the same job sequence.
+			}
+		}
+	}
+
 	txID := 0
 	// Reassign IDs to generations, sequences, and jobs.
 	for i, gen := range this.Generations {
@@ -190,12 +226,12 @@ func (*ExecutionPlan) GenerateNonceAjustmentTransitions(
 // BuildJobLookup constructs a mapping from transaction IDs to their corresponding Job structs
 // within the execution schedule. This allows for efficient retrieval of Job information
 func (this *ExecutionPlan) BuildJobLookup() {
-	this.JobLookup = make(map[uint64]*Job)
+	this.JobIDLookup = make(map[uint64]*Job)
 	// Build the message lookup map for the schedule.
 	for _, gen := range this.Generations {
 		for _, seq := range gen.JobSeqs {
 			for _, job := range seq.Jobs {
-				this.JobLookup[job.StdMsg.ID] = job
+				this.JobIDLookup[job.StdMsg.ID] = job
 			}
 		}
 	}

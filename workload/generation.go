@@ -97,9 +97,8 @@ func NewGeneration(numThreads uint32, jobSeqs []*JobSequence) *Generation {
 	}
 
 	// Build the message lookup map. So we can use it later to find the transactions to revert.
-	for _, seq := range jobSeqs {
+	for _, seq := range gen.JobSeqs {
 		for _, job := range seq.Jobs {
-			gen.TxToSeqLookup[job.StdMsg.ID] = seq // Multiple jobs may map to the same job sequence.
 			gen.TxToJobLookup[job.StdMsg.ID] = job
 		}
 	}
@@ -128,6 +127,14 @@ func (this *Generation) GetClearRecords() []*statecell.StateCell {
 }
 
 func (this *Generation) Length() uint64 { return uint64(len(this.JobSeqs)) }
+
+func (this *Generation) NumJobs() uint64 {
+	count := uint64(0)
+	for _, seq := range this.JobSeqs {
+		count += uint64(len(seq.Jobs))
+	}
+	return count
+}
 
 // Get unique transction IDs in this generation.
 func (this *Generation) MsgIDs() []uint64 {
@@ -203,6 +210,19 @@ func (this *Generation) GroupBySenderAndSequence() ([]ethcommon.Address, [][]ass
 	}
 
 	return mapi.KVs(this.SenderToSequenceLookup)
+}
+
+// Get the job sequences that have conflicts with the given job.
+func (this *Generation) HasConflictWith(job *Job) []*JobSequence {
+	conflictingSeqs := []*JobSequence{}
+	for j := 0; j < len(this.JobSeqs); j++ {
+		for _, seedJob := range this.JobSeqs[j].Jobs {
+			if job.Profile.HasConflictWith(seedJob.Profile) {
+				conflictingSeqs = append(conflictingSeqs, this.JobSeqs[j])
+			}
+		}
+	}
+	return conflictingSeqs
 }
 
 // Return a 2D slice of jobs grouped by their job sequences.

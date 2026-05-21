@@ -104,7 +104,14 @@ func (this *Profile) IsMutuallyConflicting(other *Profile) bool {
 
 // Determine whether this callee is in conflict with another callee.
 func (this *Profile) HasConflictWith(other *Profile) bool {
-	return slices.IndexFunc(this.ConflictPeers, func(i uint64) bool { return i == uint64(other.ID.UID) }) != -1
+	if other == nil {
+		return false
+	}
+
+	return slices.IndexFunc(this.ConflictPeers,
+		func(i uint64) bool {
+			return i == uint64(other.ID.UID)
+		}) != -1
 }
 
 // Scheduler will update the calleed profile based on the conflict information returned by the
