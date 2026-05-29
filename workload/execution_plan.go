@@ -106,13 +106,9 @@ func (this *ExecutionPlan) Finalize() error {
 		}
 
 		for _, targetGen := range this.Generations[b+1:] {
-			if targetGen.NumJobs() > 1 {
-				continue
-			}
-
 			for j := 0; j < len(targetGen.JobSeqs); j++ {
 				for k, job := range targetGen.JobSeqs[j].Jobs {
-					if job.IsDeferred {
+					if job.Profile.IsDeferrable() {
 						continue
 					}
 
