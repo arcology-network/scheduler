@@ -32,14 +32,14 @@ type ProfileStore struct {
 	dirties map[uint64]*Profile // The modified profiles that need to be committed back to the storage.
 	dirtyMu sync.Mutex
 
-	cacheEx    *cache.Cache[uint64, *Profile]
+	cache      *cache.Cache[uint64, *Profile]
 	stateStore *stateengine.ExecutionStateStore
 }
 
 func NewProfileManager(stateStore *stateengine.ExecutionStateStore, maxCapacity uint64) *ProfileStore {
 	return &ProfileStore{
 		dirties: make(map[uint64]*Profile),
-		cacheEx: cache.NewCache(
+		cache: cache.NewCache(
 			1000,
 			func(k uint64) uint64 { return k },
 			cache.NewCachePolicy(
@@ -62,7 +62,7 @@ func (this *ProfileStore) LoadIfExists(tx uint64, addr [20]byte, selector [4]byt
 	}
 
 	id := NewID(tx, addr, selector)
-	if profile, err := this.cacheEx.Get(id.UID); err == nil {
+	if profile, err := this.cache.Get(id.UID); err == nil {
 		return profile.(*Profile), nil // Profile exists in cache.
 	}
 
@@ -72,8 +72,8 @@ func (this *ProfileStore) LoadIfExists(tx uint64, addr [20]byte, selector [4]byt
 	}
 
 	// Set a placeholder to prevent cache stampede for the same profile.
-	this.cacheEx.Set(id.UID, profile)
-	return profile, this.cacheEx.Set(id.UID, profile)
+	this.cache.Set(id.UID, profile)
+	return profile, this.cache.Set(id.UID, profile)
 }
 
 // Write back the modified callee profiles back to the storage.
@@ -94,38 +94,11 @@ func (this *ProfileStore) AddToDirty(profile *Profile) {
 	this.dirties[profile.ID.UID] = profile
 }
 
-// Register a conflict pair into the scheduler.
-// The conflict pairs are usually returned by the conflict detection module
-// after analyzing the transaction execution traces.
-func (this *ProfileStore) RegisterNewConflict(lftID *ID, rgtID *ID) error {
-	selfCallee, err := this.LoadOrCreate(lftID)
-	if err != nil {
-		panic("Scheduler: Failed to load or create callee profile! " + err.Error())
-	}
-
-	peerCallee, err := this.LoadOrCreate(rgtID)
-	if err != nil {
-		panic("Scheduler: Failed to load or create callee profile! " + err.Error())
-	}
-
-	// The conflict exists already.
-	if selfCallee.IsMutuallyConflicting(peerCallee) {
-		panic("Schduler: Conflict already exists! " + selfCallee.PrintToString() + peerCallee.PrintToString())
-	}
-
-	// Add the conflict entries both ways.
-	selfCallee.CrossLink(peerCallee)
-
-	// Mark both profiles as dirty for commit later.
-	this.dirties[lftID.UID] = selfCallee
-	this.dirties[rgtID.UID] = peerCallee
-	return nil
-}
 
 // Load the callee profile from the storage if exists, otherwise create a new one.
 // This is used when updating the callee profile storage after some conflicts are detected.
 func (this *ProfileStore) LoadOrCreate(id *ID) (*Profile, error) {
-	if profile, _ := this.cacheEx.Get(id.UID); profile != nil {
+	if profile, _ := this.cache.Get(id.UID); profile != nil {
 		return profile.(*Profile), nil // Profile already exists in cache.
 	}
 
@@ -134,7 +107,7 @@ func (this *ProfileStore) LoadOrCreate(id *ID) (*Profile, error) {
 	if profile == nil {
 		profile = NewProfile(id.Tx, id.Address, id.Selector, this)
 	}
-	return profile, this.cacheEx.Set(id.UID, profile) // New profile.
+	return profile, this.cache.Set(id.UID, profile) // New profile.
 }
 
 // Load the callee profile from the storage.

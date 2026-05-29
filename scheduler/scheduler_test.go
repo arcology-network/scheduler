@@ -80,7 +80,7 @@ func TestSchedulerNoConflictNoDeferred(t *testing.T) {
 	}
 }
 
-func TestSchedulerWithConflicInfo(t *testing.T) {
+func TestSchedulerWithConflic(t *testing.T) {
 	alice := []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 	bob := []byte("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
 	carol := []byte("cccccccccccccccccccccccccccccccccccccccc")
@@ -135,11 +135,13 @@ func TestSchedulerWithConflicInfo(t *testing.T) {
 	mgr := callee.NewProfileManager(sstore, 1000000)
 	scheduler, _ := NewScheduler(mgr) // No conflict db file.
 	// registerion have problem
-	scheduler.ProfileStore.RegisterNewConflict(
+	profile.DebugRegisterNewConflict(
+		scheduler.ProfileStore,
 		profile.NewID(0, [20]byte(alice), [4]byte{1, 1, 1, 1}),
 		profile.NewID(0, [20]byte(bob), [4]byte{2, 2, 2, 2}))
 
-	scheduler.ProfileStore.RegisterNewConflict(
+	profile.DebugRegisterNewConflict(
+		scheduler.ProfileStore,
 		profile.NewID(1, [20]byte(carol), [4]byte{3, 3, 3, 3}),
 		profile.NewID(1, [20]byte(david), [4]byte{4, 4, 4, 4}))
 
@@ -357,4 +359,167 @@ func TestOffsetingNoncesWithWriteStorage(t *testing.T) {
 	if err != nil {
 		t.Error("Failed to New schedule:", err)
 	}
+}
+
+func TestMultiGenerationMergeToOneSequence(t *testing.T) {
+	// alice := []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+	// bob := []byte("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+	// carol := []byte("cccccccccccccccccccccccccccccccccccccccc")
+	// david := []byte("dddddddddddddddddddddddddddddddddddddddd")
+
+	sender1 := [20]byte{0x01}
+	sender2 := [20]byte{0x02}
+	sender3 := [20]byte{0x03}
+
+	// s := &Scheduler{}
+
+	contract0 := ethcommon.BytesToAddress([]byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
+	mockFunc0 := [4]byte{1, 1, 1, 1}
+	_0CallContractAdd0 := &libcommontype.StandardMessage{
+		ID:     0,
+		Native: &ethcore.Message{From: sender1, Nonce: 0, To: &contract0, Data: mockFunc0[:]},
+	}
+
+	_1CallContractAdd0 := &libcommontype.StandardMessage{
+		ID:     0,
+		Native: &ethcore.Message{From: sender2, Nonce: 0, To: &contract0, Data: mockFunc0[:]},
+	}
+
+	_2CallContractAdd0 := &libcommontype.StandardMessage{
+		ID:     0,
+		Native: &ethcore.Message{From: sender3, Nonce: 0, To: &contract0, Data: mockFunc0[:]},
+	}
+
+	sstore, storeErr := statetestharness.CreateAccountInStore(sender1, sender2, sender3)
+	if storeErr != nil {
+		t.Error("Failed to initialize account in store:", storeErr)
+	}
+
+	mgr := callee.NewProfileManager(sstore, 1000000)
+	scheduler, _ := NewScheduler(mgr) // No conflict db file.
+
+	_, _, schErr := profile.DebugRegisterNewConflict(
+		scheduler.ProfileStore,
+		profile.NewID(0, contract0, mockFunc0),
+		profile.NewID(0, contract0, mockFunc0),
+	)
+
+	if schErr != nil {
+		t.Error("Failed to register new conflict:", schErr)
+	}
+
+	rawSch, err := scheduler.New([]*libcommontype.StandardMessage{
+		_0CallContractAdd0, // Conflict with callCarol
+		_1CallContractAdd0,
+		_2CallContractAdd0,
+	})
+
+	if err != nil {
+		t.Error("Failed to create schedule:", err)
+	}
+
+	if len(rawSch.Generations) != 1 {
+		t.Error("Wrong generation size", len(rawSch.Generations))
+	}
+
+	if len(rawSch.Generations[0].JobSeqs) != 1 {
+		t.Error("Wrong JobSeqs size", len(rawSch.Generations[0].JobSeqs))
+	}
+
+	if rawSch.TotalJobs() != 3 {
+		t.Error("Wrong job size", len(rawSch.Generations[0].JobSeqs[0].Jobs))
+	}
+}
+
+func TestMultiGenerationMerge(t *testing.T) {
+	sender1 := [20]byte{0x01}
+	sender2 := [20]byte{0x02}
+	sender3 := [20]byte{0x03}
+
+	contract0 := ethcommon.BytesToAddress([]byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
+	mockFunc0 := [4]byte{1, 1, 1, 1}
+
+	contract1 := ethcommon.BytesToAddress([]byte("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"))
+	mockFunc1 := [4]byte{2, 2, 2, 2}
+
+	// Initialize the profile store with the conflict pairs.
+	sstore, storeErr := statetestharness.CreateAccountInStore(sender1, sender2, sender3)
+	if storeErr != nil {
+		t.Error("Failed to initialize account in store:", storeErr)
+	}
+	mgr := callee.NewProfileManager(sstore, 1000000)
+	scheduler, _ := NewScheduler(mgr) // No conflict db file.
+
+	// Register the conflict pairs to the scheduler, so the TXs calling
+	// these two functions are serialized into separate execution generations.
+	p0, p1, schErr := profile.DebugRegisterNewConflict(
+		scheduler.ProfileStore,
+		profile.NewID(0, contract0, mockFunc0),
+		profile.NewID(0, contract1, mockFunc1),
+	)
+
+	if schErr != nil {
+		t.Error("Failed to register new conflict:", schErr)
+	}
+
+	// Enable deferred execution for the two functions.
+	p0.SetPrepayment(100)
+	p1.SetPrepayment(200)
+
+	// Produce a new schedule for the given transactions based on the conflicts information.
+	_0CallContractAdd0 := &libcommontype.StandardMessage{
+		ID:     0,
+		Native: &ethcore.Message{From: sender1, Nonce: 0, To: &contract0, Data: mockFunc0[:]},
+	}
+
+	_1CallContractAdd0 := &libcommontype.StandardMessage{
+		ID:     0,
+		Native: &ethcore.Message{From: sender2, Nonce: 0, To: &contract0, Data: mockFunc0[:]},
+	}
+
+	_2CallContractAdd0 := &libcommontype.StandardMessage{
+		ID:     0,
+		Native: &ethcore.Message{From: sender3, Nonce: 0, To: &contract0, Data: mockFunc0[:]},
+	}
+
+	_3CallContractAdd1 := &libcommontype.StandardMessage{
+		ID:     0,
+		Native: &ethcore.Message{From: sender1, Nonce: 1, To: &contract1, Data: mockFunc1[:]},
+	}
+
+	_4CallContractAdd1 := &libcommontype.StandardMessage{
+		ID:     0,
+		Native: &ethcore.Message{From: sender2, Nonce: 1, To: &contract1, Data: mockFunc1[:]},
+	}
+
+	_5CallContractAdd1 := &libcommontype.StandardMessage{
+		ID:     0,
+		Native: &ethcore.Message{From: sender3, Nonce: 1, To: &contract1, Data: mockFunc1[:]},
+	}
+
+	rawSch, err := scheduler.New([]*libcommontype.StandardMessage{
+		_0CallContractAdd0, // Conflict with callCarol
+		_1CallContractAdd0,
+		_2CallContractAdd0,
+
+		_3CallContractAdd1, // Conflict with callCarol
+		_4CallContractAdd1,
+		_5CallContractAdd1,
+	})
+
+	if err != nil {
+		t.Error("Failed to create schedule:", err)
+	}
+
+	if len(rawSch.Generations) != 4 {
+		t.Error("Wrong generation size", len(rawSch.Generations))
+	}
+
+	// if len(rawSch.Generations[0].JobSeqs) != 3 {
+	// 	t.Error("Wrong JobSeqs size", len(rawSch.Generations[0].JobSeqs))
+	// }
+
+	// if len(rawSch.Generations[1].JobSeqs) != 3 {
+	// 	t.Error("Wrong JobSeqs size", len(rawSch.Generations[0].JobSeqs))
+	// }
 }

@@ -130,8 +130,20 @@ func (this *Generation) Length() uint64 { return uint64(len(this.JobSeqs)) }
 
 func (this *Generation) NumJobs() uint64 {
 	count := uint64(0)
+	if this == nil {
+		return 0
+	}
+
 	for _, seq := range this.JobSeqs {
-		count += uint64(len(seq.Jobs))
+		if seq == nil {
+			continue
+		}
+
+		for _, job := range seq.Jobs {
+			if job != nil {
+				count++
+			}
+		}
 	}
 	return count
 }
@@ -217,30 +229,37 @@ func (this *Generation) HasConflictWith(job *Job) []*JobSequence {
 	conflictingSeqs := []*JobSequence{}
 	for j := 0; j < len(this.JobSeqs); j++ {
 		for _, seedJob := range this.JobSeqs[j].Jobs {
+			if seedJob == nil {
+				continue
+			}
+
 			if job.Profile.HasConflictWith(seedJob.Profile) {
 				conflictingSeqs = append(conflictingSeqs, this.JobSeqs[j])
+				break // Move one to the next sequence.
 			}
 		}
 	}
+
+	slice.UniqueIf(conflictingSeqs, func(i *JobSequence, j *JobSequence) bool {
+		return i == j
+	})
 	return conflictingSeqs
 }
-
-// Return a 2D slice of jobs grouped by their job sequences.
-// func (this *Generation) JobsBySequences(jobs []*Job) []associative.Pair[*JobSequence, []*Job] {
-// 	jobs := []*Job{}
-// 	for _, seq := range this.JobSeqs {
-// 		jobs = append(jobs, seq.Jobs...)
-// 	}
-
-// 	_, msgSet := slice.GroupBy(jobs,
-// 		func(_ int, job *Job) *ethcommon.Address {
-// 			return &job.StdMsg.Native.From
-// 		})
-// 	return msgSet
-// }
 
 func (this *Generation) Clear() uint64 {
 	length := len(this.JobSeqs)
 	this.JobSeqs = this.JobSeqs[:0]
 	return uint64(length)
+}
+
+func (this *Generation) ClearEmptySequences() {
+	for i := 0; i < len(this.JobSeqs); i++ {
+		slice.RemoveIf(&this.JobSeqs[i].Jobs, func(_ int, job *Job) bool {
+			return job == nil
+		})
+	}
+
+	slice.RemoveIf(&this.JobSeqs, func(_ int, seq *JobSequence) bool {
+		return seq == nil || len(seq.Jobs) == 0
+	})
 }
