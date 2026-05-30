@@ -21,7 +21,6 @@ import (
 	"errors"
 	"sort"
 
-	libcommon "github.com/arcology-network/common-lib/common"
 	crdtcommon "github.com/arcology-network/common-lib/crdt/common"
 	"github.com/arcology-network/common-lib/crdt/commutative"
 	statecell "github.com/arcology-network/common-lib/crdt/statecell"
@@ -31,6 +30,7 @@ import (
 
 	// "github.com/arcology-network/evm/common"
 	storageintf "github.com/arcology-network/common-lib/storage/interface"
+	schcommon "github.com/arcology-network/scheduler/common"
 	statecommon "github.com/arcology-network/state-engine/common"
 	statecache "github.com/arcology-network/state-engine/state/cache"
 )
@@ -107,8 +107,7 @@ func (this *ExecutionPlan) Finalize() error {
 		}
 
 		for _, targetGen := range this.Generations[b+1:] {
-			if float64(libcommon.Min(baseGen.NumJobs(), targetGen.NumJobs()))/
-				float64(libcommon.Max(baseGen.NumJobs(), targetGen.NumJobs())) > 0.5 {
+			if targetGen.NumJobs() > schcommon.MERGE_THRESHOLD {
 				break
 			}
 
