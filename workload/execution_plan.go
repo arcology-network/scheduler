@@ -21,6 +21,7 @@ import (
 	"errors"
 	"sort"
 
+	libcommon "github.com/arcology-network/common-lib/common"
 	crdtcommon "github.com/arcology-network/common-lib/crdt/common"
 	"github.com/arcology-network/common-lib/crdt/commutative"
 	statecell "github.com/arcology-network/common-lib/crdt/statecell"
@@ -106,9 +107,14 @@ func (this *ExecutionPlan) Finalize() error {
 		}
 
 		for _, targetGen := range this.Generations[b+1:] {
+			if float64(libcommon.Min(baseGen.NumJobs(), targetGen.NumJobs()))/
+				float64(libcommon.Max(baseGen.NumJobs(), targetGen.NumJobs())) > 0.5 {
+				break
+			}
+
 			for j := 0; j < len(targetGen.JobSeqs); j++ {
 				for k, job := range targetGen.JobSeqs[j].Jobs {
-					if job.Profile.IsDeferrable() {
+					if job.Profile == nil || job.Profile.IsDeferrable() {
 						continue
 					}
 
