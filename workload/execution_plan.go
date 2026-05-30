@@ -21,6 +21,7 @@ import (
 	"errors"
 	"sort"
 
+	libcommon "github.com/arcology-network/common-lib/common"
 	crdtcommon "github.com/arcology-network/common-lib/crdt/common"
 	"github.com/arcology-network/common-lib/crdt/commutative"
 	statecell "github.com/arcology-network/common-lib/crdt/statecell"
@@ -88,29 +89,44 @@ func (this *ExecutionPlan) ExportMsgIDs(store *statecache.ExecutionStateStore) [
 	return result
 }
 
+func (this *ExecutionPlan) TotalJobs() uint64 {
+	total := uint64(0)
+	for _, gen := range this.Generations {
+		total += gen.NumJobs()
+	}
+	return total
+}
+
+// func (this *ExecutionPlan) C() error {
+
 // The function returns an optimized execution schedule represented as a 3-dimensional slice.
 func (this *ExecutionPlan) Finalize() error {
-	for i := 1; i < len(this.Generations); i++ {
-		for j := 0; j < len(this.Generations[i].JobSeqs); j++ {
-			for k, job := range this.Generations[i].JobSeqs[j].Jobs {
-				// This only makes sense when the job has conflicts with exactly one job sequence in
-				// the previous generation. If there are multiple conflicts, we can't merge
-				// it into one sequence without introducing new conflicts.
-				if conflictSeqs := this.Generations[i-1].HasConflictWith(job); len(conflictSeqs) == 1 {
-					// Merge the job into the conflicting sequence in the previous generation.
-					conflictSeqs[0].Jobs = append(conflictSeqs[0].Jobs, job)
-					// slice.RemoveAt(&this.Generations[i].JobSeqs[j].Jobs, k)
-					this.Generations[i].JobSeqs[j].Jobs[k] = nil
-				}
-			}
-			slice.RemoveIf(&this.Generations[i].JobSeqs[j].Jobs, func(_ int, j *Job) bool {
-				return j == nil
-			})
+	for b, baseGen := range this.Generations {
+		if baseGen.NumJobs() == 0 {
+			continue
 		}
 
-		slice.RemoveIf(&this.Generations[i].JobSeqs, func(_ int, seq *JobSequence) bool {
-			return len(seq.Jobs) == 0
-		})
+		for _, targetGen := range this.Generations[b+1:] {
+			if float64(libcommon.Min(baseGen.NumJobs(), targetGen.NumJobs()))/
+				float64(libcommon.Max(baseGen.NumJobs(), targetGen.NumJobs())) > 0.5 {
+				break
+			}
+
+			for j := 0; j < len(targetGen.JobSeqs); j++ {
+				for k, job := range targetGen.JobSeqs[j].Jobs {
+					if job.Profile == nil || job.Profile.IsDeferrable() {
+						continue
+					}
+
+					conflictSeqs := baseGen.HasConflictWith(job)
+					if len(conflictSeqs) == 1 { // make sense when the job has conflicts with  one job sequence.
+						conflictSeqs[0].Jobs = append(conflictSeqs[0].Jobs, job)
+						targetGen.JobSeqs[j].Jobs[k] = nil
+					}
+				}
+			}
+			targetGen.ClearEmptySequences()
+		}
 	}
 
 	slice.RemoveIf(&this.Generations, func(_ int, gen *Generation) bool {

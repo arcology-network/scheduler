@@ -95,12 +95,20 @@ func TestCalleeManager(t *testing.T) {
 	}
 
 	mgr := NewProfileManager(sstore, 1000000)
-	err = mgr.RegisterNewConflict(NewID(0, [20]byte(alice), [4]byte{1, 1, 1, 1}), NewID(0, [20]byte(bob), [4]byte{2, 2, 2, 2}))
+	_, _, err = DebugRegisterNewConflict(
+		mgr,
+		NewID(0, [20]byte(alice), [4]byte{1, 1, 1, 1}),
+		NewID(0, [20]byte(bob), [4]byte{2, 2, 2, 2}),
+	)
 	if err != nil {
 		t.Error("Failed to register new conflict", err)
 	}
 
-	err = mgr.RegisterNewConflict(NewID(1, [20]byte(carol), [4]byte{3, 3, 3, 3}), NewID(1, [20]byte(david), [4]byte{4, 4, 4, 4}))
+	_, _, err = DebugRegisterNewConflict(
+		mgr,
+		NewID(1, [20]byte(carol), [4]byte{3, 3, 3, 3}),
+		NewID(1, [20]byte(david), [4]byte{4, 4, 4, 4}),
+	)
 	if err != nil {
 		t.Error("Failed to register new conflict", err)
 	}
@@ -130,12 +138,17 @@ func TestCalleeManagerCacheLimit(t *testing.T) {
 	}
 	writeCache := sstore
 
-	alicePath, err := CreateConflictParentPaths(alice, [4]byte{1, 1, 1, 1}, writeCache)
+	alicePath, err := CreateConflictParentPaths(
+		alice,
+		[4]byte{1, 1, 1, 1},
+		writeCache,
+	)
 	if err != nil {
 		t.Error(err)
 	}
 
-	bobPath, err := CreateConflictParentPaths(bob, [4]byte{2, 2, 2, 2}, writeCache)
+	bobPath, err := CreateConflictParentPaths(
+		bob, [4]byte{2, 2, 2, 2}, writeCache)
 	if err != nil {
 		t.Error(err)
 	}
@@ -153,18 +166,26 @@ func TestCalleeManagerCacheLimit(t *testing.T) {
 	// sstore := stateengine.NewStateStore(proxy.NewMemDBStoreProxy())
 	mgr := NewProfileManager(sstore, 6000)
 
-	// RegisterNewConflict the conflict pairs to the scheduler
+	// DebugRegisterNewConflict the conflict pairs to the scheduler
 
-	if err := mgr.RegisterNewConflict(NewID(0, [20]byte(alice), [4]byte{1, 1, 1, 1}), NewID(0, [20]byte(bob), [4]byte{2, 2, 2, 2})); err != nil {
+	if _, _, err := DebugRegisterNewConflict(
+		mgr,
+		NewID(0, [20]byte(alice), [4]byte{1, 1, 1, 1}),
+		NewID(0, [20]byte(bob), [4]byte{2, 2, 2, 2}),
+	); err != nil {
 		t.Error("Failed to register new conflict", err)
 	}
 
-	if err := mgr.RegisterNewConflict(NewID(1, [20]byte(david), [4]byte{3, 3, 3, 3}), NewID(1, [20]byte(david), [4]byte{4, 4, 4, 4})); err != nil {
+	if _, _, err := DebugRegisterNewConflict(
+		mgr,
+		NewID(1, [20]byte(david), [4]byte{3, 3, 3, 3}),
+		NewID(1, [20]byte(david), [4]byte{4, 4, 4, 4}),
+	); err != nil {
 		t.Error("Failed to register new conflict", err)
 	}
 
-	if (mgr.cacheEx.Length()) != 4 {
-		t.Error("Failed to add contracts", (mgr.cacheEx.Length()))
+	if (mgr.cache.Length()) != 4 {
+		t.Error("Failed to add contracts", (mgr.cache.Length()))
 	}
 
 	if err := mgr.Commit(); err != nil {

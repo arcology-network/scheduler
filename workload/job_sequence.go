@@ -40,7 +40,7 @@ type JobSequence struct {
 	// Notably, these state changes include nonce offsets.
 	PreTransitions []*statecell.StateCell
 
-	collisionLookup map[uint64]bool
+	// collisionLookup map[uint64]bool
 }
 
 func NewJobSequenceFromEthMessages(
