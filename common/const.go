@@ -24,3 +24,6 @@ var WARN_OUT_OF_UPPER_LIMIT = errors.New("Warning: Out of the upper limit!")
 
 var WARN_ACCESS_CONFLICT = errors.New("Warning: State access conflict detected!")
 var WARN_UPSTREAM_CONFLICT_IN_SEQUENCE = errors.New("Warning: Upstream transaction conflicted. Invalidate the execution chain!")
+
+// The minimum number of transactions in a generation to consider merging the NEXT one to IT to reduce overhead.
+var MERGE_THRESHOLD = uint64(16)
