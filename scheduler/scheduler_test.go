@@ -467,44 +467,56 @@ func TestMultiGenerationMerge(t *testing.T) {
 	p1.SetPrepayment(200)
 
 	// Produce a new schedule for the given transactions based on the conflicts information.
-	_0CallContractAdd0 := &libcommontype.StandardMessage{
+	_0_0_CallContractAdd0 := &libcommontype.StandardMessage{
 		ID:     0,
 		Native: &ethcore.Message{From: sender1, Nonce: 0, To: &contract0, Data: mockFunc0[:]},
 	}
 
-	_1CallContractAdd0 := &libcommontype.StandardMessage{
+	_0_1_CallContractAdd0 := &libcommontype.StandardMessage{
 		ID:     0,
 		Native: &ethcore.Message{From: sender2, Nonce: 0, To: &contract0, Data: mockFunc0[:]},
 	}
 
-	_2CallContractAdd0 := &libcommontype.StandardMessage{
+	_0_2_CallContractAdd0 := &libcommontype.StandardMessage{
 		ID:     0,
 		Native: &ethcore.Message{From: sender3, Nonce: 0, To: &contract0, Data: mockFunc0[:]},
 	}
 
-	_3CallContractAdd1 := &libcommontype.StandardMessage{
+	_0_3_CallContractAdd0 := &libcommontype.StandardMessage{
+		ID:     0,
+		Native: &ethcore.Message{From: sender3, Nonce: 1, To: &contract0, Data: mockFunc0[:]},
+	}
+
+	_1_0_CallContractAdd1 := &libcommontype.StandardMessage{
 		ID:     0,
 		Native: &ethcore.Message{From: sender1, Nonce: 1, To: &contract1, Data: mockFunc1[:]},
 	}
 
-	_4CallContractAdd1 := &libcommontype.StandardMessage{
+	_1_1_CallContractAdd1 := &libcommontype.StandardMessage{
 		ID:     0,
 		Native: &ethcore.Message{From: sender2, Nonce: 1, To: &contract1, Data: mockFunc1[:]},
 	}
 
-	_5CallContractAdd1 := &libcommontype.StandardMessage{
+	_1_2_CallContractAdd1 := &libcommontype.StandardMessage{
 		ID:     0,
 		Native: &ethcore.Message{From: sender3, Nonce: 1, To: &contract1, Data: mockFunc1[:]},
 	}
 
-	rawSch, err := scheduler.New([]*libcommontype.StandardMessage{
-		_0CallContractAdd0, // Conflict with callCarol
-		_1CallContractAdd0,
-		_2CallContractAdd0,
+	_1_3_CallContractAdd1 := &libcommontype.StandardMessage{
+		ID:     0,
+		Native: &ethcore.Message{From: sender1, Nonce: 2, To: &contract1, Data: mockFunc1[:]},
+	}
 
-		_3CallContractAdd1, // Conflict with callCarol
-		_4CallContractAdd1,
-		_5CallContractAdd1,
+	rawSch, err := scheduler.New([]*libcommontype.StandardMessage{
+		_0_0_CallContractAdd0, // Conflict with callCarol
+		_0_1_CallContractAdd0,
+		_0_2_CallContractAdd0,
+		_0_3_CallContractAdd0,
+
+		_1_0_CallContractAdd1, // Conflict with callCarol
+		_1_1_CallContractAdd1,
+		_1_2_CallContractAdd1,
+		_1_3_CallContractAdd1,
 	})
 
 	if err != nil {
@@ -514,12 +526,4 @@ func TestMultiGenerationMerge(t *testing.T) {
 	if len(rawSch.Generations) != 4 {
 		t.Error("Wrong generation size", len(rawSch.Generations))
 	}
-
-	// if len(rawSch.Generations[0].JobSeqs) != 3 {
-	// 	t.Error("Wrong JobSeqs size", len(rawSch.Generations[0].JobSeqs))
-	// }
-
-	// if len(rawSch.Generations[1].JobSeqs) != 3 {
-	// 	t.Error("Wrong JobSeqs size", len(rawSch.Generations[0].JobSeqs))
-	// }
 }

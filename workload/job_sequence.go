@@ -18,7 +18,9 @@
 package workload
 
 import (
+	"fmt"
 	"sort"
+	"strings"
 
 	crdtcommon "github.com/arcology-network/common-lib/crdt/common"
 	"github.com/arcology-network/common-lib/crdt/commutative"
@@ -175,20 +177,6 @@ func (this *JobSequence) MarkJobForRollback(conflictTxLookup map[uint64]error) {
 	}
 }
 
-// CalcualteRefund calculates the refund amount for the JobSequence.
-func (this *JobSequence) CalcualteRefund() uint64 {
-	amount := uint64(0)
-	// for _, v := range *seqAPI.WriteCache().(*cache.WriteCache).Cache() {
-	// 	typed := v.Value().(crdtcommon.CRDT)
-	// 	amount += common.IfThen(
-	// 		!v.Preexist(),
-	// 		(uint64(typed.Size())/32)*uint64(v.Writes())*ethparams.SstoreSetGas,
-	// 		(uint64(typed.Size())/32)*uint64(v.Writes()),
-	// 	)
-	// }
-	return amount
-}
-
 // RefundTo refunds the specified amount from the payer to the recipient.
 func (this *JobSequence) RefundTo(payer, recipent *statecell.StateCell, amount uint64) (uint64, error) {
 	credit := commutative.NewU256Delta(uint256.NewInt(amount), true).(*commutative.U256)
@@ -203,6 +191,19 @@ func (this *JobSequence) RefundTo(payer, recipent *statecell.StateCell, amount u
 	}
 	payer.IncrementDeltaWrites(1)
 	return amount, nil
+}
+
+func (this *JobSequence) String() string {
+	if len(this.Jobs) == 0 {
+		return fmt.Sprintf("JobSequence ID: %d, Jobs: 0\n", this.ID)
+	}
+
+	var builder strings.Builder
+	builder.WriteString(fmt.Sprintf("JobSequence ID: %d, Jobs: %d\n", this.ID, len(this.Jobs)))
+	for _, job := range this.Jobs {
+		builder.WriteString(job.String())
+	}
+	return builder.String()
 }
 
 func SortJobSequences(seqs []*JobSequence) {

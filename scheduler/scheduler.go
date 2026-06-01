@@ -78,7 +78,7 @@ func (this *Scheduler) New(stdMsgs []*libtypes.StandardMessage) (*workload.Execu
 	}
 
 	// Group the jobs into queues by their sender addresses.
- 	msgQueuesBySenders := this.QueueBySender(jobs)
+	msgQueuesBySenders := this.QueueBySender(jobs)
 
 	// The code below will search for the parallel transaction set from a set of conflicting transactions.
 	// Whataever left is the sequential transaction set after this.
