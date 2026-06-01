@@ -18,7 +18,9 @@
 package workload
 
 import (
+	"fmt"
 	"sort"
+	"strings"
 
 	common "github.com/arcology-network/common-lib/common"
 	statecell "github.com/arcology-network/common-lib/crdt/statecell"
@@ -146,6 +148,26 @@ func (this *Generation) NumJobs() uint64 {
 		}
 	}
 	return count
+}
+
+func (this *Generation) String() string {
+	if this == nil {
+		return "Generation <nil>\n"
+	}
+
+	if len(this.JobSeqs) == 0 {
+		return fmt.Sprintf("Generation ID: %d, Sequences: 0, Jobs: 0\n", this.ID)
+	}
+
+	var builder strings.Builder
+	builder.WriteString(fmt.Sprintf("Generation ID: %d, Sequences: %d, Jobs: %d\n", this.ID, len(this.JobSeqs), this.NumJobs()))
+	for _, seq := range this.JobSeqs {
+		if seq == nil {
+			continue
+		}
+		builder.WriteString(seq.String())
+	}
+	return builder.String()
 }
 
 // Get unique transction IDs in this generation.
