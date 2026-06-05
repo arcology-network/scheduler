@@ -137,7 +137,9 @@ func (this *Profile) Commit() error {
 	}
 
 	var err error
-	if this.parallelismDegree == 1 {
+	// By default, all the tx are parellelizable, we only write the parallelism degree
+	// when it is sequential only, to save storage and also avoid unnecessary conflicts.
+	if this.parallelismDegree == 1 { // sequential only.
 		path := pathBuiler.ProfileField(statecommon.PATH_PARALLELISM_DEGREE) // Get the path to write.
 		v := noncommutative.NewUint64(this.parallelismDegree)
 		_, wError := store.Write(this.ID.Tx, path, v)

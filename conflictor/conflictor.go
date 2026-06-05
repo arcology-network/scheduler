@@ -107,13 +107,13 @@ func (this *Conflictor) Move(trans []*statecell.StateCell) []*statecell.StateCel
 	return slice.MoveIf(&trans, func(i int, v *statecell.StateCell) bool { return v.HasCollision })
 }
 
-// Looks for conflicts in the array with the same path key.
-func (this *Conflictor) LookupForConflict(trans []*statecell.StateCell) *Collision {
-	statecell.StateCells(trans).SortByTx()
+// Looks for conflicts in the array with the SAME path key.
+func (this *Conflictor) LookupForConflict(samePathTrans []*statecell.StateCell) *Collision {
+	statecell.StateCells(samePathTrans).SortByTx()
 
-	first := trans[0]
+	first := samePathTrans[0]
 	// Different transactions in the same JOB sequence are not conflicting, even they access the same state cell.
-	idx, _ := slice.FindFirstIf(trans, func(i int, v *statecell.StateCell) bool {
+	idx, _ := slice.FindFirstIf(samePathTrans, func(i int, v *statecell.StateCell) bool {
 		return first.JobSequenceID != v.JobSequenceID
 	})
 
@@ -126,7 +126,8 @@ func (this *Conflictor) LookupForConflict(trans []*statecell.StateCell) *Collisi
 		// return nil // Container level state cells are not conflicting, even they are accessed by different sequences.
 	}
 
-	otherTrans := trans[idx:]
+	// Search for conflicts among the tranactions.
+	searchSpaceTrans := samePathTrans[idx:]
 
 	// Assume all the transitions are in conflict at the beginning.
 	// Unless proven otherwise, we will return all the subsequent
@@ -134,41 +135,41 @@ func (this *Conflictor) LookupForConflict(trans []*statecell.StateCell) *Collisi
 	var conflictPeers []*statecell.StateCell
 	var err error
 	if first.IsReadOnly() { // Read only
-		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).HasCollision = !(*v).IsReadOnly() })
-		conflictPeers = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.HasCollision })
+		slice.Foreach(searchSpaceTrans, func(i int, v **statecell.StateCell) { (*v).HasCollision = !(*v).IsReadOnly() })
+		conflictPeers = slice.MoveIf(&searchSpaceTrans, func(i int, v *statecell.StateCell) bool { return v.HasCollision })
 		err = errors.New("Read with non read only")
 	} else if first.IsCumulativeWriteOnly(first) { // Initialization of commutative values only
-		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).HasCollision = !(*v).IsCumulativeWriteOnly(first) })
-		conflictPeers = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.HasCollision })
+		slice.Foreach(searchSpaceTrans, func(i int, v **statecell.StateCell) { (*v).HasCollision = !(*v).IsCumulativeWriteOnly(first) })
+		conflictPeers = slice.MoveIf(&searchSpaceTrans, func(i int, v *statecell.StateCell) bool { return v.HasCollision })
 		err = errors.New("Commutative Initialization with non commutative initialization")
 	} else if first.IsDeltaWriteOnly() { // Delta write only
-		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).HasCollision = !(*v).IsDeltaWriteOnly() })
-		conflictPeers = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.HasCollision })
+		slice.Foreach(searchSpaceTrans, func(i int, v **statecell.StateCell) { (*v).HasCollision = !(*v).IsDeltaWriteOnly() })
+		conflictPeers = slice.MoveIf(&searchSpaceTrans, func(i int, v *statecell.StateCell) bool { return v.HasCollision })
 		err = errors.New("Delta write with non delta write only")
 
 	} else if first.IsDeleteOnly() { // Delta write only
-		slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).HasCollision = !(*v).IsDeleteOnly() })
-		conflictPeers = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.HasCollision })
+		slice.Foreach(searchSpaceTrans, func(i int, v **statecell.StateCell) { (*v).HasCollision = !(*v).IsDeleteOnly() })
+		conflictPeers = slice.MoveIf(&searchSpaceTrans, func(i int, v *statecell.StateCell) bool { return v.HasCollision })
 		err = errors.New("Delete with non delete only")
 
-		// } else if first.IsPathCreationOnly() { // Initialization with nil only.
-		// 	slice.Foreach(otherTrans, func(i int, v **statecell.StateCell) { (*v).HasCollision = !(*v).IsPathCreationOnly() })
-		// 	conflictPeers = slice.MoveIf(&otherTrans, func(i int, v *statecell.StateCell) bool { return v.HasCollision })
-		// 	err = errors.New("Nil initialization with non nil initialization")
 	} else {
 		// The first transition doesn't belong to any `special` category that can avoid at least some conflicts.
 		// Thus, we mark all the subsequent transitions as conflicts.
-		conflictPeers = otherTrans
-		otherTrans = []*statecell.StateCell{}
+		conflictPeers = searchSpaceTrans
+		searchSpaceTrans = []*statecell.StateCell{}
 	}
 
 	// No access conflict found, move on to check the under/over limit conflicts.
 	if len(conflictPeers) == 0 {
-		return (&Accumulator{}).CheckMinMax(trans)
+		return (&Accumulator{}).CheckMinMax(samePathTrans)
 	}
 
+	// Clone the conflict peers to avoid modifying the original ones. Since conflictPeers and
+	// searchSpaceTrans are slices of the same original slice.
+	conflictPeers = slice.Clone(conflictPeers)
+
 	// There are some access conflicts, check if the remaining transitions are within limits.
-	conflictFree := slice.PushFront(first, &otherTrans)
+	conflictFree := slice.PushFront(first, &searchSpaceTrans)
 	if outOfLimit := (&Accumulator{}).CheckMinMax(conflictFree); outOfLimit != nil {
 		return outOfLimit
 	}
@@ -176,7 +177,7 @@ func (this *Conflictor) LookupForConflict(trans []*statecell.StateCell) *Collisi
 	// offset++ // The offet is actually the index of the origina index minus 1, because the first
 	// was used as the reference. Here we add it back.
 	return &Collision{
-		Self:   trans[0],
+		Self:   samePathTrans[0],
 		Peers:  conflictPeers,
 		Reason: errors.Join(schedulercommon.WARN_ACCESS_CONFLICT, err),
 	}
