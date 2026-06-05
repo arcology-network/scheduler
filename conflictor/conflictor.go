@@ -167,6 +167,8 @@ func (this *Conflictor) LookupForConflict(trans []*statecell.StateCell) *Collisi
 		return (&Accumulator{}).CheckMinMax(trans)
 	}
 
+	conflictPeers = slice.Clone(conflictPeers)
+
 	// There are some access conflicts, check if the remaining transitions are within limits.
 	conflictFree := slice.PushFront(first, &otherTrans)
 	if outOfLimit := (&Accumulator{}).CheckMinMax(conflictFree); outOfLimit != nil {
