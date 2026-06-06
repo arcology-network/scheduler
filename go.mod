@@ -2,20 +2,19 @@ module github.com/arcology-network/scheduler
 
 go 1.22
 
-replace github.com/ethereum/go-ethereum v1.14.8 => ../concurrent-evm/
+replace github.com/ethereum/go-ethereum v1.14.8 => github.com/arcology-network/concurrent-evm v0.0.0-20260606134708-2b2a978d283f
 
 replace github.com/arcology-network/common-lib => ../common-lib/
 
 replace github.com/arcology-network/state-engine => ../state-engine/
 
 require (
-	github.com/arcology-network/state-engine v0.0.0-00010101000000-000000000000
+	github.com/arcology-network/state-engine v1.9.1-0.20260606141159-ebd548b7881d
 	github.com/ethereum/go-ethereum v1.14.8
 )
 
 require (
-	github.com/arcology-network/common-lib v0.0.0-00010101000000-000000000000
-	// github.com/arcology-network/state-engine v1.9.1-0.20251126235142-d1f77d8f5605
+	github.com/arcology-network/common-lib v1.9.1-0.20260606140601-ac5107cbdcb0
 	github.com/holiman/uint256 v1.2.4
 	golang.org/x/exp v0.0.0-20231206192017-f3f8817b8deb
 )
