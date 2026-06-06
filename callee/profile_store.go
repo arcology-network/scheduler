@@ -55,6 +55,7 @@ func NewProfileManager(stateStore *stateengine.ExecutionStateStore, maxCapacity 
 }
 
 func (this *ProfileStore) StateStore() *stateengine.ExecutionStateStore { return this.stateStore }
+func (this *ProfileStore) Dirties() map[uint64]*Profile                 { return this.dirties }
 
 func (this *ProfileStore) LoadIfExists(tx uint64, addr [20]byte, selector [4]byte) (*Profile, error) {
 	if addr == [20]byte{} || selector == [4]byte{} {
@@ -72,7 +73,7 @@ func (this *ProfileStore) LoadIfExists(tx uint64, addr [20]byte, selector [4]byt
 	}
 
 	// Set a placeholder to prevent cache stampede for the same profile.
-	this.cache.Set(id.UID, profile)
+	// this.cache.Set(id.UID, profile)
 	return profile, this.cache.Set(id.UID, profile)
 }
 
@@ -93,7 +94,6 @@ func (this *ProfileStore) AddToDirty(profile *Profile) {
 	defer this.dirtyMu.Unlock()
 	this.dirties[profile.ID.UID] = profile
 }
-
 
 // Load the callee profile from the storage if exists, otherwise create a new one.
 // This is used when updating the callee profile storage after some conflicts are detected.

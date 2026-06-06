@@ -23,6 +23,7 @@ import (
 	crdtcommon "github.com/arcology-network/common-lib/crdt/common"
 	statecell "github.com/arcology-network/common-lib/crdt/statecell"
 	"github.com/arcology-network/common-lib/exp/slice"
+	slices "github.com/arcology-network/common-lib/exp/slice"
 	schedulercommon "github.com/arcology-network/scheduler/common"
 )
 
@@ -36,7 +37,7 @@ import (
 type Accumulator struct{}
 
 // Categorize the transitions into negative and positive deltas.
-func (*Accumulator) PartitionByDeltaSign(transitions []*statecell.StateCell) ([]*statecell.StateCell, []*statecell.StateCell) {
+func (*Accumulator) partitionByDeltaSign(transitions []*statecell.StateCell) ([]*statecell.StateCell, []*statecell.StateCell) {
 	sort.SliceStable(transitions, func(i, j int) bool {
 		lhv := transitions[i].Value().(crdtcommon.CRDT)
 		rhv := transitions[i].Value().(crdtcommon.CRDT)
@@ -66,26 +67,20 @@ func (this *Accumulator) CheckMinMax(transitions []*statecell.StateCell) *Collis
 		return nil
 	}
 
-	slice.RemoveIf(&transitions, func(_ int, v *statecell.StateCell) bool {
+	workingCopy := slices.Clone(transitions) // Clone the transitions to avoid modifying the original order.
+	slice.RemoveIf(&workingCopy, func(_ int, v *statecell.StateCell) bool {
 		return v.IsReadOnly()
 	})
 
-	if len(transitions) <= 1 {
+	if len(workingCopy) <= 1 {
 		return nil
 	}
 
-	negatives, positives := this.PartitionByDeltaSign(transitions)
-
-	// Separate the negative and positive deltas.
-	// negatives := slice.MoveIf(&transitions, func(i int, v *statecell.StateCell) bool {
-	// 	_, sign := v.Value().(crdtcommon.CRDT).Delta()
-	// 	return sign
-	// })
-	// positives := transitions
+	negatives, positives := this.partitionByDeltaSign(workingCopy)
 
 	// check for underflow.
 	if len(negatives) > 0 { // all negative deltas
-		underflowed := this.isOutOfLimits(*(transitions)[0].GetPath(), negatives)
+		underflowed := this.isOutOfLimits(*(workingCopy)[0].GetPath(), negatives)
 		if underflowed != nil {
 			underflowed.Reason = schedulercommon.WARN_OUT_OF_LOWER_LIMIT
 			return underflowed
@@ -94,7 +89,7 @@ func (this *Accumulator) CheckMinMax(transitions []*statecell.StateCell) *Collis
 
 	// check for overflow.
 	if len(positives) > 0 {
-		overflowed := this.isOutOfLimits(*(transitions)[0].GetPath(), positives)
+		overflowed := this.isOutOfLimits(*(workingCopy)[0].GetPath(), positives)
 		if overflowed != nil {
 			overflowed.Reason = schedulercommon.WARN_OUT_OF_UPPER_LIMIT
 			return overflowed

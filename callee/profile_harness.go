@@ -17,6 +17,8 @@
 
 package profile
 
+import "errors"
+
 // Register a conflict pair into the scheduler.
 // The conflict pairs are usually returned by the conflict detection module
 // after analyzing the transaction execution traces.
@@ -53,4 +55,15 @@ func DebugSetPrePayment(this *ProfileStore, id *ID, amount uint64) (*Profile, er
 	selfCallee.SetPrepayment(amount)
 	this.dirties[id.UID] = selfCallee
 	return selfCallee, nil
+}
+
+// Write back the modified callee profiles back to the storage.
+func DebugCommit(this *ProfileStore) error {
+	var err error
+	for _, dirtyProfile := range this.Dirties() {
+		err = errors.Join(err, dirtyProfile.Commit()) // Save to the conflict storage.
+	}
+	this.dirties = make(map[uint64]*Profile)
+	// this.Clear() // Clear the local cache after commit to free up memory.
+	return err
 }

@@ -26,7 +26,6 @@ import (
 
 	queue "github.com/arcology-network/common-lib/exp/queue"
 	profile "github.com/arcology-network/scheduler/callee"
-	"github.com/arcology-network/scheduler/conflictor"
 	workload "github.com/arcology-network/scheduler/workload"
 
 	callee "github.com/arcology-network/scheduler/callee"
@@ -277,26 +276,4 @@ func (this *Scheduler) QueueBySender(jobs []*workload.Job) []*queue.Queue[*workl
 		})
 	}
 	return bySender
-}
-
-// Precommit the scheduler's conflict database based on the latest conflict info.
-func (this *Scheduler) Precommit(conflictSet *conflictor.CollisionSummary) {
-	// Map the conflict info to the original callee profiles
-	// using UID as the key.
-	for _, conflictInfo := range conflictSet.Collisions {
-		// Map back to their orginal callee profile IDs
-		selfID, peerIDs := conflictInfo.MapConflictToCallee(this.latest.JobIDLookup)
-
-		// Get the profiles by IDs and add the conflict peers.
-		selfProfile, _ := this.ProfileStore.LoadOrCreate(selfID)
-		for _, peerID := range peerIDs {
-			peerProfile, _ := this.ProfileStore.LoadOrCreate(peerID)
-			peerProfile.CrossLink(selfProfile) // Add each other as conflict peers.
-		}
-	}
-}
-
-// Commit the scheduler's conflict database based on the latest conflict info.
-func (this *Scheduler) Commit() error {
-	return this.ProfileStore.Commit() // Save the updated profiles to the storage.
 }
