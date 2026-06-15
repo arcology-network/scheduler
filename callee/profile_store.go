@@ -90,13 +90,21 @@ func (this *ProfileStore) Commit() error {
 		}
 		err = errors.Join(err, dirtyProfile.Commit()) // Save to the conflict storage.
 	}
-	this.Reset()
-	// this.Clear() // Clear the local cache after commit to free up memory.
+	e := this.Reset()
+	err = errors.Join(err, e)
 	return err
 }
 
-func (this *ProfileStore) Reset() {
+func (this *ProfileStore) Reset() error {
+	var err error
+	for _, dirty := range this.dirties {
+		if dirty.IsEmpty() {
+			e := this.cache.Delete(dirty.ID.UID) // Remove empty profiles from cache to save memory.
+			err = errors.Join(err, e)
+		}
+	}
 	this.dirties = make(map[uint64]*Profile)
+	return err
 }
 
 // Add a modified callee profile into the dirties.
