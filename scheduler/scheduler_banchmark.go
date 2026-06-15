@@ -37,7 +37,7 @@ import (
 
 func BenchmarkSchedulerWithConflictInfo(t *testing.B) {
 	sstore := execstatestore.NewDefaultExecutionStateStore(proxy.NewMemDBStoreProxy())
-	manager := profile.NewProfileManager(sstore, 1000000)
+	manager := profile.NewProfileStore(sstore, 1000000)
 	scheduler, _ := NewScheduler(manager) // No conflict db file.
 
 	alice := []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")

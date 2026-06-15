@@ -59,9 +59,15 @@ func (this *Profile) IsSequentialOnly() bool {
 	return this.parallelismDegree == 1
 }
 
+func (this *Profile) IsEmpty() bool {
+	return this.parallelismDegree == 0 &&
+		this.prepayment == 0 &&
+		len(this.ConflictPeers) == 0
+}
+
 func (this *Profile) SetParallelismDegree(n uint64) {
 	this.parallelismDegree = n
-	this.profileStore.AddToDirty(this)
+	this.profileStore.addToDirty(this)
 }
 
 func (this *Profile) GetParallelismDegree() uint64 { return this.parallelismDegree }
@@ -71,7 +77,7 @@ func (this *Profile) IsDeferrable() bool { return this.prepayment > 0 }
 
 func (this *Profile) SetPrepayment(prepayment uint64) {
 	this.prepayment = prepayment
-	this.profileStore.AddToDirty(this)
+	this.profileStore.addToDirty(this)
 }
 
 func (this *Profile) GetPrepayment() uint64 { return this.prepayment }
@@ -88,7 +94,7 @@ func (this *Profile) AddConflictPeers(list []uint64) {
 	} else {
 		this.ConflictPeers = append(this.ConflictPeers, list...)
 	}
-	this.profileStore.AddToDirty(this)
+	this.profileStore.addToDirty(this)
 }
 
 // Determine whether this callee profile already has the conflict with another callee profile.

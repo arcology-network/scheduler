@@ -53,7 +53,6 @@ func DebugSetPrePayment(this *ProfileStore, id *ID, amount uint64) (*Profile, er
 		panic("Scheduler: Failed to load or create callee profile! " + err.Error())
 	}
 	selfCallee.SetPrepayment(amount)
-	this.dirties[id.UID] = selfCallee
 	return selfCallee, nil
 }
 
@@ -63,7 +62,7 @@ func DebugCommit(this *ProfileStore) error {
 	for _, dirtyProfile := range this.Dirties() {
 		err = errors.Join(err, dirtyProfile.Commit()) // Save to the conflict storage.
 	}
-	this.dirties = make(map[uint64]*Profile)
+	this.Reset() // Clear the dirty list after commit to free up memory.
 	// this.Clear() // Clear the local cache after commit to free up memory.
 	return err
 }

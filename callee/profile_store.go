@@ -29,14 +29,18 @@ import (
 )
 
 type ProfileStore struct {
-	dirties map[uint64]*Profile // The modified profiles that need to be committed back to the storage.
+	// The modified profiles that need to be committed back to the storage.
+	// The key is the UID of the callee (derived from address + selector).
+	dirties map[uint64]*Profile
 	dirtyMu sync.Mutex
 
+	// Cache is used to store the loaded profiles to avoid repeated loading from the storage.
+	// It is another layer of cache on top of the storage.
 	cache      *cache.Cache[uint64, *Profile]
 	stateStore *stateengine.ExecutionStateStore
 }
 
-func NewProfileManager(stateStore *stateengine.ExecutionStateStore, maxCapacity uint64) *ProfileStore {
+func NewProfileStore(stateStore *stateengine.ExecutionStateStore, maxCapacity uint64) *ProfileStore {
 	return &ProfileStore{
 		dirties: make(map[uint64]*Profile),
 		cache: cache.NewCache(
@@ -81,15 +85,22 @@ func (this *ProfileStore) LoadIfExists(tx uint64, addr [20]byte, selector [4]byt
 func (this *ProfileStore) Commit() error {
 	var err error
 	for _, dirtyProfile := range this.dirties {
+		if dirtyProfile.IsEmpty() {
+			continue // Skip empty profiles to save storage space.
+		}
 		err = errors.Join(err, dirtyProfile.Commit()) // Save to the conflict storage.
 	}
-	this.dirties = make(map[uint64]*Profile)
+	this.Reset()
 	// this.Clear() // Clear the local cache after commit to free up memory.
 	return err
 }
 
+func (this *ProfileStore) Reset() {
+	this.dirties = make(map[uint64]*Profile)
+}
+
 // Add a modified callee profile into the dirties.
-func (this *ProfileStore) AddToDirty(profile *Profile) {
+func (this *ProfileStore) addToDirty(profile *Profile) {
 	this.dirtyMu.Lock()
 	defer this.dirtyMu.Unlock()
 	this.dirties[profile.ID.UID] = profile
@@ -106,7 +117,10 @@ func (this *ProfileStore) LoadOrCreate(id *ID) (*Profile, error) {
 	profile, _ := this.loadProfile(id)
 	if profile == nil {
 		profile = NewProfile(id.Tx, id.Address, id.Selector, this)
+		this.addToDirty(profile)
 	}
+
+	// Mark the profile as dirty for commit later.
 	return profile, this.cache.Set(id.UID, profile) // New profile.
 }
 

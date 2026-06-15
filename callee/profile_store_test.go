@@ -94,7 +94,7 @@ func TestCalleeManager(t *testing.T) {
 		t.Error(err)
 	}
 
-	mgr := NewProfileManager(sstore, 1000000)
+	mgr := NewProfileStore(sstore, 1000000)
 	_, _, err = DebugRegisterNewConflict(
 		mgr,
 		NewID(0, [20]byte(alice), [4]byte{1, 1, 1, 1}),
@@ -164,7 +164,7 @@ func TestCalleeManagerCacheLimit(t *testing.T) {
 	}
 
 	// sstore := stateengine.NewStateStore(proxy.NewMemDBStoreProxy())
-	mgr := NewProfileManager(sstore, 6000)
+	mgr := NewProfileStore(sstore, 6000)
 
 	// DebugRegisterNewConflict the conflict pairs to the scheduler
 
