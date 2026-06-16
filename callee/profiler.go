@@ -130,14 +130,15 @@ func (this *Profile) Commit() error {
 		Address:  this.ID.Address,
 		Selector: this.ID.Selector, Platform: statecommon.ETH_PATH}
 
-	// Get the storage
-	store := this.profileStore.stateStore
+	// This execution store will help generate the state changes in the form of state cells,
+	// which will be committed together with the transaction execution later by the scheduler.
+	execStore := this.profileStore.execStore
 
 	// Ensure the parent path exists.
 	parentPath := pathBuiler.ProfileField("") // Get the path to write.
-	if v, _, _ := store.Read(this.ID.Tx, pathBuiler.ProfileField(""), nil); v == nil {
+	if v, _, _ := execStore.Read(this.ID.Tx, pathBuiler.ProfileField(""), nil); v == nil {
 		// Create the parent path if not exists.
-		if _, err := store.Write(this.ID.Tx, parentPath, commutative.NewPath()); err != nil {
+		if _, err := execStore.Write(this.ID.Tx, parentPath, commutative.NewPath()); err != nil {
 			return err
 		}
 	}
@@ -148,7 +149,7 @@ func (this *Profile) Commit() error {
 	if this.parallelismDegree == 1 { // sequential only.
 		path := pathBuiler.ProfileField(statecommon.PATH_PARALLELISM_DEGREE) // Get the path to write.
 		v := noncommutative.NewUint64(this.parallelismDegree)
-		_, wError := store.Write(this.ID.Tx, path, v)
+		_, wError := execStore.Write(this.ID.Tx, path, v)
 		err = errors.Join(err, wError)
 	}
 
@@ -156,7 +157,7 @@ func (this *Profile) Commit() error {
 	path := pathBuiler.ProfileField(statecommon.PATH_CONFLICT_INFO) // Get the path to write.
 	buffer := codec.Uint64s(this.ConflictPeers).Encode()
 	v := noncommutative.NewBytes(buffer)
-	_, wError := store.Write(this.ID.Tx, path, v)
+	_, wError := execStore.Write(this.ID.Tx, path, v)
 	return errors.Join(err, wError)
 }
 

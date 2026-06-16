@@ -21,16 +21,12 @@ import (
 	"runtime"
 	"sort"
 
+	queue "github.com/arcology-network/common-lib/exp/queue"
 	"github.com/arcology-network/common-lib/exp/slice"
 	libtypes "github.com/arcology-network/common-lib/types"
-
-	queue "github.com/arcology-network/common-lib/exp/queue"
+	callee "github.com/arcology-network/scheduler/callee"
 	profile "github.com/arcology-network/scheduler/callee"
 	workload "github.com/arcology-network/scheduler/workload"
-
-	callee "github.com/arcology-network/scheduler/callee"
-
-	execstatestore "github.com/arcology-network/state-engine/state/cache"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 )
 
@@ -54,18 +50,16 @@ func (this *Scheduler) SetLatest(sch *workload.ExecutionPlan) { this.latest = sc
 func (this *Scheduler) HasLatest() bool                       { return this.latest != nil }
 func (this *Scheduler) ClearLatest()                          { this.latest = nil }
 
-func (this *Scheduler) Store() *execstatestore.ExecutionStateStore {
-	return this.ProfileStore.StateStore()
-}
-
 // The scheduler will optimize the given transactions and return a schedule.
 // The schedule will contain the transactions that can be executed in parallel and the ones that have to be executed sequentially.
 func (this *Scheduler) New(stdMsgs []*libtypes.StandardMessage) (*workload.ExecutionPlan, error) {
 	// Get the static schedule for the given transactions first.
 	// sch, pendingJobs := this.StaticSchedule(stdMsgs) // The pendingJobs are the transactions that need to be scheduled to avoid conflicts.
+
 	this.latest = &workload.ExecutionPlan{
-		Store: this.Store(),
+		Store: this.ProfileStore.StateStore(),
 	}
+
 	if len(stdMsgs) == 0 {
 		return this.latest, nil // No transactions to process.
 	}
