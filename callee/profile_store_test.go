@@ -117,7 +117,7 @@ func TestCalleeManager(t *testing.T) {
 	// 	t.Error("Failed to add contracts", len(mgr.cache))
 	// }
 
-	err = mgr.Commit()
+	err = mgr.Precommit()
 	if err != nil {
 		t.Error("Failed to commit profiles", err)
 	}
@@ -188,7 +188,7 @@ func TestCalleeManagerCacheLimit(t *testing.T) {
 		t.Error("Failed to add contracts", (mgr.cache.Length()))
 	}
 
-	if err := mgr.Commit(); err != nil {
+	if err := mgr.Precommit(); err != nil {
 		t.Error("Failed to save profiles", err)
 	}
 	// mgr.Clear()

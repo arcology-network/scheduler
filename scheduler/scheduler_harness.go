@@ -39,5 +39,5 @@ func DebugPrecommit(this *Scheduler, conflictSet *conflictor.CollisionSummary) {
 
 // Commit the scheduler's conflict database based on the latest conflict info.
 func DebugCommit(this *Scheduler) error {
-	return this.ProfileStore.Commit() // Save the updated profiles to the storage.
+	return this.ProfileStore.Precommit() // Save the updated profiles to the storage.
 }

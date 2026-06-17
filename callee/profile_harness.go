@@ -17,7 +17,11 @@
 
 package profile
 
-import "errors"
+import (
+	"github.com/arcology-network/common-lib/crdt/statecell"
+	"github.com/arcology-network/common-lib/exp/slice"
+	statecommitter "github.com/arcology-network/state-engine/state/committer"
+)
 
 // Register a conflict pair into the scheduler.
 // The conflict pairs are usually returned by the conflict detection module
@@ -57,12 +61,17 @@ func DebugSetPrePayment(this *ProfileStore, id *ID, amount uint64) (*Profile, er
 }
 
 // Write back the modified callee profiles back to the storage.
-func DebugCommit(this *ProfileStore) error {
-	var err error
-	for _, dirtyProfile := range this.Dirties() {
-		err = errors.Join(err, dirtyProfile.Commit()) // Save to the conflict storage.
+func DebugCommit(pStore *ProfileStore) error {
+	if err := pStore.Precommit(); err != nil {
+		return err
 	}
-	this.Reset() // Clear the dirty list after commit to free up memory.
-	// this.Clear() // Clear the local cache after commit to free up memory.
-	return err
+
+	// Write back the modified callee profiles back to the storage for transition generation.
+	trans := pStore.execStore.Export(statecell.Sorter)
+	committer := statecommitter.NewStateCommitter(pStore.execStore.CommittedStore(), pStore.execStore.GetWriters())
+	committer.Import(statecell.StateCells(slice.Clone(trans)).To(statecell.InterProcTransition{}))
+	committer.DebugPrecommit([]uint64{1})
+	committer.DebugCommit(10)
+
+	return committer.Err
 }

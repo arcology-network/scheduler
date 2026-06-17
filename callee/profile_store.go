@@ -105,29 +105,31 @@ func (this *ProfileStore) LoadIfExists(tx uint64, addr [20]byte, selector [4]byt
 	return profile, this.cache.Set(id.UID, profile)
 }
 
-// Write back the modified callee profiles back to the storage.
-func (this *ProfileStore) Commit() error {
+// Write back the modified callee profiles back to an instance of ExecutionStateStore
+// for transition generation. It doesn't write back to the original state store directly.
+// The actual commit to the original state store happens together with other transitions.
+// func (this *ProfileStore) Precommit() error {
+// 	var err error
+// 	for _, dirtyProfile := range this.dirties {
+// 		if dirtyProfile.IsEmpty() {
+// 			continue // Skip empty profiles to save storage space.
+// 		}
+// 		err = errors.Join(err, dirtyProfile.Commit()) // Save to the conflict storage.
+// 	}
+// 	e := this.Reset()
+// 	err = errors.Join(err, e)
+// 	return err
+// }
 
-	var err error
-	for _, dirtyProfile := range this.dirties {
-		if dirtyProfile.IsEmpty() {
-			continue // Skip empty profiles to save storage space.
-		}
-		err = errors.Join(err, dirtyProfile.Commit()) // Save to the conflict storage.
-	}
-	e := this.Reset()
-	err = errors.Join(err, e)
-	return err
-}
-
-func (this *ProfileStore) Reset() error {
+func (this *ProfileStore) Precommit() error {
 	var err error
 	for _, dirty := range this.dirties {
-		if dirty.IsEmpty() {
-			e := this.cache.Delete(dirty.ID.UID) // Remove empty profiles from cache to save memory.
-			err = errors.Join(err, e)
+		if !dirty.IsEmpty() {
+			err = errors.Join(err, dirty.Commit()) // Save to the conflict storage.
 		}
 	}
+
+	// Clear the dirty list and cache to free up memory.
 	this.dirties = make(map[uint64]*Profile)
 	this.cache = cache.NewCache(
 		2,
