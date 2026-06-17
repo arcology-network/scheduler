@@ -29,11 +29,13 @@ import (
 	evmcommon "github.com/ethereum/go-ethereum/common"
 
 	// "github.com/arcology-network/evm/common"
+	stgintf "github.com/arcology-network/common-lib/storage/interface"
 	storageintf "github.com/arcology-network/common-lib/storage/interface"
 	schcommon "github.com/arcology-network/scheduler/common"
 	statecommon "github.com/arcology-network/state-engine/common"
 	statecache "github.com/arcology-network/state-engine/state/cache"
 )
+
 
 type ExecutionPlan struct {
 	Transfers   []*Job // Transfers
@@ -54,7 +56,8 @@ type ExecutionPlan struct {
 	// their nonces.
 	JobsBySender []*queue.Queue[*Job]
 
-	Store *statecache.ExecutionStateStore
+	// Store *statecache.ExecutionStateStore
+	Store stgintf.ReadOnlyStore[string, crdtcommon.CRDT]
 }
 
 func NewExecutionPlan(gens []*Generation, store *statecache.ExecutionStateStore) *ExecutionPlan {
@@ -199,7 +202,7 @@ func (this *ExecutionPlan) InsertNonceAdjustment() error {
 				offset += uint64(len(pair.Second))
 				noncePreOffset, err := this.GenerateNonceAjustmentTransitions(
 					first.StdMsg.ID,
-					this.Store.CommittedStore(),
+					this.Store,
 					senders[i],
 					offset,
 				)
@@ -225,7 +228,7 @@ func (*ExecutionPlan) GenerateNonceAjustmentTransitions(
 	// Then write it to the state cache.
 	offsetDelta := commutative.NewUint64Delta(uint64(offset))
 
-	// Initialize a temporary state store to write the nonce offset.
+	// Initialize a temporary statestore to write the nonce offset.
 	execCache := statecache.NewExecutionStateStore(committedStore, 32, 1)
 	_, err := execCache.Write(
 		tx,

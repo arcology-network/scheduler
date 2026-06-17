@@ -63,7 +63,7 @@ func TestSchedulerNoConflictNoDeferred(t *testing.T) {
 	}
 
 	// Produce a new schedule for the given transactions based on the conflicts information.
-	mgr := callee.NewProfileManager(sstore, 1000000)
+	mgr := callee.NewProfileStore(sstore.CommittedStore())
 	scheduler, _ := NewScheduler(mgr) // No conflict db file.
 	rawSch, err := scheduler.New([]*libcommontype.StandardMessage{
 		callAlice0,
@@ -132,7 +132,7 @@ func TestSchedulerWithConflic(t *testing.T) {
 		t.Error("Failed to initialize account in store:", storeErr)
 	}
 
-	mgr := callee.NewProfileManager(sstore, 1000000)
+	mgr := callee.NewProfileStore(sstore.CommittedStore())
 	scheduler, _ := NewScheduler(mgr) // No conflict db file.
 	// registerion have problem
 	profile.DebugRegisterNewConflict(
@@ -294,7 +294,7 @@ func TestOffsetingNoncesSimple(t *testing.T) {
 		t.Error("Failed to create account in store:", storeErr)
 	}
 
-	mgr := callee.NewProfileManager(sstore, 1000000)
+	mgr := callee.NewProfileStore(sstore.CommittedStore())
 	scheduler, _ := NewScheduler(mgr) // No conflict db file.
 
 	rawSch, err := scheduler.New([]*libcommontype.StandardMessage{callAlice, callBob})
@@ -352,7 +352,7 @@ func TestOffsetingNoncesWithWriteStorage(t *testing.T) {
 		t.Error("Failed to initialize account in store:", storeErr)
 	}
 
-	mgr := callee.NewProfileManager(sstore, 1000000)
+	mgr := callee.NewProfileStore(sstore.CommittedStore())
 	scheduler, _ := NewScheduler(mgr) // No conflict db file.
 
 	_, err := scheduler.New([]*libcommontype.StandardMessage{callAlice, callBob, callCarol, callDavid})
@@ -395,7 +395,7 @@ func TestMultiGenerationMergeToOneSequence(t *testing.T) {
 		t.Error("Failed to initialize account in store:", storeErr)
 	}
 
-	mgr := callee.NewProfileManager(sstore, 1000000)
+	mgr := callee.NewProfileStore(sstore.CommittedStore())
 	scheduler, _ := NewScheduler(mgr) // No conflict db file.
 
 	_, _, schErr := profile.DebugRegisterNewConflict(
@@ -447,7 +447,7 @@ func TestMultiGenerationMerge(t *testing.T) {
 	if storeErr != nil {
 		t.Error("Failed to initialize account in store:", storeErr)
 	}
-	mgr := callee.NewProfileManager(sstore, 1000000)
+	mgr := callee.NewProfileStore(sstore.CommittedStore())
 	scheduler, _ := NewScheduler(mgr) // No conflict db file.
 
 	// Register the conflict pairs to the scheduler, so the TXs calling

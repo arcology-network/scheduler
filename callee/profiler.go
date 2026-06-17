@@ -59,9 +59,15 @@ func (this *Profile) IsSequentialOnly() bool {
 	return this.parallelismDegree == 1
 }
 
+func (this *Profile) IsEmpty() bool {
+	return this.parallelismDegree == 0 &&
+		this.prepayment == 0 &&
+		len(this.ConflictPeers) == 0
+}
+
 func (this *Profile) SetParallelismDegree(n uint64) {
 	this.parallelismDegree = n
-	this.profileStore.AddToDirty(this)
+	this.profileStore.addToDirty(this)
 }
 
 func (this *Profile) GetParallelismDegree() uint64 { return this.parallelismDegree }
@@ -71,7 +77,7 @@ func (this *Profile) IsDeferrable() bool { return this.prepayment > 0 }
 
 func (this *Profile) SetPrepayment(prepayment uint64) {
 	this.prepayment = prepayment
-	this.profileStore.AddToDirty(this)
+	this.profileStore.addToDirty(this)
 }
 
 func (this *Profile) GetPrepayment() uint64 { return this.prepayment }
@@ -88,7 +94,7 @@ func (this *Profile) AddConflictPeers(list []uint64) {
 	} else {
 		this.ConflictPeers = append(this.ConflictPeers, list...)
 	}
-	this.profileStore.AddToDirty(this)
+	this.profileStore.addToDirty(this)
 }
 
 // Determine whether this callee profile already has the conflict with another callee profile.
@@ -124,14 +130,15 @@ func (this *Profile) Commit() error {
 		Address:  this.ID.Address,
 		Selector: this.ID.Selector, Platform: statecommon.ETH_PATH}
 
-	// Get the storage
-	store := this.profileStore.stateStore
+	// This execution store will help generate the state changes in the form of state cells,
+	// which will be committed together with the transaction execution later by the scheduler.
+	execStore := this.profileStore.execStore
 
 	// Ensure the parent path exists.
 	parentPath := pathBuiler.ProfileField("") // Get the path to write.
-	if v, _, _ := store.Read(this.ID.Tx, pathBuiler.ProfileField(""), nil); v == nil {
+	if v, _, _ := execStore.Read(this.ID.Tx, pathBuiler.ProfileField(""), nil); v == nil {
 		// Create the parent path if not exists.
-		if _, err := store.Write(this.ID.Tx, parentPath, commutative.NewPath()); err != nil {
+		if _, err := execStore.Write(this.ID.Tx, parentPath, commutative.NewPath()); err != nil {
 			return err
 		}
 	}
@@ -142,7 +149,7 @@ func (this *Profile) Commit() error {
 	if this.parallelismDegree == 1 { // sequential only.
 		path := pathBuiler.ProfileField(statecommon.PATH_PARALLELISM_DEGREE) // Get the path to write.
 		v := noncommutative.NewUint64(this.parallelismDegree)
-		_, wError := store.Write(this.ID.Tx, path, v)
+		_, wError := execStore.Write(this.ID.Tx, path, v)
 		err = errors.Join(err, wError)
 	}
 
@@ -150,7 +157,7 @@ func (this *Profile) Commit() error {
 	path := pathBuiler.ProfileField(statecommon.PATH_CONFLICT_INFO) // Get the path to write.
 	buffer := codec.Uint64s(this.ConflictPeers).Encode()
 	v := noncommutative.NewBytes(buffer)
-	_, wError := store.Write(this.ID.Tx, path, v)
+	_, wError := execStore.Write(this.ID.Tx, path, v)
 	return errors.Join(err, wError)
 }
 

@@ -19,43 +19,71 @@ package profile
 
 import (
 	"errors"
+	"math"
 	"sync"
 
 	"github.com/arcology-network/common-lib/codec"
+	crdtcommon "github.com/arcology-network/common-lib/crdt/common"
 	"github.com/arcology-network/common-lib/crdt/noncommutative"
 	"github.com/arcology-network/common-lib/storage/cache"
+	"github.com/cespare/xxhash"
+
+	// cachedstore "github.com/arcology-network/common-lib/storage/cachedstore"
+	// stgcodec "github.com/arcology-network/common-lib/storage/codec"
+	stgintf "github.com/arcology-network/common-lib/storage/interface"
 	statecommon "github.com/arcology-network/state-engine/common"
-	stateengine "github.com/arcology-network/state-engine/state/cache"
+	statecache "github.com/arcology-network/state-engine/state/cache"
 )
 
+// ProfileBackend := [uint64, *Profile, string, crdtcommon.CRDT]
+
 type ProfileStore struct {
-	dirties map[uint64]*Profile // The modified profiles that need to be committed back to the storage.
+	// The modified profiles that need to be committed back to the storage.
+	// The key is the UID of the callee (derived from address + selector).
+	dirties map[uint64]*Profile
 	dirtyMu sync.Mutex
 
+	// Cache is used to store the loaded profiles to avoid repeated loading from the storage.
+	// It is another layer of cache on top of the storage.
 	cache      *cache.Cache[uint64, *Profile]
-	stateStore *stateengine.ExecutionStateStore
+	stateStore stgintf.ReadOnlyStore[string, crdtcommon.CRDT]
+
+	// For transition generation only. It has the same underlying storage as
+	// stateStore.
+	execStore *statecache.ExecutionStateStore
 }
 
-func NewProfileManager(stateStore *stateengine.ExecutionStateStore, maxCapacity uint64) *ProfileStore {
-	return &ProfileStore{
+func NewProfileStore(readonlyStore stgintf.ReadOnlyStore[string, crdtcommon.CRDT]) *ProfileStore {
+	pStore := &ProfileStore{
 		dirties: make(map[uint64]*Profile),
 		cache: cache.NewCache(
-			1000,
+			2,
 			func(k uint64) uint64 { return k },
 			cache.NewCachePolicy(
-				maxCapacity,
+				math.MaxUint64,
 				func(p *Profile) uint64 {
 					return SizeOf(p)
 				},
 			), // Each profile counts against the capacity by its estimated size.
 		),
-
-		stateStore: stateStore,
+		stateStore: readonlyStore,
+		execStore: statecache.NewExecutionStateStore( // For Transition generation only.
+			readonlyStore,
+			16,
+			1,
+			func(k string) uint64 {
+				return xxhash.Sum64String(k)
+			},
+		),
 	}
+
+	return pStore
 }
 
-func (this *ProfileStore) StateStore() *stateengine.ExecutionStateStore { return this.stateStore }
-func (this *ProfileStore) Dirties() map[uint64]*Profile                 { return this.dirties }
+func (this *ProfileStore) StateStore() stgintf.ReadOnlyStore[string, crdtcommon.CRDT] {
+	return this.stateStore
+}
+func (this *ProfileStore) Dirties() map[uint64]*Profile { return this.dirties }
 
 func (this *ProfileStore) LoadIfExists(tx uint64, addr [20]byte, selector [4]byte) (*Profile, error) {
 	if addr == [20]byte{} || selector == [4]byte{} {
@@ -79,17 +107,43 @@ func (this *ProfileStore) LoadIfExists(tx uint64, addr [20]byte, selector [4]byt
 
 // Write back the modified callee profiles back to the storage.
 func (this *ProfileStore) Commit() error {
+
 	var err error
 	for _, dirtyProfile := range this.dirties {
+		if dirtyProfile.IsEmpty() {
+			continue // Skip empty profiles to save storage space.
+		}
 		err = errors.Join(err, dirtyProfile.Commit()) // Save to the conflict storage.
 	}
+	e := this.Reset()
+	err = errors.Join(err, e)
+	return err
+}
+
+func (this *ProfileStore) Reset() error {
+	var err error
+	for _, dirty := range this.dirties {
+		if dirty.IsEmpty() {
+			e := this.cache.Delete(dirty.ID.UID) // Remove empty profiles from cache to save memory.
+			err = errors.Join(err, e)
+		}
+	}
 	this.dirties = make(map[uint64]*Profile)
-	// this.Clear() // Clear the local cache after commit to free up memory.
+	this.cache = cache.NewCache(
+		2,
+		func(k uint64) uint64 { return k },
+		cache.NewCachePolicy(
+			math.MaxUint64,
+			func(p *Profile) uint64 {
+				return SizeOf(p)
+			},
+		), // Each profile counts against the capacity by its estimated size.
+	)
 	return err
 }
 
 // Add a modified callee profile into the dirties.
-func (this *ProfileStore) AddToDirty(profile *Profile) {
+func (this *ProfileStore) addToDirty(profile *Profile) {
 	this.dirtyMu.Lock()
 	defer this.dirtyMu.Unlock()
 	this.dirties[profile.ID.UID] = profile
@@ -106,7 +160,10 @@ func (this *ProfileStore) LoadOrCreate(id *ID) (*Profile, error) {
 	profile, _ := this.loadProfile(id)
 	if profile == nil {
 		profile = NewProfile(id.Tx, id.Address, id.Selector, this)
+		this.addToDirty(profile)
 	}
+
+	// Mark the profile as dirty for commit later.
 	return profile, this.cache.Set(id.UID, profile) // New profile.
 }
 
@@ -119,14 +176,14 @@ func (this *ProfileStore) loadProfile(id *ID) (*Profile, error) {
 		Platform: statecommon.ETH_PATH}
 
 	// Check if the profile path exists
-	if v, err := this.stateStore.CommittedStore().Get(pathBuiler.ProfileField("")); v == nil || err != nil {
+	if v, err := this.stateStore.Get(pathBuiler.ProfileField("")); v == nil || err != nil {
 		return nil, err
 	}
 
 	// Get the parallelism degree
 	profile := NewProfile(id.Tx, id.Address, id.Selector, this)
 	path := pathBuiler.ProfileField(statecommon.PATH_PARALLELISM_DEGREE)
-	if paraDegree, err := this.stateStore.CommittedStore().Get(path); paraDegree != nil && err == nil {
+	if paraDegree, err := this.stateStore.Get(path); paraDegree != nil && err == nil {
 		profile.SetParallelismDegree(uint64(*paraDegree.(*noncommutative.Uint64)))
 	}
 
@@ -134,13 +191,13 @@ func (this *ProfileStore) loadProfile(id *ID) (*Profile, error) {
 	// If the amount is zero, it means the function is not deferrable.
 	path = pathBuiler.ProfileField(statecommon.PATH_DEFERRED_PAYMENT)
 
-	if prepayment, err := this.stateStore.CommittedStore().Get(path); prepayment != nil && err == nil {
+	if prepayment, err := this.stateStore.Get(path); prepayment != nil && err == nil {
 		profile.SetPrepayment((uint64(*prepayment.(*noncommutative.Uint64))))
 	}
 
 	// Get the conflict peers
 	path = pathBuiler.ProfileField(statecommon.PATH_CONFLICT_INFO)
-	if Indices, err := this.stateStore.CommittedStore().Get(path); Indices != nil && err == nil {
+	if Indices, err := this.stateStore.Get(path); Indices != nil && err == nil {
 		buffer := Indices.(*noncommutative.Bytes)
 		profile.AddConflictPeers(codec.Uint64s{}.Decode(*buffer).(codec.Uint64s))
 	}
