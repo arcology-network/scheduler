@@ -36,7 +36,6 @@ import (
 	statecache "github.com/arcology-network/state-engine/state/cache"
 )
 
-
 type ExecutionPlan struct {
 	Transfers   []*Job // Transfers
 	Deployments []*Job // Contract deployments
@@ -234,6 +233,7 @@ func (*ExecutionPlan) GenerateNonceAjustmentTransitions(
 		tx,
 		noncePath,
 		offsetDelta,
+		nil,
 	)
 
 	// Export the nonce offset state change.

@@ -45,7 +45,7 @@ func CreateConflictParentPaths(acct []byte, selector [4]byte, writeCache *cache.
 	account := ethcommon.BytesToAddress(acct)
 	path := "blcc://eth1.0/account/" + hexutil.Encode(account[:])
 	if typedv, _, _ := writeCache.Read(1, path, commutative.NewPath()); typedv == nil {
-		if _, err := writeCache.Write(1, path, commutative.NewPath()); err != nil {
+		if _, err := writeCache.Write(1, path, commutative.NewPath(), nil); err != nil {
 			return "", err
 		}
 	}
@@ -57,7 +57,7 @@ func CreateConflictParentPaths(acct []byte, selector [4]byte, writeCache *cache.
 	}
 
 	path = builder.ProfileField("")
-	_, err := writeCache.Write(1, path, commutative.NewPath())
+	_, err := writeCache.Write(1, path, commutative.NewPath(), nil)
 	return path, err
 }
 
