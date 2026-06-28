@@ -67,10 +67,7 @@ func (this *Profile) IsEmpty() bool {
 }
 
 func (this *Profile) SetParallelismDegree(n uint64) { this.parallelismDegree = n }
-func (this *Profile) GetParallelismDegree() uint64  { return this.parallelismDegree }
-
 func (this *Profile) SetPrepayment(prepayment uint64) { this.prepayment = prepayment }
-func (this *Profile) GetPrepayment() uint64           { return this.prepayment }
 
 // Determine whether this callee profile can be deferred for later execution.
 func (this *Profile) IsDeferrable() bool { return this.prepayment > 0 }
