@@ -25,7 +25,6 @@ import (
 	"github.com/arcology-network/common-lib/codec"
 	crdtcommon "github.com/arcology-network/common-lib/crdt/common"
 	"github.com/arcology-network/common-lib/crdt/noncommutative"
-	"github.com/arcology-network/common-lib/crdt/statecell"
 	"github.com/arcology-network/common-lib/storage/cache"
 	"github.com/cespare/xxhash"
 
@@ -200,16 +199,4 @@ func (this *ProfileStore) WriteToExeStore() error {
 		}
 	}
 	return err
-}
-
-// export conflictions form store.
-func (this *ProfileStore) ExportTransitions() ([]*statecell.StateCell, error) {
-	var err error
-	for _, dirty := range this.dirties {
-		if !dirty.IsEmpty() {
-			err = errors.Join(err, dirty.Commit()) // Save to the conflict storage.
-		}
-	}
-
-	return this.execStore.Export(statecell.Sorter), err
 }
