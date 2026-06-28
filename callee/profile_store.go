@@ -169,7 +169,7 @@ func (this *ProfileStore) loadProfile(id *ID) (*Profile, error) {
 	profile := NewProfile(id.Tx, id.Address, id.Selector, this)
 	path := pathBuiler.ProfileField(statecommon.PATH_PARALLELISM_DEGREE)
 	if paraDegree, err := this.stateStore.Get(path); paraDegree != nil && err == nil {
-		profile.SetParallelismDegree(uint64(*paraDegree.(*noncommutative.Uint64)))
+		profile.parallelismDegree = uint64(*paraDegree.(*noncommutative.Uint64))
 	}
 
 	// Get the minimum prepayment amount for deferred execution
@@ -177,14 +177,16 @@ func (this *ProfileStore) loadProfile(id *ID) (*Profile, error) {
 	path = pathBuiler.ProfileField(statecommon.PATH_DEFERRED_PAYMENT)
 
 	if prepayment, err := this.stateStore.Get(path); prepayment != nil && err == nil {
-		profile.SetPrepayment(uint64(*prepayment.(*noncommutative.Uint64)))
+		profile.prepayment = uint64(*prepayment.(*noncommutative.Uint64))
 	}
 
 	// Get the conflict peers
 	path = pathBuiler.ProfileField(statecommon.PATH_CONFLICT_INFO)
 	if Indices, err := this.stateStore.Get(path); Indices != nil && err == nil {
 		buffer := Indices.(*noncommutative.Bytes)
-		profile.addConflictPeers(codec.Uint64s{}.Decode(*buffer).(codec.Uint64s))
+		profile.ConflictPeers = append(profile.ConflictPeers,
+			codec.Uint64s{}.Decode(*buffer).(codec.Uint64s)...)
+
 	}
 	return profile, nil
 }

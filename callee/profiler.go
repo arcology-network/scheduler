@@ -66,8 +66,15 @@ func (this *Profile) IsEmpty() bool {
 		len(this.ConflictPeers) == 0
 }
 
-func (this *Profile) SetParallelismDegree(n uint64) { this.parallelismDegree = n }
-func (this *Profile) SetPrepayment(prepayment uint64) { this.prepayment = prepayment }
+func (this *Profile) SetParallelismDegree(n uint64) {
+	this.parallelismDegree = n
+	this.profileStore.addToDirty(this)
+}
+
+func (this *Profile) SetPrepayment(prepayment uint64) {
+	this.prepayment = prepayment
+	this.profileStore.addToDirty(this)
+}
 
 // Determine whether this callee profile can be deferred for later execution.
 func (this *Profile) IsDeferrable() bool { return this.prepayment > 0 }
@@ -75,7 +82,6 @@ func (this *Profile) IsDeferrable() bool { return this.prepayment > 0 }
 func (this *Profile) CrossLink(other *Profile) {
 	this.addConflictPeers([]uint64{other.ID.UID})
 	other.addConflictPeers([]uint64{this.ID.UID})
-	this.profileStore.addToDirty(this)
 }
 
 func (this *Profile) addConflictPeers(list []uint64) {
@@ -85,6 +91,7 @@ func (this *Profile) addConflictPeers(list []uint64) {
 	} else {
 		this.ConflictPeers = append(this.ConflictPeers, list...)
 	}
+	this.profileStore.addToDirty(this)
 }
 
 // Determine whether this callee profile already has the conflict with another callee profile.
