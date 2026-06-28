@@ -61,14 +61,12 @@ func DebugSetPrePayment(this *ProfileStore, id *ID, amount uint64) (*Profile, er
 }
 
 // Write back the modified callee profiles back to the storage.
-func DebugCommit(pStore *ProfileStore) error {
-	if err := pStore.Precommit(); err != nil {
-		return err
-	}
-
+func DebugCommit(trans []*statecell.StateCell, pStore *ProfileStore) error {
 	// Write back the modified callee profiles back to the storage for transition generation.
-	trans := pStore.execStore.Export(statecell.Sorter)
-	committer := statecommitter.NewStateCommitter(pStore.execStore.CommittedStore(), pStore.execStore.GetWriters())
+	committer := statecommitter.NewStateCommitter(
+		pStore.execStore.CommittedStore(),
+		pStore.execStore.GetWriters(),
+	)
 	committer.Import(statecell.StateCells(slice.Clone(trans)).To(statecell.InterProcTransition{}))
 	committer.DebugPrecommit([]uint64{1})
 	committer.DebugCommit(10)

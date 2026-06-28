@@ -66,36 +66,28 @@ func (this *Profile) IsEmpty() bool {
 		len(this.ConflictPeers) == 0
 }
 
-func (this *Profile) SetParallelismDegree(n uint64) {
-	this.parallelismDegree = n
-	this.profileStore.addToDirty(this)
-}
+func (this *Profile) SetParallelismDegree(n uint64) { this.parallelismDegree = n }
+func (this *Profile) GetParallelismDegree() uint64  { return this.parallelismDegree }
 
-func (this *Profile) GetParallelismDegree() uint64 { return this.parallelismDegree }
+func (this *Profile) SetPrepayment(prepayment uint64) { this.prepayment = prepayment }
+func (this *Profile) GetPrepayment() uint64           { return this.prepayment }
 
 // Determine whether this callee profile can be deferred for later execution.
 func (this *Profile) IsDeferrable() bool { return this.prepayment > 0 }
 
-func (this *Profile) SetPrepayment(prepayment uint64) {
-	this.prepayment = prepayment
+func (this *Profile) CrossLink(other *Profile) {
+	this.addConflictPeers([]uint64{other.ID.UID})
+	other.addConflictPeers([]uint64{this.ID.UID})
 	this.profileStore.addToDirty(this)
 }
 
-func (this *Profile) GetPrepayment() uint64 { return this.prepayment }
-
-func (this *Profile) CrossLink(other *Profile) {
-	this.AddConflictPeers([]uint64{other.ID.UID})
-	other.AddConflictPeers([]uint64{this.ID.UID})
-}
-
-func (this *Profile) AddConflictPeers(list []uint64) {
+func (this *Profile) addConflictPeers(list []uint64) {
 	if len(this.ConflictPeers)+len(list) > statecommon.MAX_NUM_CONFLICTS {
 		this.ConflictPeers = this.ConflictPeers[:0]
 		this.parallelismDegree = 1 // Too many conflicts, mark as sequential only.
 	} else {
 		this.ConflictPeers = append(this.ConflictPeers, list...)
 	}
-	this.profileStore.addToDirty(this)
 }
 
 // Determine whether this callee profile already has the conflict with another callee profile.

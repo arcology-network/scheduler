@@ -25,6 +25,7 @@ import (
 	"github.com/arcology-network/common-lib/codec"
 	crdtcommon "github.com/arcology-network/common-lib/crdt/common"
 	"github.com/arcology-network/common-lib/crdt/noncommutative"
+	"github.com/arcology-network/common-lib/crdt/statecell"
 	"github.com/arcology-network/common-lib/storage/cache"
 	"github.com/cespare/xxhash"
 
@@ -80,9 +81,11 @@ func NewProfileStore(readonlyStore stgintf.ReadOnlyStore[string, crdtcommon.CRDT
 	return pStore
 }
 
+func (this *ProfileStore) ExecStore() *statecache.ExecutionStateStore { return this.execStore }
 func (this *ProfileStore) StateStore() stgintf.ReadOnlyStore[string, crdtcommon.CRDT] {
 	return this.stateStore
 }
+
 func (this *ProfileStore) Dirties() map[uint64]*Profile { return this.dirties }
 
 func (this *ProfileStore) LoadIfExists(tx uint64, addr [20]byte, selector [4]byte) (*Profile, error) {
@@ -108,27 +111,7 @@ func (this *ProfileStore) LoadIfExists(tx uint64, addr [20]byte, selector [4]byt
 // Write back the modified callee profiles back to an instance of ExecutionStateStore
 // for transition generation. It doesn't write back to the original state store directly.
 // The actual commit to the original state store happens together with other transitions.
-// func (this *ProfileStore) Precommit() error {
-// 	var err error
-// 	for _, dirtyProfile := range this.dirties {
-// 		if dirtyProfile.IsEmpty() {
-// 			continue // Skip empty profiles to save storage space.
-// 		}
-// 		err = errors.Join(err, dirtyProfile.Commit()) // Save to the conflict storage.
-// 	}
-// 	e := this.Reset()
-// 	err = errors.Join(err, e)
-// 	return err
-// }
-
-func (this *ProfileStore) Precommit() error {
-	var err error
-	for _, dirty := range this.dirties {
-		if !dirty.IsEmpty() {
-			err = errors.Join(err, dirty.Commit()) // Save to the conflict storage.
-		}
-	}
-
+func (this *ProfileStore) Clear() error {
 	// Clear the dirty list and cache to free up memory.
 	this.dirties = make(map[uint64]*Profile)
 	this.cache = cache.NewCache(
@@ -141,7 +124,9 @@ func (this *ProfileStore) Precommit() error {
 			},
 		), // Each profile counts against the capacity by its estimated size.
 	)
-	return err
+
+	this.execStore.Clear()
+	return nil
 }
 
 // Add a modified callee profile into the dirties.
@@ -162,7 +147,6 @@ func (this *ProfileStore) LoadOrCreate(id *ID) (*Profile, error) {
 	profile, _ := this.loadProfile(id)
 	if profile == nil {
 		profile = NewProfile(id.Tx, id.Address, id.Selector, this)
-		this.addToDirty(profile)
 	}
 
 	// Mark the profile as dirty for commit later.
@@ -186,7 +170,7 @@ func (this *ProfileStore) loadProfile(id *ID) (*Profile, error) {
 	profile := NewProfile(id.Tx, id.Address, id.Selector, this)
 	path := pathBuiler.ProfileField(statecommon.PATH_PARALLELISM_DEGREE)
 	if paraDegree, err := this.stateStore.Get(path); paraDegree != nil && err == nil {
-		profile.SetParallelismDegree(uint64(*paraDegree.(*noncommutative.Uint64)))
+		profile.parallelismDegree = (uint64(*paraDegree.(*noncommutative.Uint64)))
 	}
 
 	// Get the minimum prepayment amount for deferred execution
@@ -194,14 +178,38 @@ func (this *ProfileStore) loadProfile(id *ID) (*Profile, error) {
 	path = pathBuiler.ProfileField(statecommon.PATH_DEFERRED_PAYMENT)
 
 	if prepayment, err := this.stateStore.Get(path); prepayment != nil && err == nil {
-		profile.SetPrepayment((uint64(*prepayment.(*noncommutative.Uint64))))
+		profile.prepayment = (uint64(*prepayment.(*noncommutative.Uint64)))
 	}
 
 	// Get the conflict peers
 	path = pathBuiler.ProfileField(statecommon.PATH_CONFLICT_INFO)
 	if Indices, err := this.stateStore.Get(path); Indices != nil && err == nil {
 		buffer := Indices.(*noncommutative.Bytes)
-		profile.AddConflictPeers(codec.Uint64s{}.Decode(*buffer).(codec.Uint64s))
+		profile.addConflictPeers(codec.Uint64s{}.Decode(*buffer).(codec.Uint64s))
 	}
 	return profile, nil
+}
+
+// Write the dirty profiles back to the execution store for transition generation.
+// It doesn't write back to the original state store directly.
+func (this *ProfileStore) WriteToExeStore() error {
+	var err error
+	for _, dirty := range this.dirties {
+		if !dirty.IsEmpty() {
+			err = errors.Join(err, dirty.Commit()) // Save to the conflict storage.
+		}
+	}
+	return err
+}
+
+// export conflictions form store.
+func (this *ProfileStore) ExportTransitions() ([]*statecell.StateCell, error) {
+	var err error
+	for _, dirty := range this.dirties {
+		if !dirty.IsEmpty() {
+			err = errors.Join(err, dirty.Commit()) // Save to the conflict storage.
+		}
+	}
+
+	return this.execStore.Export(statecell.Sorter), err
 }

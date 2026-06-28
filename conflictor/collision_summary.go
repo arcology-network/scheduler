@@ -128,6 +128,15 @@ func (this CollisionSummary) Print() {
 	}
 }
 
+func (this CollisionSummary) String() string {
+	
+	for _, v := range this.Collisions {
+		v.Print()
+		fmt.Println()
+	}
+	return ""
+}
+
 func (this *CollisionSummary) MarshalJSON() ([]byte, error) {
 	type conflictsAlias struct {
 		Collisions       []*Collision      `json:"conflicts"`
