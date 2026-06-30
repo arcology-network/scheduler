@@ -17,16 +17,21 @@
 package scheduler
 
 import (
+	"encoding/hex"
 	"math/big"
 	"testing"
 
+	"github.com/arcology-network/common-lib/crdt/commutative"
+	"github.com/arcology-network/common-lib/crdt/statecell"
 	queue "github.com/arcology-network/common-lib/exp/queue"
 	"github.com/arcology-network/common-lib/exp/slice"
 	libcommontype "github.com/arcology-network/common-lib/types"
 	callee "github.com/arcology-network/scheduler/callee"
 	profile "github.com/arcology-network/scheduler/callee"
+	"github.com/arcology-network/scheduler/conflictor"
 	workload "github.com/arcology-network/scheduler/workload"
 	ethcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/holiman/uint256"
 
 	statetestharness "github.com/arcology-network/state-engine/test/harness"
 
@@ -63,8 +68,8 @@ func TestSchedulerNoConflictNoDeferred(t *testing.T) {
 	}
 
 	// Produce a new schedule for the given transactions based on the conflicts information.
-	mgr := callee.NewProfileStore(sstore.CommittedStore())
-	scheduler, _ := NewScheduler(mgr) // No conflict db file.
+	pStore := callee.NewProfileStore(sstore.CommittedStore())
+	scheduler, _ := NewScheduler(pStore) // No conflict db file.
 	rawSch, err := scheduler.New([]*libcommontype.StandardMessage{
 		callAlice0,
 		callAlice1,
@@ -132,8 +137,8 @@ func TestSchedulerWithConflic(t *testing.T) {
 		t.Error("Failed to initialize account in store:", storeErr)
 	}
 
-	mgr := callee.NewProfileStore(sstore.CommittedStore())
-	scheduler, _ := NewScheduler(mgr) // No conflict db file.
+	pStore := callee.NewProfileStore(sstore.CommittedStore())
+	scheduler, _ := NewScheduler(pStore) // No conflict db file.
 	// registerion have problem
 	profile.DebugRegisterNewConflict(
 		scheduler.ProfileStore,
@@ -294,8 +299,8 @@ func TestOffsetingNoncesSimple(t *testing.T) {
 		t.Error("Failed to create account in store:", storeErr)
 	}
 
-	mgr := callee.NewProfileStore(sstore.CommittedStore())
-	scheduler, _ := NewScheduler(mgr) // No conflict db file.
+	pStore := callee.NewProfileStore(sstore.CommittedStore())
+	scheduler, _ := NewScheduler(pStore) // No conflict db file.
 
 	rawSch, err := scheduler.New([]*libcommontype.StandardMessage{callAlice, callBob})
 	if err != nil {
@@ -352,8 +357,8 @@ func TestOffsetingNoncesWithWriteStorage(t *testing.T) {
 		t.Error("Failed to initialize account in store:", storeErr)
 	}
 
-	mgr := callee.NewProfileStore(sstore.CommittedStore())
-	scheduler, _ := NewScheduler(mgr) // No conflict db file.
+	pStore := callee.NewProfileStore(sstore.CommittedStore())
+	scheduler, _ := NewScheduler(pStore) // No conflict db file.
 
 	_, err := scheduler.New([]*libcommontype.StandardMessage{callAlice, callBob, callCarol, callDavid})
 	if err != nil {
@@ -395,8 +400,8 @@ func TestMultiGenerationMergeToOneSequence(t *testing.T) {
 		t.Error("Failed to initialize account in store:", storeErr)
 	}
 
-	mgr := callee.NewProfileStore(sstore.CommittedStore())
-	scheduler, _ := NewScheduler(mgr) // No conflict db file.
+	pStore := callee.NewProfileStore(sstore.CommittedStore())
+	scheduler, _ := NewScheduler(pStore) // No conflict db file.
 
 	_, _, schErr := profile.DebugRegisterNewConflict(
 		scheduler.ProfileStore,
@@ -447,8 +452,8 @@ func TestMultiGenerationMerge(t *testing.T) {
 	if storeErr != nil {
 		t.Error("Failed to initialize account in store:", storeErr)
 	}
-	mgr := callee.NewProfileStore(sstore.CommittedStore())
-	scheduler, _ := NewScheduler(mgr) // No conflict db file.
+	pStore := callee.NewProfileStore(sstore.CommittedStore())
+	scheduler, _ := NewScheduler(pStore) // No conflict db file.
 
 	// Register the conflict pairs to the scheduler, so the TXs calling
 	// these two functions are serialized into separate execution generations.
@@ -526,4 +531,129 @@ func TestMultiGenerationMerge(t *testing.T) {
 	if len(rawSch.Generations) != 4 {
 		t.Error("Wrong generation size", len(rawSch.Generations))
 	}
+}
+
+func TestFullWorkflow(t *testing.T) {
+	sender1 := [20]byte{0x01}
+	sender2 := [20]byte{0x02}
+	sender3 := [20]byte{0x03}
+	sender4 := [20]byte{0x04}
+
+	contract0 := ethcommon.BytesToAddress([]byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
+	mockFunc0 := [4]byte{1, 1, 1, 1}
+
+	contract1 := ethcommon.BytesToAddress([]byte("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"))
+	mockFunc1 := [4]byte{2, 2, 2, 2}
+
+	callContract00 := &libcommontype.StandardMessage{
+		ID:     0,
+		Native: &ethcore.Message{From: sender1, Nonce: 0, To: &contract0, Data: mockFunc0[:]},
+		TxHash: [32]byte{0x1},
+	}
+
+	callContract01 := &libcommontype.StandardMessage{
+		ID:     1,
+		Native: &ethcore.Message{From: sender1, Nonce: 1, To: &contract0, Data: mockFunc0[:]},
+		TxHash: [32]byte{0x2},
+	}
+
+	callContract10 := &libcommontype.StandardMessage{
+		ID:     2,
+		Native: &ethcore.Message{From: sender2, Nonce: 0, To: &contract1, Data: mockFunc1[:]},
+		TxHash: [32]byte{0x3},
+	}
+
+	callContract11 := &libcommontype.StandardMessage{
+		ID:     3,
+		Native: &ethcore.Message{From: sender3, Nonce: 0, To: &contract1, Data: mockFunc1[:]},
+		TxHash: [32]byte{0x4},
+	}
+
+	sstore, storeErr := statetestharness.CreateAccountInStore(
+		sender1,
+		sender2,
+		sender3,
+		sender4,
+		contract0,
+		contract1,
+	)
+
+	if storeErr != nil {
+		t.Error("Failed to initialize account in store:", storeErr)
+	}
+
+	pStore := callee.NewProfileStore(sstore.CommittedStore())
+	scheduler, _ := NewScheduler(pStore) // No conflict db file.
+
+	_, err := scheduler.New([]*libcommontype.StandardMessage{
+		callContract00,
+		callContract01,
+		callContract10,
+		callContract11},
+	)
+
+	if err != nil {
+		t.Error("Failed to New schedule:", err)
+	}
+
+	// Initialize the state cells for the transactions.
+	v0 := commutative.NewBoundedU256FromU64(1, 100)
+	v0.SetValue(*uint256.NewInt(10))
+
+	v1 := commutative.NewBoundedU256FromU64(10, 50)
+	v1.SetValue(*uint256.NewInt(20))
+
+	_0 := statecell.NewStateCell(0, "blcc://eth1.0/account/"+hex.EncodeToString(contract0[:]), 0, 1, 0, v0, nil)
+	_0.Property.JobSequenceID = 0
+
+	_1 := statecell.NewStateCell(1, "blcc://eth1.0/account/"+hex.EncodeToString(contract0[:]), 1, 1, 0, v1, nil)
+	_1.Property.JobSequenceID = 1
+
+	_2 := statecell.NewStateCell(0, "blcc://eth1.0/account/"+hex.EncodeToString(contract1[:])+"/ctrn/[:]", 0, 2, 1, commutative.NewPath(), nil)
+	_2.Property.JobSequenceID = 0
+
+	_3 := statecell.NewStateCell(1, "blcc://eth1.0/account/"+hex.EncodeToString(contract1[:])+"/ctrn/[:]", 0, 2, 1, commutative.NewPath(), nil)
+	_3.Property.JobSequenceID = 1
+
+	// scheduler.New()
+	collisionSummary, _, _ := conflictor.NewConflictor().DebugInsertAndDetect([]*statecell.StateCell{_0, _1})
+	collisionSummary.Print()
+
+	// Initialize the profile store with the conflict pairs.
+	scheduler.ImportCollisions(collisionSummary)
+	if err := scheduler.WriteToExeStore(); err != nil {
+		t.Error("Failed to Write conflict info to :", err)
+	}
+
+	trans := pStore.ExecStore().Export(statecell.Sorter)
+	if len(trans) == 0 {
+		t.Fatal("Failed to export collision info from state store")
+	}
+	scheduler.Clear()
+
+	if err := profile.DebugCommit(trans, scheduler.ProfileStore); err != nil {
+		t.Error("Failed to commit collision info to state store:", err)
+	}
+
+	// Try to plan the execution of the transactions again, now
+	// that the conflict information is available.
+	execPlan, err := scheduler.New([]*libcommontype.StandardMessage{
+		callContract00,
+		callContract01,
+		callContract10,
+		callContract11},
+	)
+
+	if execPlan.TotalJobs() != 4 {
+		t.Error("Failed to generate the correct number of jobs")
+	}
+
+	if len(execPlan.Generations) != 1 {
+		t.Error("Failed to generate any schedule")
+	}
+
+	if err != nil {
+		t.Error("Failed to New schedule:", err)
+	}
+
 }

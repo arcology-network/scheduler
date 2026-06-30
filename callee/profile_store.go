@@ -80,9 +80,11 @@ func NewProfileStore(readonlyStore stgintf.ReadOnlyStore[string, crdtcommon.CRDT
 	return pStore
 }
 
+func (this *ProfileStore) ExecStore() *statecache.ExecutionStateStore { return this.execStore }
 func (this *ProfileStore) StateStore() stgintf.ReadOnlyStore[string, crdtcommon.CRDT] {
 	return this.stateStore
 }
+
 func (this *ProfileStore) Dirties() map[uint64]*Profile { return this.dirties }
 
 func (this *ProfileStore) LoadIfExists(tx uint64, addr [20]byte, selector [4]byte) (*Profile, error) {
@@ -105,29 +107,11 @@ func (this *ProfileStore) LoadIfExists(tx uint64, addr [20]byte, selector [4]byt
 	return profile, this.cache.Set(id.UID, profile)
 }
 
-// Write back the modified callee profiles back to the storage.
-func (this *ProfileStore) Commit() error {
-
-	var err error
-	for _, dirtyProfile := range this.dirties {
-		if dirtyProfile.IsEmpty() {
-			continue // Skip empty profiles to save storage space.
-		}
-		err = errors.Join(err, dirtyProfile.Commit()) // Save to the conflict storage.
-	}
-	e := this.Reset()
-	err = errors.Join(err, e)
-	return err
-}
-
-func (this *ProfileStore) Reset() error {
-	var err error
-	for _, dirty := range this.dirties {
-		if dirty.IsEmpty() {
-			e := this.cache.Delete(dirty.ID.UID) // Remove empty profiles from cache to save memory.
-			err = errors.Join(err, e)
-		}
-	}
+// Write back the modified callee profiles back to an instance of ExecutionStateStore
+// for transition generation. It doesn't write back to the original state store directly.
+// The actual commit to the original state store happens together with other transitions.
+func (this *ProfileStore) Clear() error {
+	// Clear the dirty list and cache to free up memory.
 	this.dirties = make(map[uint64]*Profile)
 	this.cache = cache.NewCache(
 		2,
@@ -139,7 +123,9 @@ func (this *ProfileStore) Reset() error {
 			},
 		), // Each profile counts against the capacity by its estimated size.
 	)
-	return err
+
+	this.execStore.Clear()
+	return nil
 }
 
 // Add a modified callee profile into the dirties.
@@ -160,7 +146,6 @@ func (this *ProfileStore) LoadOrCreate(id *ID) (*Profile, error) {
 	profile, _ := this.loadProfile(id)
 	if profile == nil {
 		profile = NewProfile(id.Tx, id.Address, id.Selector, this)
-		this.addToDirty(profile)
 	}
 
 	// Mark the profile as dirty for commit later.
@@ -184,7 +169,7 @@ func (this *ProfileStore) loadProfile(id *ID) (*Profile, error) {
 	profile := NewProfile(id.Tx, id.Address, id.Selector, this)
 	path := pathBuiler.ProfileField(statecommon.PATH_PARALLELISM_DEGREE)
 	if paraDegree, err := this.stateStore.Get(path); paraDegree != nil && err == nil {
-		profile.SetParallelismDegree(uint64(*paraDegree.(*noncommutative.Uint64)))
+		profile.parallelismDegree = uint64(*paraDegree.(*noncommutative.Uint64))
 	}
 
 	// Get the minimum prepayment amount for deferred execution
@@ -192,14 +177,28 @@ func (this *ProfileStore) loadProfile(id *ID) (*Profile, error) {
 	path = pathBuiler.ProfileField(statecommon.PATH_DEFERRED_PAYMENT)
 
 	if prepayment, err := this.stateStore.Get(path); prepayment != nil && err == nil {
-		profile.SetPrepayment((uint64(*prepayment.(*noncommutative.Uint64))))
+		profile.prepayment = uint64(*prepayment.(*noncommutative.Uint64))
 	}
 
 	// Get the conflict peers
 	path = pathBuiler.ProfileField(statecommon.PATH_CONFLICT_INFO)
 	if Indices, err := this.stateStore.Get(path); Indices != nil && err == nil {
 		buffer := Indices.(*noncommutative.Bytes)
-		profile.AddConflictPeers(codec.Uint64s{}.Decode(*buffer).(codec.Uint64s))
+		profile.ConflictPeers = append(profile.ConflictPeers,
+			codec.Uint64s{}.Decode(*buffer).(codec.Uint64s)...)
+
 	}
 	return profile, nil
+}
+
+// Write the dirty profiles back to the execution store for transition generation.
+// It doesn't write back to the original state store directly.
+func (this *ProfileStore) WriteToExeStore() error {
+	var err error
+	for _, dirty := range this.dirties {
+		if !dirty.IsEmpty() {
+			err = errors.Join(err, dirty.Commit()) // Save to the conflict storage.
+		}
+	}
+	return err
 }

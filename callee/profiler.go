@@ -29,6 +29,7 @@ import (
 	"github.com/arcology-network/common-lib/codec"
 	commutative "github.com/arcology-network/common-lib/crdt/commutative"
 	"github.com/arcology-network/common-lib/crdt/noncommutative"
+	"github.com/arcology-network/common-lib/crdt/statecell"
 	statecommon "github.com/arcology-network/state-engine/common"
 )
 
@@ -70,24 +71,20 @@ func (this *Profile) SetParallelismDegree(n uint64) {
 	this.profileStore.addToDirty(this)
 }
 
-func (this *Profile) GetParallelismDegree() uint64 { return this.parallelismDegree }
-
-// Determine whether this callee profile can be deferred for later execution.
-func (this *Profile) IsDeferrable() bool { return this.prepayment > 0 }
-
 func (this *Profile) SetPrepayment(prepayment uint64) {
 	this.prepayment = prepayment
 	this.profileStore.addToDirty(this)
 }
 
-func (this *Profile) GetPrepayment() uint64 { return this.prepayment }
+// Determine whether this callee profile can be deferred for later execution.
+func (this *Profile) IsDeferrable() bool { return this.prepayment > 0 }
 
 func (this *Profile) CrossLink(other *Profile) {
-	this.AddConflictPeers([]uint64{other.ID.UID})
-	other.AddConflictPeers([]uint64{this.ID.UID})
+	this.addConflictPeers([]uint64{other.ID.UID})
+	other.addConflictPeers([]uint64{this.ID.UID})
 }
 
-func (this *Profile) AddConflictPeers(list []uint64) {
+func (this *Profile) addConflictPeers(list []uint64) {
 	if len(this.ConflictPeers)+len(list) > statecommon.MAX_NUM_CONFLICTS {
 		this.ConflictPeers = this.ConflictPeers[:0]
 		this.parallelismDegree = 1 // Too many conflicts, mark as sequential only.
@@ -134,11 +131,17 @@ func (this *Profile) Commit() error {
 	// which will be committed together with the transaction execution later by the scheduler.
 	execStore := this.profileStore.execStore
 
+	setter := func(cell *statecell.StateCell, _ int64) {
+		// Skip conflict check for the callee profile properties,
+		// since they are only used for scheduling and do not affect the transaction execution results.
+		cell.Property.SkipConflictCheck(true)
+	}
+
 	// Ensure the parent path exists.
 	parentPath := pathBuiler.ProfileField("") // Get the path to write.
 	if v, _, _ := execStore.Read(this.ID.Tx, pathBuiler.ProfileField(""), nil); v == nil {
 		// Create the parent path if not exists.
-		if _, err := execStore.Write(this.ID.Tx, parentPath, commutative.NewPath()); err != nil {
+		if _, err := execStore.Write(this.ID.Tx, parentPath, commutative.NewPath(), setter); err != nil {
 			return err
 		}
 	}
@@ -149,7 +152,7 @@ func (this *Profile) Commit() error {
 	if this.parallelismDegree == 1 { // sequential only.
 		path := pathBuiler.ProfileField(statecommon.PATH_PARALLELISM_DEGREE) // Get the path to write.
 		v := noncommutative.NewUint64(this.parallelismDegree)
-		_, wError := execStore.Write(this.ID.Tx, path, v)
+		_, wError := execStore.Write(this.ID.Tx, path, v, setter)
 		err = errors.Join(err, wError)
 	}
 
@@ -157,7 +160,7 @@ func (this *Profile) Commit() error {
 	path := pathBuiler.ProfileField(statecommon.PATH_CONFLICT_INFO) // Get the path to write.
 	buffer := codec.Uint64s(this.ConflictPeers).Encode()
 	v := noncommutative.NewBytes(buffer)
-	_, wError := execStore.Write(this.ID.Tx, path, v)
+	_, wError := execStore.Write(this.ID.Tx, path, v, setter)
 	return errors.Join(err, wError)
 }
 

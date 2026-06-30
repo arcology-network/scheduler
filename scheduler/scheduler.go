@@ -26,14 +26,17 @@ import (
 	libtypes "github.com/arcology-network/common-lib/types"
 	callee "github.com/arcology-network/scheduler/callee"
 	profile "github.com/arcology-network/scheduler/callee"
+	"github.com/arcology-network/scheduler/conflictor"
 	workload "github.com/arcology-network/scheduler/workload"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 )
 
 type Scheduler struct {
 	*profile.ProfileStore
-	latest       *workload.ExecutionPlan
-	SkipDeferred bool // If the scheduler should skip planning deferred executions.
+	latest *workload.ExecutionPlan
+
+	// If the scheduler should skip planning deferred executions. If true, the scheduler will not plan deferred executions by default.
+	SkipDeferred bool
 }
 
 // Initialize a new scheduler, the fileName is the file path to the scheduler's conflict database and the deferByDefault
@@ -270,4 +273,29 @@ func (this *Scheduler) QueueBySender(jobs []*workload.Job) []*queue.Queue[*workl
 		})
 	}
 	return bySender
+}
+
+// ImportCollisions imports the collision information detected by the conflictor
+// into the scheduler's profile store, mapping conflicts to the original callee profiles.
+func (this *Scheduler) ImportCollisions(conflictSet *conflictor.CollisionSummary) error {
+	// Map the conflict info to the original callee profiles using UID as the key.
+	for _, conflictInfo := range conflictSet.Collisions {
+		// Map back to their orginal callee profile IDs
+		selfID, peerIDs := conflictInfo.MapConflictToCallee(this.latest.JobIDLookup)
+
+		// Get the profiles by IDs and add the conflict peers.
+		selfProfile, err := this.ProfileStore.LoadOrCreate(selfID)
+		if err != nil {
+			return err
+		}
+
+		for _, peerID := range peerIDs {
+			peerProfile, err := this.ProfileStore.LoadOrCreate(peerID)
+			if err != nil {
+				return err
+			}
+			peerProfile.CrossLink(selfProfile) // Add each other as conflict peers.
+		}
+	}
+	return nil
 }

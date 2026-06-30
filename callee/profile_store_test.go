@@ -45,7 +45,7 @@ func CreateConflictParentPaths(acct []byte, selector [4]byte, writeCache *cache.
 	account := ethcommon.BytesToAddress(acct)
 	path := "blcc://eth1.0/account/" + hexutil.Encode(account[:])
 	if typedv, _, _ := writeCache.Read(1, path, commutative.NewPath()); typedv == nil {
-		if _, err := writeCache.Write(1, path, commutative.NewPath()); err != nil {
+		if _, err := writeCache.Write(1, path, commutative.NewPath(), nil); err != nil {
 			return "", err
 		}
 	}
@@ -57,7 +57,7 @@ func CreateConflictParentPaths(acct []byte, selector [4]byte, writeCache *cache.
 	}
 
 	path = builder.ProfileField("")
-	_, err := writeCache.Write(1, path, commutative.NewPath())
+	_, err := writeCache.Write(1, path, commutative.NewPath(), nil)
 	return path, err
 }
 
@@ -94,9 +94,9 @@ func TestCalleeManager(t *testing.T) {
 		t.Error(err)
 	}
 
-	mgr := NewProfileStore(sstore.CommittedStore())
+	pStore := NewProfileStore(sstore.CommittedStore())
 	_, _, err = DebugRegisterNewConflict(
-		mgr,
+		pStore,
 		NewID(0, [20]byte(alice), [4]byte{1, 1, 1, 1}),
 		NewID(0, [20]byte(bob), [4]byte{2, 2, 2, 2}),
 	)
@@ -105,7 +105,7 @@ func TestCalleeManager(t *testing.T) {
 	}
 
 	_, _, err = DebugRegisterNewConflict(
-		mgr,
+		pStore,
 		NewID(1, [20]byte(carol), [4]byte{3, 3, 3, 3}),
 		NewID(1, [20]byte(david), [4]byte{4, 4, 4, 4}),
 	)
@@ -113,11 +113,11 @@ func TestCalleeManager(t *testing.T) {
 		t.Error("Failed to register new conflict", err)
 	}
 
-	// if len(mgr.cache) != 4 {
-	// 	t.Error("Failed to add contracts", len(mgr.cache))
+	// if len(pStore.cache) != 4 {
+	// 	t.Error("Failed to add contracts", len(pStore.cache))
 	// }
 
-	err = mgr.Commit()
+	err = pStore.WriteToExeStore()
 	if err != nil {
 		t.Error("Failed to commit profiles", err)
 	}
@@ -164,12 +164,12 @@ func TestCalleeManagerCacheLimit(t *testing.T) {
 	}
 
 	// sstore := stateengine.NewStateStore(proxy.NewMemDBStoreProxy())
-	mgr := NewProfileStore(sstore.CommittedStore())
+	pStore := NewProfileStore(sstore.CommittedStore())
 
 	// DebugRegisterNewConflict the conflict pairs to the scheduler
 
 	if _, _, err := DebugRegisterNewConflict(
-		mgr,
+		pStore,
 		NewID(0, [20]byte(alice), [4]byte{1, 1, 1, 1}),
 		NewID(0, [20]byte(bob), [4]byte{2, 2, 2, 2}),
 	); err != nil {
@@ -177,24 +177,24 @@ func TestCalleeManagerCacheLimit(t *testing.T) {
 	}
 
 	if _, _, err := DebugRegisterNewConflict(
-		mgr,
+		pStore,
 		NewID(1, [20]byte(david), [4]byte{3, 3, 3, 3}),
 		NewID(1, [20]byte(david), [4]byte{4, 4, 4, 4}),
 	); err != nil {
 		t.Error("Failed to register new conflict", err)
 	}
 
-	if (mgr.cache.Length()) != 4 {
-		t.Error("Failed to add contracts", (mgr.cache.Length()))
+	if (pStore.cache.Length()) != 4 {
+		t.Error("Failed to add contracts", (pStore.cache.Length()))
 	}
 
-	if err := mgr.Commit(); err != nil {
+	if err := pStore.WriteToExeStore(); err != nil {
 		t.Error("Failed to save profiles", err)
 	}
-	// mgr.Clear()
+	pStore.Clear()
 
-	if len(mgr.dirties) != 0 {
-		t.Error("Failed to clear dirties", len(mgr.dirties))
+	if len(pStore.dirties) != 0 {
+		t.Error("Failed to clear dirties", len(pStore.dirties))
 	}
 
 	keys, _ := sstore.KVs()
