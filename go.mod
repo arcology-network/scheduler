@@ -2,25 +2,20 @@ module github.com/arcology-network/scheduler
 
 go 1.22
 
-
-replace github.com/ethereum/go-ethereum v1.14.8 => ../concurrent-evm/
-
-replace github.com/arcology-network/common-lib => ../common-lib/
-
+replace github.com/ethereum/go-ethereum v1.14.8 => github.com/arcology-network/concurrent-evm v0.0.0-20260606134708-2b2a978d283f
 
 // replace github.com/arcology-network/common-lib => ../common-lib/
 
 // replace github.com/arcology-network/state-engine => ../state-engine/
 
 require (
-	github.com/arcology-network/state-engine v1.9.1-0.20260606141159-ebd548b7881d
-
-	github.com/arcology-network/common-lib v1.9.1-0.20260606140601-ac5107cbdcb0
-
+	github.com/arcology-network/common-lib v1.9.1-0.20260618021700-0214ff3b2803
+	github.com/arcology-network/state-engine v1.9.1-0.20260630082036-293370bad172
 	github.com/ethereum/go-ethereum v1.14.8
 )
 
 require (
+	github.com/cespare/xxhash v1.1.0
 	github.com/holiman/uint256 v1.2.4
 	golang.org/x/exp v0.0.0-20231206192017-f3f8817b8deb
 )
@@ -33,7 +28,6 @@ require (
 	github.com/bits-and-blooms/bitset v1.10.0 // indirect
 	github.com/btcsuite/btcd v0.21.0-beta // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.3.2 // indirect
-	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cockroachdb/errors v1.11.1 // indirect
 	github.com/cockroachdb/logtags v0.0.0-20230118201751-21c54148d20b // indirect
