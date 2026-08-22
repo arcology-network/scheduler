@@ -29,19 +29,23 @@ import (
 	"github.com/holiman/uint256"
 )
 
-// TransactionNormalizer generates the mandatory system transitions for a
-// transaction—gas debit/credit and nonce increment—and marks them as
-// conflict-immune so they always commit regardless of execution outcome.
-//
-// It extracts the sender/coinbase balance updates associated with gas payment
-// and move 3 transitions to the immune list, which are immune to execution failures:
-//
-//  1. A debit transition on the sender's balance to pay the gas fee.
-//  2. A credit transition on the coinbase's balance for the same amount from the sender.
-//  3. Nonce increment transition for the sender.
-//
-// These will be committed regardless of whether the transaction execution succeeds or fails.
+// ExecutionKind tells the normalizer whether an EVM execution owns a real
+// transaction envelope or is internal work spawned by another execution.
+type ExecutionKind uint8
 
+const (
+	// IndependentExecution represents a blockchain transaction. Its sender
+	// nonce increment belongs to the transaction and must always be committed.
+	IndependentExecution ExecutionKind = iota
+
+	// InternalSubworkExecution represents Multiprocess work. It behaves like a
+	// nested EVM call, so it must not consume another transaction-envelope nonce.
+	InternalSubworkExecution
+)
+
+// TransactionNormalizer extracts unconditional gas transitions and applies the
+// sender nonce semantics selected by ExecutionKind. Independent transactions
+// keep their envelope nonce; internal subwork removes its synthetic increment.
 type TransactionNormalizer struct {
 	gasUsed  uint64
 	Coinbase [20]byte
@@ -78,9 +82,12 @@ func (this *TransactionNormalizer) insertGasTransition(balanceTransition *statec
 	return gasTransition
 }
 
-func (this *TransactionNormalizer) Normalize(PreTransitions, RawStateRecords []*statecell.StateCell) []*statecell.StateCell {
+func (this *TransactionNormalizer) Normalize(
+	PreTransitions, RawStateRecords []*statecell.StateCell,
+	executionKind ExecutionKind,
+) ([]*statecell.StateCell, []*statecell.StateCell) {
 	if len(RawStateRecords) == 0 {
-		return RawStateRecords
+		return RawStateRecords, nil
 	}
 
 	// Get the sender address from the pre-transitions, whose nonce increments need to be
@@ -92,11 +99,20 @@ func (this *TransactionNormalizer) Normalize(PreTransitions, RawStateRecords []*
 		this.UnapplyNonceOffset(senders, RawStateRecords) // Remove the nonce offset first.
 	}
 
-	// Normalized gas
+	// Gas belongs to the enclosing transaction even when its execution fails.
 	gasTransitions := this.SeparateGasTransitions(RawStateRecords) // Post-process gas transitions.
-	nonceTransitions := this.MarkNonceConflictImmune(RawStateRecords)
 
-	return append(gasTransitions, nonceTransitions...)
+	// Only a real blockchain transaction owns an unconditional sender nonce
+	// increment. Internal subwork removes the synthetic sender nonce transition
+	// inserted by the transaction-transition machinery.
+	nonceTransitions := []*statecell.StateCell{}
+	if executionKind == InternalSubworkExecution {
+		RawStateRecords = this.removeInternalSenderNonceTransition(RawStateRecords)
+	} else {
+		nonceTransitions = this.MarkNonceConflictImmune(RawStateRecords)
+	}
+
+	return RawStateRecords, append(gasTransitions, nonceTransitions...)
 }
 
 // SeparateGasTransitions extracts unconditional gas fee transfers(for execution) from from balance transitions.
@@ -151,16 +167,41 @@ func (this *TransactionNormalizer) SeparateGasTransitions(RawStateRecords []*sta
 // system transactions or partial receipts), this function returns an empty slice.
 func (this *TransactionNormalizer) MarkNonceConflictImmune(RawStateRecords []*statecell.StateCell) []*statecell.StateCell {
 	nonceTransitions := []*statecell.StateCell{}
-	_, senderNonce := slice.FindFirstIf(RawStateRecords, func(_ int, v *statecell.StateCell) bool {
-		return strings.Contains(*v.GetPath(), statecommon.PATH_NONCE) &&
-			strings.Contains(*v.GetPath(), hex.EncodeToString(this.txView.From[:]))
-	})
+	_, senderNonce := this.findSenderNonceTransition(RawStateRecords)
 
 	if senderNonce != nil {
-		(*senderNonce).Property.SkipConflictCheck(true)           // Won't be affect by conflicts either
-		nonceTransitions = append(nonceTransitions, *senderNonce) // Add the nonce transition to the immune list even if the execution is unsuccessful.
+		senderNonce.Property.SkipConflictCheck(true)             // Won't be affected by conflicts either.
+		nonceTransitions = append(nonceTransitions, senderNonce) // Commit the transaction nonce even if execution is unsuccessful.
 	}
 	return nonceTransitions
+}
+
+// removeInternalSenderNonceTransition removes the EOA sender nonce record
+// created by running internal subwork through the transaction pipeline.
+// Contract creator nonce changes use the creator's account path and therefore
+// remain separate records.
+func (this *TransactionNormalizer) removeInternalSenderNonceTransition(RawStateRecords []*statecell.StateCell) []*statecell.StateCell {
+	index, _ := this.findSenderNonceTransition(RawStateRecords)
+	return append(RawStateRecords[:index], RawStateRecords[index+1:]...)
+}
+
+// findSenderNonceTransition is the shared sender-nonce lookup used by both
+// policies. Keeping identity matching here prevents the independent and
+// internal execution paths from drifting apart.
+func (this *TransactionNormalizer) findSenderNonceTransition(RawStateRecords []*statecell.StateCell) (int, *statecell.StateCell) {
+	sender := hex.EncodeToString(this.txView.From[:])
+	for index, record := range RawStateRecords {
+		if record == nil {
+			continue
+		}
+
+		path := *record.GetPath()
+		if strings.HasSuffix(path, statecommon.PATH_NONCE) && strings.Contains(path, sender) {
+			return index, record
+		}
+	}
+
+	return -1, nil
 }
 
 // When processing multiple transactions from the same sender in a single generation,all the parallel transactions

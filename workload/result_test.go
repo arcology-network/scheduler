@@ -71,7 +71,11 @@ func TestResultPostprocessor(t *testing.T) {
 	}
 
 	normalizer := NewTransactionNormalizer(results.Receipt.GasUsed, coinbase, results.TxInfo)
-	results.Immuned = normalizer.Normalize(nil, results.RawStateRecords)
+	results.RawStateRecords, results.Immuned = normalizer.Normalize(
+		nil,
+		results.RawStateRecords,
+		IndependentExecution,
+	)
 	// execPipline := (&eu.ExecutionPipeline{Config: testEu.config})
 
 	// eu.ExecutionPipeline(&results)
